@@ -1,0 +1,33 @@
+# Local secrets and configuration
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+
+# Dependencies and virtual environments
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Build and test output
+dist/
+build/
+coverage/
+.next/
+*.log
+
+# Local database exports and uploads
+*.dump
+*.backup
+database/dumps/
+uploads/
+
+# Local editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
