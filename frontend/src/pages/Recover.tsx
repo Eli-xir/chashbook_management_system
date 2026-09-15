@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
+import { useAuth } from '../auth'
 
 type Step = 'username' | 'code' | 'newpass'
 
@@ -20,6 +21,7 @@ export default function Recover() {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
+  const { refresh } = useAuth()
 
   async function request(e: React.FormEvent) {
     e.preventDefault()
@@ -74,7 +76,8 @@ export default function Recover() {
         grant_id: grantId,
         new_password: password,
       })
-      navigate(0) // now signed in
+      await refresh() // reset signs the user straight in
+      navigate('/', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Reset failed')
       setBusy(false)

@@ -3,20 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../../api'
 import type { Head, UserDetail } from '../../types'
 
-interface Node extends Head {
-  children: Node[]
-}
-
-function withChildren(heads: Head[]): Node[] {
-  const byId = new Map<number, Node>()
-  heads.forEach((h) => byId.set(h.head_id, { ...h, children: [] }))
-  const roots: Node[] = []
-  byId.forEach((n) => {
-    if (n.parent_head_id && byId.has(n.parent_head_id)) byId.get(n.parent_head_id)!.children.push(n)
-    else roots.push(n)
-  })
-  return roots
-}
+// The API already returns a nested tree; use it directly.
+type Node = Head
 
 /** Admin user management: role, password, active, recovery number, head
  * permissions (direct vs inherited), and a preview of the user's own view. */
@@ -48,7 +36,7 @@ export default function UserDetail() {
 
   useEffect(() => {
     void load()
-    api.get<Head[]>('/heads/tree').then((t) => setTree(withChildren(t))).catch(() => {})
+    api.get<Head[]>('/heads/tree').then((t) => setTree(t as Node[])).catch(() => {})
   }, [load])
 
   async function run(fn: () => Promise<unknown>, okMessage?: string) {

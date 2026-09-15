@@ -6,22 +6,6 @@ interface Node extends Head {
   children: Node[]
 }
 
-function withChildren(heads: Head[]): Node[] {
-  const byId = new Map<number, Node>()
-  heads.forEach((h) => byId.set(h.head_id, { ...h, children: [] }))
-  const roots: Node[] = []
-  byId.forEach((n) => {
-    if (n.parent_head_id && byId.has(n.parent_head_id)) byId.get(n.parent_head_id)!.children.push(n)
-    else roots.push(n)
-  })
-  const sort = (ns: Node[]) => {
-    ns.sort((a, b) => a.head_name.localeCompare(b.head_name))
-    ns.forEach((n) => sort(n.children))
-  }
-  sort(roots)
-  return roots
-}
-
 export default function Heads() {
   const [tree, setTree] = useState<Node[]>([])
   const [error, setError] = useState('')
@@ -35,7 +19,8 @@ export default function Heads() {
 
   const load = useCallback(async () => {
     try {
-      setTree(withChildren(await api.get<Head[]>('/heads/tree')))
+      // The API already returns a nested tree; use it directly.
+      setTree((await api.get<Head[]>('/heads/tree')) as Node[])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load heads')
     }

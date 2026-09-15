@@ -52,7 +52,8 @@ export default function HeadLevel() {
     setDraft({
       ...draft,
       headId: h.head_id,
-      headPath: [...path, h].map((x) => ({ head_id: x.head_id, head_name: x.head_name })),
+      // path already ends at this head; don't append it twice.
+      headPath: path.map((x) => ({ head_id: x.head_id, head_name: x.head_name })),
     })
     setStep('amount')
   }
