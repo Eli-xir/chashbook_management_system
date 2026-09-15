@@ -4,7 +4,7 @@ This folder intentionally contains no application code or imports.
 
 After the new schema works in an empty development database:
 
-1. Open the backend working folder and merge your committed `database_local` changes.
+1. Switch to `backend_local` and merge your committed `database_local` changes.
 2. Create and activate your own Python virtual environment at the project root.
 3. Choose and install your dependencies. FastAPI and a PostgreSQL driver match the previous stack; you control the new setup.
 4. Write a minimal application with a health endpoint, then database configuration. Put local secrets in an ignored `.env` file.

@@ -2,7 +2,7 @@
 
 This folder intentionally contains no application code, package manifest, dependencies, or generated assets.
 
-Start after authentication, assigned heads, and transaction creation work in the new backend. Open the frontend working folder and merge your committed backend changes.
+Start after authentication, assigned heads, and transaction creation work in the new backend. Switch to `frontend_local` and merge your committed backend changes.
 
 Create your frontend project yourself. React with TypeScript and Vite is compatible with the previous stack, but no tooling has been initialized here.
 

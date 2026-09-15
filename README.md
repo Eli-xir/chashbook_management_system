@@ -1,35 +1,36 @@
-# Cashbook: clean starting point
+# Cashbook Management System
 
-No backend/frontend application code, imports, dependencies, or virtual environment have been created. Your SQL and SVG are copied unchanged.
+One repository, one .git directory, and three project folders:
 
-This repository has three separate working folders:
+- database/: your schema, diagram, and database guide.
+- backend/: your future backend code; currently only a guide.
+- frontend/: your future frontend code; currently only a guide.
 
-| Working folder | Checked-out branch | Edit here |
-| --- | --- | --- |
-| ../database | database_local | database/schema.sql |
-| ../backend | backend_local | backend/ |
-| ../frontend | frontend_local | frontend/ |
+No application code, dependencies, or virtual environment have been created.
 
-Each folder is a complete Git worktree. Open the folder for the part you want to work on; do not switch to a branch already checked out in another folder. Commits and branches are shared, but uncommitted edits are separate.
+## Branches
 
-Start with database/README.md: correct the SQL export, then apply it to a NEW empty development database. Existing databases and the previous Desktop project are untouched by this fresh setup.
+`database_local`, `backend_local`, and `frontend_local` are ordinary Git branches in this repository. Only one is checked out at a time. Branches contain the whole project; they are not attached to individual folders.
 
-Commit database changes from the database working folder:
+Start on `database_local`. Follow database/README.md to correct the supplied SQL export and apply it to a NEW empty development database.
+
+After finishing a database change:
 
 ```powershell
 git add database
 git commit -m "Prepare simplified cashbook schema"
 git push -u origin database_local
-```
-
-Then, from the backend working folder, bring in those committed changes:
-
-```powershell
+git switch backend_local
 git merge database_local
 ```
 
-Create your own virtual environment and first backend endpoint there, following backend/README.md. Later, from the frontend working folder, run `git merge backend_local` to bring in committed backend changes. Commit any work before merging.
+Then create your own virtual environment and backend code, following backend/README.md. Commit your work before switching branches. When ready to start the frontend:
 
-Push backend/frontend changes from their respective folders with `git push -u origin backend_local` or `git push -u origin frontend_local`.
+```powershell
+git switch frontend_local
+git merge backend_local
+```
 
-Stop old app terminals before starting new services on the same ports. This setup does not start services or modify PostgreSQL. Keep these worktree folders together; use `git worktree move` if relocating one later.
+Open this repository root in your editor. You do not need separate clones or worktrees. Local credentials and virtual environments must stay ignored by Git.
+
+The SQL and SVG are supplied reference files, not a deployed database. This setup does not start services or change PostgreSQL. Stop old app terminals before starting new services on the same ports.
