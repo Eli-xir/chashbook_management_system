@@ -71,6 +71,7 @@ CREATE TABLE Heads (
     head_description TEXT,
     image_id int,
     is_active BOOLEAN NOT NULL DEFAULT True,
+    is_transactionable BOOLEAN NOT NULL DEFAULT False,
     CONSTRAINT head_parent_check CHECK (head_id <> parent_head_id)
 );
 
