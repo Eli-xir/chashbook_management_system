@@ -22,12 +22,12 @@ CREATE TABLE Transactions (
     transaction_id int PRIMARY KEY,
     head_id int NOT NULL,
     user_id UUID NOT NULL,
-    version_id int UNIQUE NOT NULL
+    current_version_id int UNIQUE NOT NULL
 );
 
 CREATE TABLE Transaction_versions (
     version_id int PRIMARY KEY,
-    next_version_id int UNIQUE,
+    transaction_id int NOT NULL UNIQUE,
     transaction_amount int NOT NULL,
     payment_medium_id int NOT NULL,
     image_id int,
@@ -100,7 +100,7 @@ ALTER TABLE Contacts ADD CONSTRAINT user_contacts FOREIGN KEY (user_id) REFERENC
 
 ALTER TABLE Heads ADD CONSTRAINT head_parent_head FOREIGN KEY (parent_head_id) REFERENCES Heads (head_id) DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE Transaction_versions ADD CONSTRAINT transactions_versions FOREIGN KEY (version_id) REFERENCES Transactions (version_id) DEFERRABLE INITIALLY IMMEDIATE;
+ALTER TABLE Transaction_versions ADD CONSTRAINT transactions_versions FOREIGN KEY (version_id) REFERENCES Transactions (current_version_id) DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE User_head_permissions ADD CONSTRAINT heads_to_user_head_permissions FOREIGN KEY (head_id) REFERENCES Heads (head_id) DEFERRABLE INITIALLY IMMEDIATE;
 
@@ -119,3 +119,5 @@ ALTER TABLE Heads ADD CONSTRAINT heads_to_images FOREIGN KEY (image_id) REFERENC
 ALTER TABLE Transaction_versions ADD CONSTRAINT payment_medium_transaction_version FOREIGN KEY (payment_medium_id) REFERENCES Payment_mediums (payment_medium_id) DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE Payment_mediums ADD CONSTRAINT payment_medium_image_id FOREIGN KEY (image_id) REFERENCES Images (image_id) DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE Transaction_versions ADD CONSTRAINT versions_to_transactions FOREIGN KEY (transaction_id) REFERENCES Transactions (transaction_id) DEFERRABLE INITIALLY IMMEDIATE;
