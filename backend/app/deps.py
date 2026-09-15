@@ -61,14 +61,15 @@ async def check_csrf(request: Request) -> None:
 
 def set_auth_cookies(response: Response, session_id: uuid.UUID, csrf_token: str) -> None:
     secure = settings.env != "local"
+    samesite = settings.cookie_samesite if settings.cookie_samesite in ("lax", "none", "strict") else "lax"
     response.set_cookie(
         security.SESSION_COOKIE, str(session_id),
-        httponly=True, samesite="lax", secure=secure,
+        httponly=True, samesite=samesite, secure=secure,
         max_age=settings.session_ttl_minutes * 60, path="/",
     )
     response.set_cookie(
         security.CSRF_COOKIE, csrf_token,
-        httponly=False, samesite="lax", secure=secure,
+        httponly=False, samesite=samesite, secure=secure,
         max_age=settings.session_ttl_minutes * 60, path="/",
     )
 

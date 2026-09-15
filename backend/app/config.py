@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     upload_dir: str = "./local_uploads"
     sms_provider: str = "mock"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    # "lax" for same-origin web deployments; "none" when the app runs on the
+    # Capacitor android origin (https://localhost) or another cross-site origin.
+    cookie_samesite: str = "lax"
 
     @property
     def cors_origin_list(self) -> list[str]:
