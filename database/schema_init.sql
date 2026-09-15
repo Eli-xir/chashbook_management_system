@@ -68,11 +68,10 @@ CREATE TABLE Heads (
     CONSTRAINT head_parent_check CHECK (head_id <> parent_head_id)
 );
 
-DROP TABLE User_head_permissions;
 CREATE TABLE User_head_permissions (
   head_id int NOT NULL,
   user_id UUID NOT NULL,
-    PRIMARY KEY (head_id, user_id)
+  PRIMARY KEY (head_id, user_id)
 );
 
 CREATE TABLE Sessions (
@@ -82,11 +81,9 @@ CREATE TABLE Sessions (
   created_at TIMESTAMPTZ NOT NULL
 );
 
-ALTER TABLE User_permissions ADD CONSTRAINT user_permissions FOREIGN KEY (user_id) REFERENCES Users (user_id) DEFERRABLE INITIALLY IMMEDIATE;
+ALTER TABLE User_head_permissions ADD CONSTRAINT user_permissions_heads FOREIGN KEY (user_id) REFERENCES Users (user_id) DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE Sessions ADD CONSTRAINT user_sessions FOREIGN KEY (user_id) REFERENCES Users (user_id) DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE User_head_permissions ADD CONSTRAINT head_permission_scope FOREIGN KEY (permission_scope_id) REFERENCES User_permissions (permission_scope_id) DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE Transaction_versions ADD CONSTRAINT transaction_versions_image_id FOREIGN KEY (image_id) REFERENCES Images (image_id) DEFERRABLE INITIALLY IMMEDIATE;
 
@@ -97,8 +94,6 @@ ALTER TABLE Contacts ADD CONSTRAINT user_contacts FOREIGN KEY (user_id) REFERENC
 ALTER TABLE Heads ADD CONSTRAINT head_parent_head FOREIGN KEY (parent_head_id) REFERENCES Heads (head_id) DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE Transaction_versions ADD CONSTRAINT transactions_versions FOREIGN KEY (version_id) REFERENCES Transactions (current_version_id) DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE User_head_permissions ADD CONSTRAINT heads_to_user_head_permissions FOREIGN KEY (head_id) REFERENCES Heads (head_id) DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE Transactions ADD CONSTRAINT head_transactions FOREIGN KEY (head_id) REFERENCES Heads (head_id) DEFERRABLE INITIALLY IMMEDIATE;
 
