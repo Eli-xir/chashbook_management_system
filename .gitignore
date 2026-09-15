@@ -31,3 +31,13 @@ uploads/
 .idea/
 .DS_Store
 Thumbs.db
+# Backend local state 
+local_uploads/ 
+test_uploads/ 
+.otp_secret 
+.otp_state.json 
+.idempotency_state.json 
+.media_state.json 
+smoke_test.py
+"# Local cookie jars"  
+cookies*.txt  
