@@ -1,4 +1,3 @@
-DROP TABLE Users;
 CREATE TABLE Users (
   user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_name VARCHAR(48) UNIQUE NOT NULL,
@@ -28,7 +27,7 @@ CREATE TABLE Transactions (
 
 CREATE TABLE Transaction_versions (
     version_id int PRIMARY KEY,
-    transaction_id int NOT NULL UNIQUE,
+    transaction_id int NOT NULL,
     transaction_amount int NOT NULL,
     payment_medium_id int NOT NULL,
     image_id int,
@@ -55,7 +54,6 @@ CREATE TABLE Contacts (
     user_id UUID NOT NULL
 );
 
-DROP TABLE User_roles;
 CREATE TABLE User_roles (
     user_role_id int PRIMARY KEY,
     user_role_name VARCHAR(48) NOT NULL UNIQUE
