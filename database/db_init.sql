@@ -25,7 +25,8 @@ CREATE TABLE Transactions (
     transaction_id int PRIMARY KEY,
     head_id int NOT NULL,
     user_id UUID NOT NULL,
-    current_version_id int UNIQUE NOT NULL
+    current_version_id int UNIQUE NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true
 );
 
 CREATE TABLE Transaction_versions (
@@ -122,6 +123,10 @@ ALTER TABLE Transaction_versions ADD CONSTRAINT payment_medium_transaction_versi
 
 ALTER TABLE Payment_mediums ADD CONSTRAINT payment_medium_image_id FOREIGN KEY (image_id) REFERENCES Images (image_id) DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE Transaction_versions ADD CONSTRAINT versions_to_transactions FOREIGN KEY (transaction_id) REFERENCES Transactions (transaction_id) DEFERRABLE INITIALLY IMMEDIATE;
+-- Deleting the transaction removes its complete version history.
+ALTER TABLE Transaction_versions ADD CONSTRAINT versions_to_transactions
+    FOREIGN KEY (transaction_id) REFERENCES Transactions (transaction_id)
+    ON DELETE CASCADE
+    DEFERRABLE INITIALLY IMMEDIATE;
 
 COMMIT;

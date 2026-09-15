@@ -16,7 +16,23 @@ Use explicit BEGIN/COMMIT: insert the transaction first, then its initial versio
 
 In one database transaction, lock the Transactions row using SELECT ... FOR UPDATE, insert the new version, and update current_version_id. Keep previous versions for history. Read current values with a direct join; there is no linked version chain.
 
-Current versions are protected from deletion. Backend authorization must still prevent historical-version edits/deletion and enforce admin-only corrections. Serialize competing corrections using the row lock.
+Current versions cannot be deleted independently while referenced. Backend authorization must still prevent independent historical-version edits/deletion and enforce admin-only corrections. Serialize competing corrections using the row lock.
+
+## Deactivation and deletion
+
+Transactions start active. Admin-only backend actions may deactivate, reactivate, or permanently delete a transaction:
+
+```sql
+UPDATE Transactions SET is_active = false WHERE transaction_id = 1;
+UPDATE Transactions SET is_active = true WHERE transaction_id = 1;
+DELETE FROM Transactions WHERE transaction_id = 1;
+```
+
+Deactivation preserves every version. Reports and totals must explicitly filter `Transactions.is_active = true`; the flag does not filter queries automatically. Admin history views can include inactive transactions.
+
+Deleting a transaction cascades to all its versions, including its current version. It does not delete its user, head, payment medium, image/voice metadata, or stored files. Attachment cleanup is a separate backend responsibility and must account for shared references. Permanent deletion removes history; use deactivation when you need to retain it.
+
+These constraints define data behavior, not application roles. The backend must restrict these actions to admins. This initialization file remains for fresh databases, not an existing-database migration.
 
 ## Unchanged choices
 
@@ -25,6 +41,6 @@ Current versions are protected from deletion. Backend authorization must still p
 - Head names are globally unique. The backend must prevent multi-head cycles.
 - Parent permissions include descendants; inactive ancestors block new entries.
 - Users submit entries using assigned heads. Admins manage transactions and corrections; no amendment queue or vendors.
-- Transaction voiding and backdated dates have not been added.
+- Backdated transaction dates have not been added.
 
 The schema and guides are the only changes. No project environment or application code is included.
