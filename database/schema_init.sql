@@ -65,6 +65,7 @@ CREATE TABLE Heads (
     head_name VARCHAR(48) UNIQUE NOT NULL,
     head_description TEXT,
     image_id int,
+    is_active BOOLEAN NOT NULL DEFAULT True,
     CONSTRAINT head_parent_check CHECK (head_id <> parent_head_id)
 );
 
@@ -82,6 +83,8 @@ CREATE TABLE Sessions (
 );
 
 ALTER TABLE User_head_permissions ADD CONSTRAINT user_permissions_heads FOREIGN KEY (user_id) REFERENCES Users (user_id) DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE User_head_permissions ADD CONSTRAINT user_head_permissions FOREIGN KEY (head_id) REFERENCES Heads (head_id) DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE Sessions ADD CONSTRAINT user_sessions FOREIGN KEY (user_id) REFERENCES Users (user_id) DEFERRABLE INITIALLY IMMEDIATE;
 
