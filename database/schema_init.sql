@@ -1,7 +1,8 @@
+DROP TABLE Users;
 CREATE TABLE Users (
   user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_name VARCHAR(48) UNIQUE NOT NULL,
-  password_hash VARCHAR(64) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
   user_role_id int NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT true,
   last_activated_at TIMESTAMPTZ NOT NULL DEFAULT (now()),
@@ -54,9 +55,10 @@ CREATE TABLE Contacts (
     user_id UUID NOT NULL
 );
 
+DROP TABLE User_roles;
 CREATE TABLE User_roles (
     user_role_id int PRIMARY KEY,
-    user_role_name VARCHAR(48) NOT NULL
+    user_role_name VARCHAR(48) NOT NULL UNIQUE
 );
 
 CREATE TABLE Heads (
@@ -100,8 +102,6 @@ ALTER TABLE Transactions ADD CONSTRAINT head_transactions FOREIGN KEY (head_id) 
 ALTER TABLE Transactions ADD CONSTRAINT user_transactions FOREIGN KEY (user_id) REFERENCES Users (user_id) DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE Users ADD CONSTRAINT user_to_roles FOREIGN KEY (user_role_id) REFERENCES User_roles (user_role_id) DEFERRABLE INITIALLY IMMEDIATE;
-
-ALTER TABLE Transaction_versions ADD CONSTRAINT version_to_version FOREIGN KEY (next_version_id) REFERENCES Transaction_versions (version_id) DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE Transaction_versions ADD CONSTRAINT transaction_types FOREIGN KEY (transaction_type_id) REFERENCES Transaction_types (transaction_type_id) DEFERRABLE INITIALLY IMMEDIATE;
 
