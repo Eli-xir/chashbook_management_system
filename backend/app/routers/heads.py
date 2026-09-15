@@ -8,7 +8,7 @@ from .. import heads_service, idgen
 from ..db import pool
 from ..deps import ROLE_ADMIN, ROLE_DEBIT, ROLE_CREDIT, admin_user, any_user, check_csrf, current_user, error
 
-router = APIRouter(prefix="/heads", tags=["heads"])
+router = APIRouter(prefix="/heads", tags=["heads"], dependencies=[Depends(check_csrf)])
 
 
 class HeadCreateBody(BaseModel):
@@ -16,6 +16,7 @@ class HeadCreateBody(BaseModel):
     parent_head_id: Optional[int] = None
     head_description: Optional[str] = Field(default=None, max_length=2000)
     is_transactionable: bool = False
+    image_id: Optional[int] = None
 
 
 class HeadUpdateBody(BaseModel):
@@ -23,6 +24,7 @@ class HeadUpdateBody(BaseModel):
     head_description: Optional[str] = Field(default=None, max_length=2000)
     is_transactionable: Optional[bool] = None
     is_active: Optional[bool] = None
+    image_id: Optional[int] = None
 
 
 class HeadMoveBody(BaseModel):
@@ -88,12 +90,17 @@ async def create_head(body: HeadCreateBody, admin: dict = Depends(admin_user)):
             existing = await conn.fetchval("SELECT 1 FROM Heads WHERE head_name = $1", body.head_name)
             if existing:
                 raise error(409, "A head with this name already exists")
+            from . import media
+            if body.image_id is not None and not media.is_owned_by('images', body.image_id, admin['user_id']):
+                raise error(403, 'Upload a head photo from your own account')
             head_id = await idgen.next_id("heads")
             await conn.execute(
-                "INSERT INTO Heads (head_id, parent_head_id, head_name, head_description, is_transactionable) "
-                "VALUES ($1, $2, $3, $4, $5)",
-                head_id, body.parent_head_id, body.head_name, body.head_description, body.is_transactionable,
+                "INSERT INTO Heads (head_id, parent_head_id, head_name, head_description, is_transactionable, image_id) "
+                "VALUES ($1, $2, $3, $4, $5, $6)",
+                head_id, body.parent_head_id, body.head_name, body.head_description, body.is_transactionable, body.image_id,
             )
+    if body.image_id is not None:
+        media.mark_attached('images', body.image_id)
     return {"head_id": head_id}
 
 
@@ -109,24 +116,50 @@ async def update_head(head_id: int, body: HeadUpdateBody, admin: dict = Depends(
                     "SELECT 1 FROM Heads WHERE head_name = $1 AND head_id <> $2", body.head_name, head_id)
                 if existing:
                     raise error(409, "A head with this name already exists")
+            from . import media
+            if body.image_id is not None and body.image_id != head['image_id'] and not media.is_owned_by('images', body.image_id, admin['user_id']):
+                raise error(403, 'Upload a head photo from your own account')
             await conn.execute(
                 """
                 UPDATE Heads SET
                     head_name = COALESCE($2, head_name),
-                    head_description = COALESCE($3, head_description),
+                    head_description = CASE WHEN $6 THEN $3 ELSE head_description END,
                     is_transactionable = COALESCE($4, is_transactionable),
-                    is_active = COALESCE($5, is_active)
+                    is_active = COALESCE($5, is_active),
+                    image_id = CASE WHEN $7 THEN $8 ELSE image_id END
                 WHERE head_id = $1
                 """,
                 head_id, body.head_name, body.head_description, body.is_transactionable, body.is_active,
+                "head_description" in body.model_fields_set, "image_id" in body.model_fields_set, body.image_id,
             )
     return {"ok": True}
+
+
+@router.get('/{head_id}/image')
+async def head_image(head_id: int, user: dict = Depends(current_user)):
+    from fastapi.responses import FileResponse
+    from .. import storage
+    async with pool().acquire() as conn:
+        head = await heads_service.get_head(conn, head_id)
+        if head is None or head['image_id'] is None:
+            raise error(404, 'No head photo')
+        if user['user_role_name'] != ROLE_ADMIN:
+            tree = await heads_service.visible_tree_for_user(conn, user['user_id'])
+            stack = list(tree)
+            visible = set()
+            while stack:
+                node = stack.pop(); visible.add(node['head_id']); stack.extend(node['children'])
+            if head_id not in visible:
+                raise error(403, 'Not available')
+        name = await conn.fetchval('SELECT image_url FROM Images WHERE image_id = $1', head['image_id'])
+    return FileResponse(storage.open_stored(name), headers={'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'})
 
 
 @router.post("/{head_id}/move")
 async def move_head(head_id: int, body: HeadMoveBody, admin: dict = Depends(admin_user)):
     async with pool().acquire() as conn:
         async with conn.transaction():
+            await conn.execute("SELECT pg_advisory_xact_lock(7310201)")
             head = await heads_service.get_head(conn, head_id)
             if head is None:
                 raise error(404, "Head not found")

@@ -11,6 +11,9 @@ CSRF_COOKIE = "cashbook_csrf"
 
 
 def hash_password(password: str) -> str:
+    if len(password.encode("utf-8")) > 72:
+        from fastapi import HTTPException
+        raise HTTPException(400, 'Password must be at most 72 UTF-8 bytes')
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("ascii")
 
 

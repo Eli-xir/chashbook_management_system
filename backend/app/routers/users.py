@@ -1,4 +1,5 @@
 import uuid
+import re
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
@@ -8,9 +9,20 @@ from .. import heads_service, otp, security
 from ..db import pool
 from ..deps import admin_user, check_csrf, error
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(prefix="/users", tags=["users"], dependencies=[Depends(check_csrf)])
 
 VALID_ROLES = {"admin", "debit_user", "credit_user"}
+
+
+def normalize_phone(number: str) -> str:
+    digits = re.sub(r"[\s()+-]", "", number)
+    if digits.startswith("00"):
+        digits = digits[2:]
+    elif digits.startswith("0"):
+        digits = "92" + digits[1:]
+    if not digits.isdigit() or not 7 <= len(digits) <= 15:
+        raise error(400, "Enter a valid phone number, for example +92 370 9676552")
+    return "+" + digits
 
 
 class PermissionBody(BaseModel):
@@ -45,12 +57,14 @@ async def _ensure_role(conn, role: str) -> int:
 
 async def _set_recovery_number(conn, user_id, number: str) -> None:
     """First contact is the designated recovery number; unique across accounts."""
+    await conn.execute("SELECT pg_advisory_xact_lock(7310202)")
+    number = normalize_phone(number)
     clash = await conn.fetchrow(
         """
         SELECT c.contact_id FROM Contacts c
-        WHERE c.contact_no = $1 AND c.user_id <> $2
+        WHERE regexp_replace(regexp_replace(c.contact_no, '[^0-9]', '', 'g'), '^0', '92') = $1 AND c.user_id <> $2
         """,
-        number, user_id,
+        number.lstrip('+'), user_id,
     )
     if clash:
         raise error(409, "This recovery number is already used by another account")
@@ -131,6 +145,7 @@ async def update_user(user_id: uuid.UUID, body: UserUpdateBody, admin: dict = De
     await check_csrf(request)
     async with pool().acquire() as conn:
         async with conn.transaction():
+            await conn.execute("SELECT pg_advisory_xact_lock(7310202)")
             target = await conn.fetchrow(
                 """
                 SELECT u.user_id, u.user_name, u.is_active, r.user_role_name
@@ -168,16 +183,19 @@ async def update_user(user_id: uuid.UUID, body: UserUpdateBody, admin: dict = De
                                    role_id, user_id)
                 # Role affects future submissions: existing sessions must re-validate.
                 await conn.execute("DELETE FROM Sessions WHERE user_id = $1", user_id)
+                otp.invalidate_user(str(user_id))
             if body.is_active is not None and body.is_active != target["is_active"]:
                 now_active = body.is_active
                 if not now_active:
                     await conn.execute("DELETE FROM Sessions WHERE user_id = $1", user_id)
+                    otp.invalidate_user(str(user_id))
                 await conn.execute(
                     "UPDATE Users SET is_active = $2, last_activated_at = CASE WHEN $2 THEN now() ELSE last_activated_at END, "
                     "last_deactivated_at = CASE WHEN $2 THEN last_deactivated_at ELSE now() END WHERE user_id = $1",
                     user_id, now_active)
             if body.remove_recovery_number:
                 await conn.execute("DELETE FROM Contacts WHERE user_id = $1", user_id)
+                otp.invalidate_user(str(user_id))
             elif body.recovery_number:
                 await _set_recovery_number(conn, user_id, body.recovery_number)
                 otp.invalidate_user(str(user_id))
@@ -220,6 +238,11 @@ async def add_contact(user_id: uuid.UUID, body: ContactBody, admin: dict = Depen
     from .. import idgen
     async with pool().acquire() as conn:
         async with conn.transaction():
+            await conn.execute("SELECT pg_advisory_xact_lock(7310202)")
+            body.contact_no = normalize_phone(body.contact_no)
+            clash = await conn.fetchval("SELECT 1 FROM Contacts WHERE regexp_replace(regexp_replace(contact_no, '[^0-9]', '', 'g'), '^0', '92') = $1 AND user_id <> $2", body.contact_no.lstrip('+'), user_id)
+            if clash:
+                raise error(409, "This number is already used by another account")
             exists = await conn.fetchval("SELECT 1 FROM Users WHERE user_id = $1", user_id)
             if not exists:
                 raise error(404, "User not found")

@@ -28,11 +28,15 @@ def _uploads_root() -> str:
 
 
 def sniff_extension(data: bytes, declared: str, allowed: dict[str, str]) -> str | None:
-    if declared in allowed:
-        return allowed[declared]
     for magic, ext in IMAGE_MAGICS + VOICE_MAGICS:
-        if data.startswith(magic) and ext in allowed.values():
+        if data.startswith(magic) and ext in allowed.values() and (ext != '.wav' or data[8:12] == b'WAVE'):
             return ext
+    if data.startswith(b'RIFF') and data[8:12] == b'WEBP' and '.webp' in allowed.values():
+        return '.webp'
+    if data[4:8] == b'ftyp' and data[8:12] in (b'heic', b'heix', b'mif1') and '.heic' in allowed.values():
+        return '.heic'
+    if len(data) > 1 and data[0] == 0xff and data[1] & 0xe0 == 0xe0 and '.mp3' in allowed.values():
+        return '.mp3'
     # WebM/M4A detection via container markers
     if b"\x1a\x45\xdf\xa3" in data[:64] and ".webm" in allowed.values():
         return ".webm"

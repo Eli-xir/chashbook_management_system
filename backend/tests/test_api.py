@@ -181,7 +181,7 @@ async def test_idempotent_duplicate_creates_exactly_one(client_factory):
         "head_id": 2, "amount": 222, "payment_medium_id": 1,
         "payable": False, "idempotency_key": key})
     r2 = await d.post("/transactions/create", json={
-        "head_id": 2, "amount": 999, "payment_medium_id": 2,  # changed payload, same key
+        "head_id": 2, "amount": 222, "payment_medium_id": 1,  # identical retry
         "payable": False, "idempotency_key": key})
     assert r1.status_code == 200 and r2.status_code == 200
     assert r2.json()["duplicate"] is True

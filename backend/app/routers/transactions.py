@@ -1,5 +1,6 @@
 import asyncio
 import json
+import hashlib
 import os
 import uuid
 from datetime import date, datetime, timezone
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/transactions", tags=["transactions"])
 # (persisted to a local JSON file). Single backend instance makes this sound;
 # if rows are inserted outside this app, restart to re-sync state.
 _STATE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".idempotency_state.json")
-_keys: dict[str, int] = {}
+_keys: dict[str, dict | int] = {}
 _loaded = False
 
 
@@ -33,15 +34,18 @@ def _load() -> None:
         try:
             with open(_STATE_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            _keys.update({k: int(v) for k, v in data.items()})
+            _keys.update(data)
         except (json.JSONDecodeError, OSError, ValueError):
             pass
     _loaded = True
 
 
 def _persist() -> None:
-    with open(_STATE_FILE, "w", encoding="utf-8") as f:
+    with open(_STATE_FILE + '.tmp', "w", encoding="utf-8") as f:
         json.dump(_keys, f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(_STATE_FILE + '.tmp', _STATE_FILE)
 
 
 def _claim_key(user_id: str, key: str, transaction_id: int | None) -> int | None:
@@ -80,7 +84,7 @@ def direction_type(role: str, payable: bool) -> str:
 
 class CreateBody(BaseModel):
     head_id: int
-    amount: int = Field(ge=0)
+    amount: int = Field(ge=0, le=2147483647, strict=True)
     payment_medium_id: int
     payable: bool = False
     idempotency_key: str = Field(min_length=16, max_length=64)
@@ -91,7 +95,7 @@ class CreateBody(BaseModel):
 
 class CorrectBody(BaseModel):
     base_version_id: int  # stale-edit guard: must equal the current version
-    amount: int = Field(ge=0)
+    amount: int = Field(ge=0, le=2147483647, strict=True)
     payment_medium_id: int
     transaction_type_name: str  # correction may choose any of the four types
     image_id: Optional[int] = None
@@ -137,8 +141,19 @@ async def create_transaction(body: CreateBody, request: Request, user: dict = De
     _load()
     async with await _key_lock(str(user["user_id"]), body.idempotency_key):
         duplicate = _claim_key(str(user["user_id"]), body.idempotency_key, None)
+        fingerprint = hashlib.sha256(body.model_dump_json(exclude={'idempotency_key'}).encode()).hexdigest()
         if duplicate is not None:
-            return {"transaction_id": duplicate, "duplicate": True}
+            if isinstance(duplicate, dict):
+                if duplicate['fingerprint'] != fingerprint:
+                    raise error(409, "This submission key was already used for different details")
+                previous_id = duplicate['transaction_id']
+            else:
+                previous_id = duplicate
+            exists = await pool().fetchval("SELECT 1 FROM Transactions WHERE transaction_id = $1 AND user_id = $2", previous_id, user['user_id'])
+            if exists:
+                return {"transaction_id": previous_id, "duplicate": True}
+            if not isinstance(duplicate, dict) or duplicate.get('committed'):
+                raise error(409, "This entry has since been deleted. Start a new entry.")
 
         is_admin = user["user_role_name"] == ROLE_ADMIN
         async with pool().acquire() as conn:
@@ -172,11 +187,20 @@ async def create_transaction(body: CreateBody, request: Request, user: dict = De
                 image_id, voice_id = await _reserve_media(conn, user, body.image_id, body.voice_id)
 
                 transaction_id = await idgen.next_id("transactions")
+                # Never reuse an ID reserved by the durable submission journal.
+                reserved = max((v['transaction_id'] if isinstance(v, dict) else v for v in _keys.values()), default=0)
+                while transaction_id <= reserved:
+                    transaction_id = await idgen.next_id("transactions")
                 version_id = await idgen.next_id("transaction_versions")
                 type_id = await conn.fetchval(
                     "SELECT transaction_type_id FROM Transaction_types WHERE transaction_type_name = $1", ttype)
                 if type_id is None:
                     raise error(500, "Transaction type missing; run the seed")
+
+                _keys[f"{user['user_id']}:{body.idempotency_key}"] = {
+                    'transaction_id': transaction_id, 'fingerprint': fingerprint, 'committed': False,
+                }
+                _persist()  # write-ahead: retries can reconcile a lost HTTP response
 
                 # Transaction first, initial version second; the deferred FK resolves at commit.
                 await conn.execute(
@@ -193,7 +217,8 @@ async def create_transaction(body: CreateBody, request: Request, user: dict = De
                     version_id, transaction_id, body.amount, body.payment_medium_id,
                     image_id, voice_id, type_id)
 
-        _claim_key(str(user["user_id"]), body.idempotency_key, transaction_id)
+        _keys[f"{user['user_id']}:{body.idempotency_key}"]['committed'] = True
+        _persist()
     from . import media as media_router
     if image_id is not None:
         media_router.mark_attached("images", image_id)
@@ -203,13 +228,13 @@ async def create_transaction(body: CreateBody, request: Request, user: dict = De
 
 
 @router.get("/types")
-async def list_types():
+async def list_types(user: dict = Depends(any_user)):
     rows = await pool().fetch("SELECT * FROM Transaction_types ORDER BY transaction_type_id")
     return [dict(r) for r in rows]
 
 
 @router.get("/mediums")
-async def list_mediums():
+async def list_mediums(user: dict = Depends(any_user)):
     rows = await pool().fetch(
         "SELECT payment_medium_id, payment_medium_name FROM Payment_mediums ORDER BY payment_medium_id")
     return [dict(r) for r in rows]
@@ -372,9 +397,9 @@ async def _report_base(conn, f: ReportFilters, admin: dict) -> tuple[str, list, 
             ids = {f.head_id}
         clauses.append(add("head_id = ANY(?)", sorted(ids)))
     if f.date_from is not None:
-        clauses.append(add("reported_at >= (?::date AT TIME ZONE 'Asia/Karachi')", f.date_from.isoformat()))
+        clauses.append(add("reported_at >= (?::date AT TIME ZONE 'Asia/Karachi')", f.date_from))
     if f.date_to is not None:
-        clauses.append(add("reported_at < ((?::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Karachi')", f.date_to.isoformat()))
+        clauses.append(add("reported_at < ((?::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Karachi')", f.date_to))
 
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
     cte = """
@@ -402,6 +427,10 @@ async def _report_base(conn, f: ReportFilters, admin: dict) -> tuple[str, list, 
 
 @router.post("/report")
 async def report(body: ReportFilters, user: dict = Depends(any_user)):
+    if body.date_from and body.date_to and body.date_from > body.date_to:
+        raise error(400, "From date must be on or before the to date")
+    if body.direction not in (None, "credit", "debit"):
+        raise error(400, "Unknown direction")
     if user["user_role_name"] != ROLE_ADMIN:
         raise error(403, "Regular users cannot view transactions")
     async with pool().acquire() as conn:

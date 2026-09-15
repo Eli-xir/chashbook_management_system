@@ -18,6 +18,7 @@ _TABLES = {
     "transaction_versions": ("version_id", "Transaction_versions"),
     "contacts": ("contact_id", "Contacts"),
     "heads": ("head_id", "Heads"),
+    "payment_mediums": ("payment_medium_id", "Payment_mediums"),
 }
 
 _counters: dict[str, int] = {}

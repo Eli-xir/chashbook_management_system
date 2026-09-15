@@ -1,6 +1,9 @@
 import os
 import pathlib
 import sys
+import tempfile
+import uuid
+import asyncpg
 
 import httpx
 import pytest
@@ -10,9 +13,12 @@ sys.path.insert(0, str(BACKEND_DIR))
 
 # Test environment: disposable database, local mode, mock SMS.
 os.environ["CASHBOOK_ENV"] = "local"
-os.environ["CASHBOOK_DB_DSN"] = "postgresql://postgres:cashbook_local@localhost:5433/cashbook_test"
+TEST_DB = "cashbook_review_" + uuid.uuid4().hex
+ADMIN_DSN = os.environ.get("CASHBOOK_TEST_ADMIN_DSN", "postgresql://postgres:cashbook_local@localhost:5433/postgres")
+os.environ["CASHBOOK_DB_DSN"] = ADMIN_DSN.rsplit("/", 1)[0] + "/" + TEST_DB
+TEST_STATE = tempfile.TemporaryDirectory(prefix="cashbook-tests-")
 os.environ["CASHBOOK_SMS_PROVIDER"] = "mock"
-os.environ["CASHBOOK_UPLOAD_DIR"] = str(BACKEND_DIR / "test_uploads")
+os.environ["CASHBOOK_UPLOAD_DIR"] = str(pathlib.Path(TEST_STATE.name) / "uploads")
 
 from app import db, idgen  # noqa: E402
 from app.main import app  # noqa: E402
@@ -24,13 +30,30 @@ BASE = "http://testserver"
 
 @pytest.fixture(scope="session", autouse=True)
 async def _setup_database():
-    await db.init_pool()
-    # Reset BEFORE syncing counters so seeding starts from empty-table MAX(id).
-    await reset_database()
-    await idgen.sync()
-    await seed_database("testadmin", "testdebit", "testcredit")
-    yield
-    await db.close_pool()
+    from app import otp
+    from app.routers import media, transactions
+    state = pathlib.Path(TEST_STATE.name)
+    otp._STATE_FILE = str(state / 'otp.json')
+    otp._DIGEST_KEY_FILE = str(state / 'otp.key')
+    media._STATE_FILE = str(state / 'media.json')
+    transactions._STATE_FILE = str(state / 'idempotency.json')
+    admin = await asyncpg.connect(ADMIN_DSN)
+    await admin.execute(f'CREATE DATABASE "{TEST_DB}"')
+    try:
+        await db.init_pool()
+        schema = (BACKEND_DIR.parent / 'database' / 'db_init.sql').read_text(encoding='utf-8-sig')
+        async with db.acquire() as conn:
+            await conn.execute(schema)
+        await seed_database("testadmin", "testdebit", "testcredit")
+        idgen.reset()
+        await idgen.sync()
+        yield
+    finally:
+        await db.close_pool()
+        await admin.execute(f'DROP DATABASE "{TEST_DB}" WITH (FORCE)')
+        await admin.close()
+        TEST_STATE.cleanup()
+
 
 
 def make_client() -> httpx.AsyncClient:

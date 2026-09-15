@@ -33,7 +33,7 @@ _loaded = False
 
 
 def _load() -> None:
-    global _loaded, _digest_key
+    global _loaded, _digest_key, _challenges, _grants
     if _loaded:
         return
     if os.path.exists(_DIGEST_KEY_FILE):

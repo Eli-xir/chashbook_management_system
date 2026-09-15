@@ -61,7 +61,15 @@ def is_owned_by(kind: str, media_id: int, user_id) -> bool:
     """True only when the media is a draft uploaded by this user."""
     _load()
     entry = _media.get(kind, {}).get(media_id)
-    return entry is not None and entry["owner"] == str(user_id)
+    return entry is not None and entry["owner"] == str(user_id) and entry["status"] == "draft"
+
+
+async def is_referenced(kind: str, media_id: int) -> bool:
+    col = "image_id" if kind == "images" else "voice_id"
+    found = await pool().fetchval(f"SELECT 1 FROM Transaction_versions WHERE {col} = $1 LIMIT 1", media_id)
+    if not found and kind == "images":
+        found = await pool().fetchval("SELECT 1 FROM Heads WHERE image_id = $1 UNION ALL SELECT 1 FROM Payment_mediums WHERE image_id = $1 LIMIT 1", media_id)
+    return bool(found)
 
 
 async def sweep_orphaned_drafts() -> int:
@@ -72,8 +80,11 @@ async def sweep_orphaned_drafts() -> int:
     for kind, table, col in (("images", "Images", "image_id"), ("voice_notes", "Voice_notes", "voice_id")):
         for mid, entry in list(_media[kind].items()):
             if entry["status"] == "draft" and now - entry["uploaded_at"] > DRAFT_TTL_SECONDS:
-                storage.delete_stored(entry["object_name"])
+                if await is_referenced(kind, mid):
+                    mark_attached(kind, mid)
+                    continue
                 await pool().execute(f"DELETE FROM {table} WHERE {col} = $1", mid)
+                storage.delete_stored(entry["object_name"])
                 del _media[kind][mid]
                 removed += 1
     if removed:
@@ -134,8 +145,11 @@ async def _delete_draft(kind: str, table: str, col: str, media_id: int, user: di
         raise error(404, "Draft not found")
     if entry["owner"] != str(user["user_id"]) and user["user_role_name"] != ROLE_ADMIN:
         raise error(403, "Not your draft")
-    storage.delete_stored(entry["object_name"])
+    if await is_referenced(kind, media_id):
+        mark_attached(kind, media_id)
+        raise error(409, "This attachment is already in use")
     await pool().execute(f"DELETE FROM {table} WHERE {col} = $1", media_id)
+    storage.delete_stored(entry["object_name"])
     del _media[kind][media_id]
     _persist()
 
@@ -154,7 +168,7 @@ async def _authorised_for_file(user: dict, kind: str, media_id: int) -> dict:
                 raise error(404, "File not found")
             return {"status": "attached", "object_name": None}
         return entry
-    if entry is None or entry["owner"] != str(user["user_id"]) or entry["status"] != "draft":
+    if entry is None or entry["owner"] != str(user["user_id"]) or entry["status"] != "draft" or await is_referenced(kind, media_id):
         raise error(403, "Not available")
     return entry
 
@@ -168,7 +182,7 @@ async def get_image_file(image_id: int, user: dict = Depends(any_user)):
             raise error(404, "File not found")
         entry = {"object_name": row["image_url"]}
     path = storage.open_stored(entry["object_name"])
-    return FileResponse(path)
+    return FileResponse(path, headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/voice/{voice_id}/file")
@@ -180,4 +194,4 @@ async def get_voice_file(voice_id: int, user: dict = Depends(any_user)):
             raise error(404, "File not found")
         entry = {"object_name": row["voice_url"]}
     path = storage.open_stored(entry["object_name"])
-    return FileResponse(path)
+    return FileResponse(path, headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
