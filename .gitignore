@@ -31,5 +31,16 @@ uploads/
 .idea/
 .DS_Store
 Thumbs.db
-# Vite dev cache 
-.vite/ 
+
+# Vite dev cache
+.vite/
+
+# Backend local state and artifacts
+local_uploads/
+test_uploads/
+.otp_secret
+.otp_state.json
+.idempotency_state.json
+.media_state.json
+smoke_test.py
+cookies*.txt
