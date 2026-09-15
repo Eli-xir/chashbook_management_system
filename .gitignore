@@ -31,3 +31,5 @@ uploads/
 .idea/
 .DS_Store
 Thumbs.db
+# Vite dev cache 
+.vite/ 
