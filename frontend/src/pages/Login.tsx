@@ -1,57 +1,11 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
-
+import { useAuth } from '../auth'
+import { Alert, Brand, Icon } from '../ui'
 export default function Login() {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-  const navigate = useNavigate()
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault()
-    setError('')
-    setBusy(true)
-    try {
-      await api.post('/auth/login', { username, password })
-      navigate(0) // full reload so auth context re-reads the session
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign in failed')
-      setBusy(false)
-    }
-  }
-
-  return (
-    <main className="mobile-page" style={{ justifyContent: 'center' }}>
-      <h1>Cashbook</h1>
-      {error && <div className="error-banner" role="alert">{error}</div>}
-      <form onSubmit={submit}>
-        <label htmlFor="username">Username</label>
-        <input
-          id="username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          autoComplete="username"
-          autoCapitalize="none"
-          required
-        />
-        <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-          required
-        />
-        <button className="block" type="submit" disabled={busy}>
-          {busy ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
-      <Link to="/recover" style={{ marginTop: '1rem', textAlign: 'center' }}>
-        Forgot password?
-      </Link>
-    </main>
-  )
+ const { refresh } = useAuth()
+ const [username,setUsername]=useState(''), [password,setPassword]=useState(''), [show,setShow]=useState(false), [busy,setBusy]=useState(false), [error,setError]=useState('')
+ async function submit(e:React.FormEvent) { e.preventDefault();setBusy(true);setError('');try { await api.post('/auth/login',{username:username.trim(),password}); await refresh() } catch(e) {setError((e as Error).message)} finally {setBusy(false)} }
+ return <main className="auth-shell"><section className="auth-story"><Brand/><div><span className="eyebrow">LESS PAPERWORK. MORE CLARITY.</span><h1>Every entry.<br/>In its place.</h1><p>A simple way to keep your office moving.<br/>Choose a head. Add the details. You're done.</p><div className="story-card"><span className="head-symbol"><Icon name="folder"/></span><div><strong>Your office, organised</strong><span>One clear path for every entry</span></div><Icon name="check"/></div></div><span className="story-foot">Built for the way your team works.</span></section><section className="auth-form"><div className="mobile-brand"><Brand/></div><div className="auth-form-inner"><span className="eyebrow">WELCOME BACK</span><h1>Make yourself at home.</h1><p>Sign in with the account your administrator gave you.</p><Alert>{error}</Alert><form onSubmit={submit}><label htmlFor="username">Username</label><input id="username" autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder="Your username" required value={username} onChange={e=>setUsername(e.target.value)}/><label htmlFor="password">Password</label><div className="password-field"><input id="password" type={show?'text':'password'} autoComplete="current-password" placeholder="Your password" required value={password} onChange={e=>setPassword(e.target.value)}/><button type="button" className="subtle" onClick={()=>setShow(!show)} aria-label={show?'Hide password':'Show password'}>{show?'Hide':'Show'}</button></div><div className="auth-links"><Link to="/recover">Forgot password?</Link></div><button className="block" disabled={busy}>{busy?'Signing in…':'Sign in'}<Icon name="arrow" size={18}/></button></form><p className="auth-help"><Icon name="shield" size={17}/>Need an account? Contact your administrator.</p></div><span className="auth-bottom">Your private office workspace</span></section></main>
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../auth'
+import { Brand } from '../ui'
 
 type Step = 'username' | 'code' | 'newpass'
 
@@ -54,7 +55,7 @@ export default function Recover() {
         code,
       })
       setGrantId(r.grant_id)
-      setStep('newpass')
+      setStep('newpass'); setNotice('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid code')
     } finally {
@@ -85,8 +86,8 @@ export default function Recover() {
   }
 
   return (
-    <main className="mobile-page" style={{ justifyContent: 'center' }}>
-      <h1>Reset password</h1>
+    <main className="recovery-shell"><Brand/><section className="recovery-panel"><span className="eyebrow">ACCOUNT RECOVERY</span>
+      <h1>{step === 'username' ? 'Forgot your password?' : step === 'code' ? 'Check your phone' : 'A fresh start'}</h1><p className="step-help">{step === 'username' ? 'We will send a code to the phone number registered by your administrator.' : step === 'code' ? 'Enter your six-digit recovery code.' : 'Choose a new password, then go straight to your heads.'}</p>
       {error && <div className="error-banner" role="alert">{error}</div>}
       {notice && <div className="ok-banner">{notice}</div>}
 
@@ -101,7 +102,7 @@ export default function Recover() {
             required
           />
           <button className="block" disabled={busy}>
-            {busy ? 'Sending…' : 'Send code'}
+            {busy ? 'Sendingâ€¦' : 'Send code'}
           </button>
         </form>
       )}
@@ -115,11 +116,13 @@ export default function Recover() {
             onChange={(e) => setCode(e.target.value)}
             inputMode="numeric"
             pattern="[0-9]*"
+            autoComplete="one-time-code"
+            minLength={6}
             maxLength={6}
             required
           />
           <button className="block" disabled={busy}>
-            {busy ? 'Checking…' : 'Verify code'}
+            {busy ? 'Checkingâ€¦' : 'Verify code'}
           </button>
         </form>
       )}
@@ -145,14 +148,15 @@ export default function Recover() {
             required
           />
           <button className="block" disabled={busy}>
-            {busy ? 'Saving…' : 'Set new password'}
+            {busy ? 'Savingâ€¦' : 'Set new password'}
           </button>
         </form>
       )}
 
+      {step === 'code' && <button className="subtle block" onClick={() => { setStep('username'); setCode(''); setNotice(''); setError('') }}>Change username or request another code</button>}
       <Link to="/login" style={{ marginTop: '1rem', textAlign: 'center' }}>
         Back to sign in
       </Link>
-    </main>
+    </section></main>
   )
 }

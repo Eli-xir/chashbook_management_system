@@ -1,201 +1,23 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, fileUrl } from '../../api'
-import type { PaymentMedium, TransactionType, TxnDetail } from '../../types'
-
-export default function TransactionDetail() {
-  const { id } = useParams()
-  const navigate = useNavigate()
-  const [txn, setTxn] = useState<TxnDetail | null>(null)
-  const [types, setTypes] = useState<TransactionType[]>([])
-  const [mediums, setMediums] = useState<PaymentMedium[]>([])
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [correcting, setCorrecting] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState('')
-
-  // Correction form state
-  const [amount, setAmount] = useState('')
-  const [mediumId, setMediumId] = useState('')
-  const [typeName, setTypeName] = useState('')
-
-  const load = useCallback(async () => {
-    if (!id) return
-    setError('')
-    try {
-      const t = await api.get<TxnDetail>(`/transactions/detail/${id}`)
-      setTxn(t)
-      const cur = t.versions[t.versions.length - 1]
-      setAmount(String(cur.transaction_amount))
-      setMediumId(String(cur.payment_medium_id))
-      setTypeName(cur.transaction_type_name)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load transaction')
-    }
-  }, [id])
-
-  useEffect(() => {
-    void load()
-    api.get<TransactionType[]>('/transactions/types').then(setTypes).catch(() => {})
-    api.get<PaymentMedium[]>('/transactions/mediums').then(setMediums).catch(() => {})
-  }, [load])
-
-  async function run(fn: () => Promise<unknown>) {
-    setBusy(true)
-    setError('')
-    try {
-      await fn()
-      await load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Action failed')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function saveCorrection() {
-    if (!txn) return
-    const cur = txn.versions[txn.versions.length - 1]
-    await run(() =>
-      api.post(`/transactions/${txn.transaction_id}/correct`, {
-        base_version_id: cur.version_id,
-        amount: Number(amount),
-        payment_medium_id: Number(mediumId),
-        transaction_type_name: typeName,
-      }),
-    )
-    setCorrecting(false)
-  }
-
-  if (!txn && !error) return <div className="spin" />
-
-  const current = txn?.versions[txn.versions.length - 1]
-  const pathText = txn?.head_path.map((h) => h.head_name).join(' / ')
-
-  return (
-    <div className="txn-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 480px) 1fr', gap: '1.5rem' }}>
-      <section>
-        <button className="subtle" onClick={() => navigate(-1)}>← Back</button>
-        <h1>Transaction #{id}</h1>
-        {error && <div className="error-banner">{error}</div>}
-        {txn && (
-          <>
-            <div className="card">
-              <ul className="review-list">
-                <li><span className="k">User</span><span className="v">{txn.user_name}</span></li>
-                <li><span className="k">Date (Karachi)</span><span className="v">{fmt(current?.created_at)}</span></li>
-                <li><span className="k">Head path</span><span className="v">{pathText}</span></li>
-                <li><span className="k">Amount</span><span className="v">PKR {current?.transaction_amount.toLocaleString()}</span></li>
-                <li><span className="k">Type</span><span className="v">{current?.transaction_type_name}</span></li>
-                <li><span className="k">Medium</span><span className="v">{current?.payment_medium_name}</span></li>
-                <li>
-                  <span className="k">Status</span>
-                  <span className="v">
-                    <span className={`tag${txn.is_active ? '' : ' inactive'}`}>{txn.is_active ? 'active' : 'inactive'}</span>
-                  </span>
-                </li>
-              </ul>
-            </div>
-
-            {current?.image_id && (
-              <div className="preview-box">
-                <img src={fileUrl('images', current.image_id)} alt="Attachment" style={{ maxHeight: 240 }} />
-              </div>
-            )}
-            {current?.voice_id && (
-              <div className="preview-box">
-                <audio controls src={fileUrl('voice', current.voice_id)} style={{ width: '100%' }} />
-              </div>
-            )}
-
-            <div className="danger-zone">
-              <h2>Actions</h2>
-              {!correcting && (
-                <button className="secondary block" onClick={() => setCorrecting(true)}>
-                  Correct this entry
-                </button>
-              )}
-              <button
-                className="secondary block"
-                disabled={busy}
-                onClick={() => run(() => api.post(`/transactions/${txn.transaction_id}/${txn.is_active ? 'deactivate' : 'reactivate'}`))}
-              >
-                {txn.is_active ? 'Deactivate' : 'Reactivate'}
-              </button>
-              <label style={{ marginTop: '1rem' }}>Delete permanently — type the transaction ID ({id}) to confirm</label>
-              <input value={confirmDelete} onChange={(e) => setConfirmDelete(e.target.value)} placeholder={String(id)} />
-              <button
-                className="danger block"
-                disabled={busy || confirmDelete !== String(id)}
-                onClick={() => run(() => api.delete(`/transactions/${txn.transaction_id}`)).then(() => navigate('/'))}
-              >
-                Delete forever
-              </button>
-            </div>
-          </>
-        )}
-      </section>
-
-      <section>
-        {correcting && txn && (
-          <div className="card">
-            <h2>Correction (saved as a new version)</h2>
-            <label htmlFor="camount">Amount (PKR)</label>
-            <input id="camount" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ''))} />
-            <label htmlFor="cmedium">Medium</label>
-            <select id="cmedium" value={mediumId} onChange={(e) => setMediumId(e.target.value)}>
-              {mediums.map((m) => (
-                <option key={m.payment_medium_id} value={m.payment_medium_id}>{m.payment_medium_name}</option>
-              ))}
-            </select>
-            <label htmlFor="ctype">Type</label>
-            <select id="ctype" value={typeName} onChange={(e) => setTypeName(e.target.value)}>
-              {types.map((t) => (
-                <option key={t.transaction_type_id} value={t.transaction_type_name}>{t.transaction_type_name}</option>
-              ))}
-            </select>
-            <div className="hint" style={{ marginTop: '0.4rem' }}>
-              User and head stay the same; the original author is preserved. Attachments can be managed after saving.
-            </div>
-            <button className="block" onClick={saveCorrection} disabled={busy}>Save correction</button>
-            <button className="subtle block" onClick={() => setCorrecting(false)}>Cancel</button>
-          </div>
-        )}
-
-        <h2>Version history</h2>
-        {txn?.versions
-          .slice()
-          .reverse()
-          .map((v, idx, arr) => {
-            const before = arr[idx + 1]
-            return (
-              <div className="card" key={v.version_id}>
-                <div style={{ fontWeight: 700 }}>
-                  {before ? 'Correction' : 'Original'} — {fmt(v.created_at)}
-                  {v.version_id === txn.current_version_id && <span className="tag" style={{ marginLeft: '0.5rem' }}>current</span>}
-                </div>
-                <div className="diff" style={{ marginTop: '0.4rem' }}>
-                  {before && (
-                    <>
-                      <div className="removed">
-                        − PKR {before.transaction_amount.toLocaleString()} · {before.transaction_type_name} · {before.payment_medium_name}
-                      </div>
-                      <div className="added">+ PKR {v.transaction_amount.toLocaleString()} · {v.transaction_type_name} · {v.payment_medium_name}</div>
-                    </>
-                  )}
-                  {!before && (
-                    <div>PKR {v.transaction_amount.toLocaleString()} · {v.transaction_type_name} · {v.payment_medium_name}</div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-      </section>
-    </div>
-  )
-}
-
-function fmt(iso?: string): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-PK', { timeZone: 'Asia/Karachi', dateStyle: 'medium', timeStyle: 'short' })
+import type { PaymentMedium, TxnDetail, TxnVersion } from '../../types'
+import { Alert, Icon, Modal, PageTitle, dateTime, money, typeLabel } from '../../ui'
+import { ImagePicker, VoicePicker } from '../../Attachments'
+function Media({v}:{v:TxnVersion}){return <>{v.image_id&&<a className="media-preview" href={fileUrl('images',v.image_id)} target="_blank" rel="noreferrer"><img src={fileUrl('images',v.image_id)} alt="Transaction attachment"/></a>}{v.voice_id&&<audio controls src={fileUrl('voice',v.voice_id)}/>}</>}
+export default function TransactionDetail(){
+ const {id}=useParams(),navigate=useNavigate(),[params]=useSearchParams();const returnTo=params.get('return')?.startsWith('/?')?params.get('return')!:'/'
+ const [txn,setTxn]=useState<TxnDetail|null>(null),[mediums,setMediums]=useState<PaymentMedium[]>([]),[error,setError]=useState(''),[busy,setBusy]=useState(false),[uploading,setUploading]=useState(false),[correcting,setCorrecting]=useState(false),[review,setReview]=useState(false),[deleting,setDeleting]=useState(false),[confirm,setConfirm]=useState('')
+ const [form,setForm]=useState({amount:'',medium:0,type:'debit',image:null as number|null,voice:null as number|null,base:0})
+ async function load(){try{setTxn(await api.get<TxnDetail>(`/transactions/detail/${id}`))}catch(e){setError((e as Error).message)}}
+ useEffect(()=>{void load();api.get<PaymentMedium[]>('/transactions/mediums').then(setMediums).catch(e=>setError(e.message))},[id])
+ const current=txn?.versions.find(v=>v.version_id===txn.current_version_id)
+ function edit(){if(!current)return;setForm({amount:String(current.transaction_amount),medium:current.payment_medium_id,type:current.transaction_type_name,image:current.image_id,voice:current.voice_id,base:current.version_id});setCorrecting(true);setReview(false);setError('')}
+ async function act(fn:()=>Promise<unknown>,done?:()=>void){setBusy(true);setError('');try{await fn();if(done)done();await load()}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+ async function save(){await act(()=>api.post(`/transactions/${id}/correct`,{base_version_id:form.base,amount:Number(form.amount),payment_medium_id:form.medium,transaction_type_name:form.type,image_id:form.image,voice_id:form.voice,clear_image:form.image===null,clear_voice:form.voice===null}),()=>setCorrecting(false))}
+ async function remove(){setBusy(true);setError('');try{await api.delete(`/transactions/${id}`);navigate(returnTo)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+ if(!txn)return <><Link className="subtle" to={returnTo}>← Back to cashbook</Link><Alert>{error}</Alert>{!error&&<div className="spin"/>}</>
+ return <><Link className="subtle" to={returnTo}><Icon name="back" size={16}/>Back to cashbook</Link><PageTitle title={`Entry #${id}`} subtitle={`Recorded by ${txn.user_name} · ${dateTime(txn.versions[0].created_at)}`} action={<button onClick={edit}><Icon name="edit" size={18}/>Correct entry</button>}/>{!correcting&&!deleting&&<Alert>{error}</Alert>}<div className="detail-grid"><section><div className="card"><div className="section-title compact"><h2>Current entry</h2><span className={`tag ${txn.is_active?'green':'muted'}`}>{txn.is_active?'Active':'Inactive'}</span></div><ol className="path-review">{txn.head_path.map(h=><li key={h.head_id}><span/><strong>{h.head_name}</strong></li>)}</ol><div className="review-total"><span>{typeLabel(current?.transaction_type_name||'')}</span><strong><small>PKR</small> {money(current?.transaction_amount||0)}</strong></div><dl className="review-details"><div><dt>Payment method</dt><dd>{current?.payment_medium_name}</dd></div><div><dt>Entered by</dt><dd>{txn.user_name}</dd></div></dl>{current&&<Media v={current}/>}</div><div className="card"><h3>Manage this entry</h3><p className="hint">Inactive entries stay in the record but are excluded from totals.</p><button className="secondary block" disabled={busy} onClick={()=>act(()=>api.post(`/transactions/${id}/${txn.is_active?'deactivate':'reactivate'}`))}>{txn.is_active?'Deactivate entry':'Reactivate entry'}</button><button className="subtle danger-text block" onClick={()=>{setDeleting(true);setError('')}}>Delete permanently</button></div></section><section className="history-section"><h2><Icon name="clock"/>Version history <span className="count">{txn.versions.length}</span></h2><p className="hint">Every saved correction, with the original entry preserved.</p>{txn.versions.slice().reverse().map((v,i,arr)=>{const before=arr[i+1];return <article className="history-card" key={v.version_id}><div className="row spread"><strong>{before?'Correction':'Original entry'}</strong>{v.version_id===txn.current_version_id&&<span className="tag green">Current</span>}</div><small>{dateTime(v.created_at)}</small>{before&&<div className="old-value">{money(before.transaction_amount)} PKR · {typeLabel(before.transaction_type_name)} · {before.payment_medium_name}</div>}<p><strong>PKR {money(v.transaction_amount)}</strong> · {typeLabel(v.transaction_type_name)} · {v.payment_medium_name}</p>{before&&(before.image_id!==v.image_id||before.voice_id!==v.voice_id)&&<p className="hint">Attachments changed in this version.</p>}{(v.image_id||v.voice_id)&&<details><summary>View attachments from this version</summary><Media v={v}/></details>}</article>})}</section></div>
+ {correcting&&<Modal title={review?'Review correction':'Correct entry'} onClose={()=>{if(!busy&&!uploading)setCorrecting(false)}}><Alert>{error}</Alert>{review?<><p>Save a new version of this entry. The original person and head stay the same.</p><div className="review-total"><span>{typeLabel(form.type)}</span><strong><small>PKR</small> {money(Number(form.amount))}</strong></div><p>{mediums.find(m=>m.payment_medium_id===form.medium)?.payment_medium_name}</p><p className="hint">Photo: {form.image?'attached':'none'} · Voice note: {form.voice?'attached':'none'}</p><button className="block" disabled={busy} onClick={save}>{busy?'Saving…':'Save correction'}</button><button className="subtle block" disabled={busy} onClick={()=>setReview(false)}>Back to edit</button></>:<><label htmlFor="correct-amount">Amount (PKR)</label><input id="correct-amount" inputMode="numeric" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value.replace(/[^0-9]/g,'')})}/><label htmlFor="correct-medium">Payment method</label><select id="correct-medium" value={form.medium} onChange={e=>setForm({...form,medium:Number(e.target.value)})}>{mediums.map(m=><option key={m.payment_medium_id} value={m.payment_medium_id}>{m.payment_medium_name}</option>)}</select><label htmlFor="correct-type">Type</label><select id="correct-type" value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>{['debit','credit','payable_debit','payable_credit'].map(t=><option key={t} value={t}>{typeLabel(t)}</option>)}</select><details className="optional-section"><summary>Photo attachment</summary><ImagePicker value={form.image} onChange={image=>setForm({...form,image})} onBusy={setUploading}/></details><details className="optional-section"><summary>Voice attachment</summary><VoicePicker value={form.voice} onChange={voice=>setForm({...form,voice})} onBusy={setUploading}/></details><button className="block" disabled={uploading||!/^[0-9]+$/.test(form.amount)||Number(form.amount)>2147483647} onClick={()=>setReview(true)}>Review correction</button></>}</Modal>}
+ {deleting&&<Modal title="Delete this entry?" onClose={()=>{if(!busy)setDeleting(false)}}><Alert>{error}</Alert><p>Entry #{id} and all {txn.versions.length} versions will be permanently deleted. This cannot be undone.</p><label htmlFor="confirm-delete">Type {id} to confirm</label><input id="confirm-delete" value={confirm} onChange={e=>setConfirm(e.target.value)}/><button className="danger block" disabled={busy||confirm!==id} onClick={remove}>{busy?'Deleting…':'Delete entry & history'}</button></Modal>}</>
 }

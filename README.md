@@ -1,3 +1,7 @@
+# Current local build
+
+Open **http://127.0.0.1:5173**. The updated backend runs on port **8001**. See [LOCAL_HANDOFF.md](LOCAL_HANDOFF.md) for verified local accounts, exact directories, startup commands, and remaining deployment work. The instructions below describe the preceding setup; use the handoff for this running version.
+
 # Office Cashbook
 
 A small-office cashbook: React (web + Capacitor/Android shell) frontend,

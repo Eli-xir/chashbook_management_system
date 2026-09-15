@@ -31,6 +31,7 @@ export default function App() {
             <Navigate to="/login" replace />
           ) : me.role === 'admin' ? (
             <Routes>
+              <Route path="new" element={<UserFlow />} />
               <Route element={<AdminLayout />}>
                 <Route index element={<Cashbook />} />
                 <Route path="transactions/:id" element={<TransactionDetail />} />

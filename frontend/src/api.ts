@@ -34,10 +34,11 @@ async function request<T>(method: string, path: string, body?: unknown, isForm =
     let detail = `Request failed (${res.status})`
     try {
       const data = await res.json()
-      if (data?.detail) detail = typeof data.detail === 'string' ? data.detail : detail
+      if (data?.detail) detail = typeof data.detail === 'string' ? data.detail : Array.isArray(data.detail) ? data.detail.map((e: {loc?: string[]; msg: string}) => `${e.loc?.slice(1).join(' ')}: ${e.msg}`).join('. ') : detail
     } catch {
       /* keep default */
     }
+    if (res.status === 401 && path !== '/auth/login' && path !== '/auth/change-password') window.dispatchEvent(new Event('cashbook:expired'))
     throw new ApiError(res.status, detail)
   }
   if (res.status === 204) return undefined as T

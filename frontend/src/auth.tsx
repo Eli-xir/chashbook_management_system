@@ -34,13 +34,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signOut() {
     try {
       await api.post('/auth/logout')
-    } finally {
       setMe(null)
-    }
+    } catch (e) { throw e }
   }
 
   useEffect(() => {
     void refresh()
+    const expired = () => setMe(null)
+    window.addEventListener('cashbook:expired', expired)
+    return () => window.removeEventListener('cashbook:expired', expired)
   }, [])
 
   return (
