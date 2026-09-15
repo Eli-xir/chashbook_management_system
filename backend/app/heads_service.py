@@ -138,14 +138,18 @@ async def visible_tree_for_user(conn, user_id) -> list[dict]:
             if aid != gid:
                 needed_ancestors.add(aid)
 
+    # The tree includes effective heads plus their navigation-only ancestors,
+    # so a granted subhead under an ungranted parent is reachable.
+    visible = effective | needed_ancestors
     children_map: dict[int | None, list[int]] = {}
     for hid, h in heads.items():
-        if hid in effective:
+        if hid in visible:
             children_map.setdefault(h["parent_head_id"], []).append(hid)
 
     def build(head_id: int) -> dict:
         h = dict(heads[head_id])
-        h["granted"] = head_id in direct or head_id not in needed_ancestors
+        # granted marks effective access; ancestors get granted=False (navigation only).
+        h["granted"] = head_id in effective
         h["children"] = [build(c) for c in sorted(
             children_map.get(head_id, []),
             key=lambda cid: heads[cid]["head_name"],
