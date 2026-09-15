@@ -1,3 +1,6 @@
+-- Initialize a fresh database; this is not a migration for existing tables.
+BEGIN;
+
 CREATE TABLE Users (
   user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_name VARCHAR(48) UNIQUE NOT NULL,
@@ -34,7 +37,8 @@ CREATE TABLE Transaction_versions (
     voice_id int,
     transaction_type_id int NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT (now()),
-    CONSTRAINT positive_amount CHECK (transaction_amount >= 0)
+    CONSTRAINT positive_amount CHECK (transaction_amount >= 0),
+    CONSTRAINT version_transaction_pair UNIQUE (transaction_id, version_id)
 );
 
 CREATE TABLE Payment_mediums (
@@ -96,7 +100,13 @@ ALTER TABLE Contacts ADD CONSTRAINT user_contacts FOREIGN KEY (user_id) REFERENC
 
 ALTER TABLE Heads ADD CONSTRAINT head_parent_head FOREIGN KEY (parent_head_id) REFERENCES Heads (head_id) DEFERRABLE INITIALLY IMMEDIATE;
 
-ALTER TABLE Transaction_versions ADD CONSTRAINT transactions_versions FOREIGN KEY (version_id) REFERENCES Transactions (current_version_id) DEFERRABLE INITIALLY IMMEDIATE;
+-- Insert the transaction first, then its initial version in the same transaction.
+-- The pointer must resolve to a version owned by that transaction at COMMIT.
+ALTER TABLE Transactions ADD CONSTRAINT transactions_current_version
+    FOREIGN KEY (transaction_id, current_version_id)
+    REFERENCES Transaction_versions (transaction_id, version_id)
+    ON DELETE RESTRICT
+    DEFERRABLE INITIALLY DEFERRED;
 
 ALTER TABLE Transactions ADD CONSTRAINT head_transactions FOREIGN KEY (head_id) REFERENCES Heads (head_id) DEFERRABLE INITIALLY IMMEDIATE;
 
@@ -113,3 +123,5 @@ ALTER TABLE Transaction_versions ADD CONSTRAINT payment_medium_transaction_versi
 ALTER TABLE Payment_mediums ADD CONSTRAINT payment_medium_image_id FOREIGN KEY (image_id) REFERENCES Images (image_id) DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE Transaction_versions ADD CONSTRAINT versions_to_transactions FOREIGN KEY (transaction_id) REFERENCES Transactions (transaction_id) DEFERRABLE INITIALLY IMMEDIATE;
+
+COMMIT;
