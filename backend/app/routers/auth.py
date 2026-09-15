@@ -1,3 +1,4 @@
+import secrets
 import uuid
 
 from fastapi import APIRouter, Depends, Request, Response
@@ -106,7 +107,9 @@ async def change_password(body: PasswordChangeBody, request: Request, response: 
 
 @router.post("/forgot-password")
 async def forgot_password(body: ForgotBody, request: Request):
-    """Always returns ok; sends OTP only if the account is active with a recovery number."""
+    """Always returns the same shape; sends OTP only if the account is active
+    with a recovery number. The challenge_id is not secret; the code is."""
+    challenge_id = secrets.token_urlsafe(24)  # dummy, unused when no challenge exists
     row = await pool().fetchrow(
         """
         SELECT u.user_id, u.is_active, c.contact_no
@@ -117,13 +120,12 @@ async def forgot_password(body: ForgotBody, request: Request):
         """,
         body.username,
     )
-    # Deliberately uniform response either way.
     if row is not None and row["is_active"] and row["contact_no"]:
         try:
-            otp.send_otp(str(row["user_id"]), row["contact_no"], _client_ip(request))
+            challenge_id = otp.send_otp(str(row["user_id"]), row["contact_no"], _client_ip(request))
         except Exception:
-            pass  # still return ok to avoid enumeration; local console shows errors
-    return {"ok": True, "message": "If the account exists, a code was sent."}
+            pass  # uniform response; local console shows the actual error
+    return {"ok": True, "challenge_id": challenge_id}
 
 
 @router.post("/verify-otp")

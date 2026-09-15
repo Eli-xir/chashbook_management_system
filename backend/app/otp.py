@@ -75,8 +75,9 @@ def _cleanup(now: float) -> None:
         del globals()["_grants"][gid]
 
 
-def send_otp(user_id: str, recovery_number: str, ip: str) -> None:
-    """Creates a challenge bound to user + number + purpose and 'sends' the code."""
+def send_otp(user_id: str, recovery_number: str, ip: str) -> str:
+    """Creates a challenge bound to user + number + purpose and 'sends' the code.
+    Returns the challenge_id (which is not secret; the code is)."""
     _load()
     now = time.time()
     _cleanup(now)
@@ -109,6 +110,7 @@ def send_otp(user_id: str, recovery_number: str, ip: str) -> None:
     else:
         # Real providers integrate behind this call. Nothing is configured for local use.
         raise error(500, "No SMS provider configured")
+    return challenge_id
 
 
 def verify_otp(user_id: str, challenge_id: str, code: str) -> str:
