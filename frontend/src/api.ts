@@ -1,5 +1,10 @@
 /** Typed API client: cookie session + CSRF header, JSON and multipart helpers. */
 
+// Web deployment serves the API behind the same origin (vite dev proxy or
+// reverse proxy), so the base is ''. In the Capacitor Android build the API
+// lives on another origin; set VITE_API_BASE at build time (see ANDROID.md).
+const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? ''
+
 function csrfToken(): string {
   const match = document.cookie.match(/(?:^|;\s*)cashbook_csrf=([^;]+)/)
   return match ? decodeURIComponent(match[1]) : ''
@@ -18,10 +23,10 @@ async function request<T>(method: string, path: string, body?: unknown, isForm =
   if (method !== 'GET') headers['X-CSRF-Token'] = csrfToken()
   if (!isForm && body !== undefined) headers['Content-Type'] = 'application/json'
 
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     method,
     headers,
-    credentials: 'same-origin',
+    credentials: 'include',
     body: isForm ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
   })
 
@@ -50,5 +55,5 @@ export const api = {
 }
 
 export function fileUrl(kind: 'images' | 'voice', id: number): string {
-  return `/api/media/${kind === 'images' ? 'images' : 'voice'}/${id}/file`
+  return `${API_BASE}/api/media/${kind === 'images' ? 'images' : 'voice'}/${id}/file`
 }
