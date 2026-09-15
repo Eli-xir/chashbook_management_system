@@ -68,15 +68,11 @@ CREATE TABLE Heads (
     CONSTRAINT head_parent_check CHECK (head_id <> parent_head_id)
 );
 
-CREATE TABLE User_permissions (
-  permission_scope_id int PRIMARY KEY,
-  user_id UUID NOT NULL
-);
-
+DROP TABLE User_head_permissions;
 CREATE TABLE User_head_permissions (
-  head_permissions_scope_id int PRIMARY KEY,
   head_id int NOT NULL,
-  permission_scope_id int NOT NULL
+  user_id UUID NOT NULL,
+    PRIMARY KEY (head_id, user_id)
 );
 
 CREATE TABLE Sessions (
