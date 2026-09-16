@@ -84,6 +84,7 @@ def s3_client():
     import boto3
     from botocore.config import Config
     return boto3.client("s3", region_name=settings.aws_region,
+                        endpoint_url=f"https://s3.{settings.aws_region}.amazonaws.com",
                         config=Config(signature_version="s3v4", connect_timeout=5, read_timeout=20,
                                       retries={"max_attempts": 2}))
 

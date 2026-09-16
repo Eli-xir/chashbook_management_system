@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Cashbook backup at 03:00 Pakistan time
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 Asia/Karachi
+Persistent=true
+Unit=cashbook-backup.service
+
+[Install]
+WantedBy=timers.target

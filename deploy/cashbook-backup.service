@@ -1,0 +1,11 @@
+[Unit]
+Description=Cashbook PostgreSQL and application state backup to private S3
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/cashbook/deploy
+ExecStart=/usr/bin/bash /opt/cashbook/deploy/backup.sh
+TimeoutStartSec=15min
+UMask=0077

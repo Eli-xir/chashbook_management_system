@@ -9,11 +9,11 @@ Media prefix: `attatchments` (existing spelling), mapped to `images/` and `voice
 Backup prefix: `pg_dump`. Database object names remain portable `images/` and `voice/` keys.
 The runtime IAM policy is `iam-cashbook-instance.json`. Bucket Block Public Access should remain enabled; enable versioning and default encryption through the S3 console.
 
-## Outstanding setup
+## Storage credentials and backups
 
-At initial deployment the credentials file is a comment-only placeholder. S3 uploads and backups do not work until valid credentials are installed. No automatic backup job is enabled yet. Verify an upload/download and a backup/restore before real use.
+Restricted credentials for IAM user `cash_book_manager` are installed. Live image and voice uploads, signed downloads, and anonymous access denial were verified. A database/state backup was uploaded successfully. Daily backups run at 03:00 Asia/Karachi through `cashbook-backup.timer`, briefly pausing the backend for consistency. Check failures with `systemctl status cashbook-backup.service` and `journalctl -u cashbook-backup.service`; external failure notifications are not configured. A full restore drill remains pending: the runtime key deliberately cannot read backups.
 
-Create IAM user `cashbook-runtime` without console access. Attach the inline JSON policy from `iam-cashbook-instance.json`. Create an access key for an application outside AWS. Install it in `/opt/cashbook/deploy/secrets/aws_credentials` as:
+For future credential rotation, use IAM user `cash_book_manager` without console access. Attach the inline JSON policy from `iam-cashbook-instance.json`. Create an access key for an application outside AWS. Install it in `/opt/cashbook/deploy/secrets/aws_credentials` as:
 
 ```ini
 [default]
@@ -25,11 +25,9 @@ Owner must be UID/GID 10001, permissions 400; parent directory 700. Never commit
 
 A first admin was created with a generated password, stored privately in `/home/ubuntu/cashbook-admin.txt` and copied to the operator's Downloads folder. No example users or transactions were seeded. OTP is disabled pending SMS provider setup.
 
-## Vercel
+## Hosting
 
-Import GitHub repository `Eli-xir/chashbook_management_system`, branch `main`, root directory `frontend`, framework Vite. Build `npm run build`, output `dist`. No AWS keys or database credentials belong in Vercel. `vercel.json` proxies `/api/*` to the server using HTTPS and serves SPA routes.
-After getting the production Vercel URL, set `CASHBOOK_CORS_ORIGINS=https://YOUR-PROJECT.vercel.app,https://13.202.242.159` in the server's deploy `.env`, then run `sudo docker compose up -d backend`. This is the backend origin allowlist even though browser requests use the same-origin Vercel proxy. Do not wildcard preview domains.
-Verify login, CSRF-protected requests, image upload, voice upload/playback through the deployed proxy. Vercel is not yet deployed or verified. Client commercial use requires an eligible Vercel plan.
+Both frontend and backend run on Lightsail at the static IP HTTPS address. Vercel is not used.
 
 ## Operations
 
@@ -44,4 +42,4 @@ sudo bash backup.sh
 The server has 2 GiB swap for its 1 GiB RAM. Docker restarts automatically; containers use unless-stopped.
 Source was transferred as an archive, not cloned with GitHub credentials. Rebuild/redeploy from the repository after code changes. Never run `down -v` on this live instance.
 
-Verification performed: production images built on Ubuntu, database/backend healthy, trusted HTTPS ready endpoint and frontend return 200, admin login succeeds with Secure cookies. Six targeted production/storage tests pass locally. S3 integration, backup restore and Vercel checks remain pending credentials/setup.
+Verification performed: production images built on Ubuntu, database/backend healthy, trusted HTTPS ready endpoint and frontend return 200, admin login succeeds with Secure cookies. Six targeted production/storage tests pass locally. Live S3 integration and backup upload passed. Full backup restore remains pending.
