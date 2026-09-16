@@ -2,6 +2,10 @@
 # Stop the single writer briefly so PostgreSQL and the JSON journals match.
 set -Eeuo pipefail
 cd "$(dirname "$(realpath "$0")")"
+if [ "${CASHBOOK_LOCK_HELD:-0}" != 1 ]; then
+  exec 9>/var/lock/cashbook-operation.lock
+  flock -w 600 9
+fi
 umask 077
 backup_tmp=$(mktemp -d)
 resume_needed=0

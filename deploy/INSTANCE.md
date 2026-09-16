@@ -40,6 +40,6 @@ sudo bash backup.sh
 ```
 
 The server has 2 GiB swap for its 1 GiB RAM. Docker restarts automatically; containers use unless-stopped.
-Source was transferred as an archive, not cloned with GitHub credentials. Rebuild/redeploy from the repository after code changes. Never run `down -v` on this live instance.
+Deployments now run through GitHub Actions after checks pass on main; see `CICD.md`. Source for the active commit is recorded in `/opt/cashbook/current-release` and extracted under `/opt/cashbook/releases`. Never run `down -v` on this live instance.
 
 Verification performed: production images built on Ubuntu, database/backend healthy, trusted HTTPS ready endpoint and frontend return 200, admin login succeeds with Secure cookies. Six targeted production/storage tests pass locally. Live S3 integration and backup upload passed. Full backup restore remains pending.
