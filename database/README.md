@@ -1,32 +1,46 @@
-# Database: start here
+# Database
 
-`schema.sql` and `schema_overview/cash_book_schema.svg` are unchanged copies of your supplied files. The diagram is a reference; updating SQL does not update the SVG automatically.
+`db_init.sql` initializes a fresh, empty PostgreSQL database atomically. It does not drop existing tables or migrate an older schema. The SVG is an older reference diagram.
 
-The exported SQL needs these corrections before you execute it:
+```powershell
+psql -h localhost -U postgres -d YOUR_NEW_DATABASE -v ON_ERROR_STOP=1 -f database/db_init.sql
+```
 
-1. Change `DEFAULT 'gen_random_uuid()'` to `DEFAULT gen_random_uuid()`.
-2. Remove double quotes around SQL TYPES: for example, use `VARCHAR(48)` instead of `"VARCHAR(48)"`, and `TIMESTAMPTZ` instead of `"TIMESTAMPTZ"`. Keep quotes around your mixed-case table names.
-3. Reverse the `transactions_versions` foreign key. It must be on `Transactions.version_id`, referencing `Transaction_versions.version_id`. The export currently has it backward, which prevents adding later versions normally.
-4. Add `ON DELETE RESTRICT` to that relationship and the `next_version_id` self-reference as agreed. The export currently uses the default deletion behavior instead.
+## Creating a transaction
 
-Decide how you will generate integer IDs before writing inserts. The export's integer primary keys do not generate IDs automatically. You can use PostgreSQL identity columns for generated IDs and explicit IDs for fixed lookup tables. Never use `MAX(id) + 1` in concurrent application code.
+Each version belongs to a transaction through `Transaction_versions.transaction_id`. `Transactions.current_version_id` selects its effective version. A composite foreign key ensures the selected version belongs to that same transaction.
 
-Your amount check already permits zero and rejects negative values; `next_version_id` is already unique.
+Use explicit BEGIN/COMMIT: insert the transaction first, then its initial version, then commit. The current-version foreign key is INITIALLY DEFERRED, so the pointer is checked at commit without needing SET CONSTRAINTS. A missing version or a version belonging to another transaction cannot commit. The version's ownership foreign key is initially immediate, so this insertion order matters. Autocommit between the two inserts will fail.
 
-If administrators need to void transactions, add `Transactions.is_active` with a true default before implementing that feature. The supplied export does not contain it.
+## Correcting a transaction
 
-Apply the corrected schema to a NEW empty development database. Then write your own seed SQL for roles, payment media, transaction types, and initial users. Store passwords as password hashes and keep credentials outside Git.
+In one database transaction, lock the Transactions row using SELECT ... FOR UPDATE, insert the new version, and update current_version_id. Keep previous versions for history. Read current values with a direct join; there is no linked version chain.
 
-## Rules for the eventual backend
+Current versions cannot be deleted independently while referenced. Backend authorization must still prevent independent historical-version edits/deletion and enforce admin-only corrections. Serialize competing corrections using the row lock.
 
-- A transaction points permanently to its original version. Follow `next_version_id` to the terminal version for its current value.
-- Creating a transaction and its first version must be atomic.
-- Corrections append versions atomically, with concurrency control so two corrections cannot lose a link.
-- Foreign keys and uniqueness do not prevent every cycle, shared transaction chain, or unowned version. Enforce these rules in the backend.
-- Users see their assigned head tree and submit entries. A parent permission includes descendants.
-- Users do not browse transaction history or reports. Admins manage users, heads, permissions, and transactions.
-- Entries post immediately. Admins make corrections after offline discussion; there is no amendment request or approval queue.
-- Heads can be rearranged without head audit logs. Prevent cycles; an inactive ancestor blocks new entries underneath it.
-- There are no vendors or transaction descriptions in this design.
+## Deactivation and deletion
 
-Before building dated reports, settle whether the first version's timestamp is the transaction date or whether backdating is needed. Keep this decision separate from correction timestamps.
+Transactions start active. Admin-only backend actions may deactivate, reactivate, or permanently delete a transaction:
+
+```sql
+UPDATE Transactions SET is_active = false WHERE transaction_id = 1;
+UPDATE Transactions SET is_active = true WHERE transaction_id = 1;
+DELETE FROM Transactions WHERE transaction_id = 1;
+```
+
+Deactivation preserves every version. Reports and totals must explicitly filter `Transactions.is_active = true`; the flag does not filter queries automatically. Admin history views can include inactive transactions.
+
+Deleting a transaction cascades to all its versions, including its current version. It does not delete its user, head, payment medium, image/voice metadata, or stored files. Attachment cleanup is a separate backend responsibility and must account for shared references. Permanent deletion removes history; use deactivation when you need to retain it.
+
+These constraints define data behavior, not application roles. The backend must restrict these actions to admins. This initialization file remains for fresh databases, not an existing-database migration.
+
+## Unchanged choices
+
+- Integer IDs must be supplied explicitly; automatic generation has not been added.
+- Zero amounts are allowed; negative amounts are rejected.
+- Head names are globally unique. The backend must prevent multi-head cycles.
+- Parent permissions include descendants; inactive ancestors block new entries.
+- Users submit entries using assigned heads. Admins manage transactions and corrections; no amendment queue or vendors.
+- Backdated transaction dates have not been added.
+
+The schema and guides are the only changes. No project environment or application code is included.
