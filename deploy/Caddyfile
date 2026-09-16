@@ -1,4 +1,14 @@
+{
+    default_sni {$CASHBOOK_DOMAIN}
+}
+
 {$CASHBOOK_DOMAIN} {
+    tls {
+        issuer acme {
+            profile shortlived
+            disable_tlsalpn_challenge
+        }
+    }
     encode zstd gzip
     header {
         X-Content-Type-Options nosniff

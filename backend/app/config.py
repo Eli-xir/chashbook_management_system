@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     storage_backend: str = "local"
     s3_bucket: str = ""
     aws_region: str = ""
+    s3_prefix: str = ""
+    backup_prefix: str = "backups"
     sms_provider: str = "mock"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     # "lax" for same-origin web deployments; "none" when the app runs on the

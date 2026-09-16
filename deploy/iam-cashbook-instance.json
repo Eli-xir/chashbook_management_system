@@ -1,0 +1,27 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PrivateAttachments",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::cash-book-management-backups/attatchments/images/*",
+        "arn:aws:s3:::cash-book-management-backups/attatchments/voice_notes/*"
+      ]
+    },
+    {
+      "Sid": "WriteBackups",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:AbortMultipartUpload"
+      ],
+      "Resource": "arn:aws:s3:::cash-book-management-backups/pg_dump/*"
+    }
+  ]
+}

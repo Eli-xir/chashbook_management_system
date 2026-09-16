@@ -82,3 +82,21 @@ async def test_production_auth_throttle(monkeypatch):
         assert response.headers['retry-after'] == '60'
     finally:
         production._attempts.clear()
+
+
+def test_bucket_prefix_preserves_portable_database_keys(private_s3, monkeypatch):
+    client, stub = private_s3
+    monkeypatch.setattr(settings, 's3_prefix', 'attatchments')
+    key = 'voice/' + 'b' * 32 + '.ogg'
+    physical = 'attatchments/voice_notes/' + 'b' * 32 + '.ogg'
+    assert storage.s3_key(key) == physical
+    assert storage.s3_key('images/' + 'a' * 32 + '.png') == 'attatchments/images/' + 'a' * 32 + '.png'
+    stub.add_response('delete_object', {}, {'Bucket': 'cashbook-test-private', 'Key': physical})
+    storage.delete_stored(key)
+    captured = {}
+    def sign(operation, **kwargs):
+        captured.update(kwargs)
+        return 'https://private.example/signed'
+    monkeypatch.setattr(client, 'generate_presigned_url', sign)
+    storage.stored_response(key)
+    assert captured['Params']['Key'] == physical

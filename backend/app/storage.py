@@ -69,7 +69,7 @@ async def save_upload(upload: UploadFile, kind: str) -> dict:
     content_type = next(mime for mime, suffix in allowed.items() if suffix == ext)
     if settings.storage_backend == "s3":
         await run_in_threadpool(s3_client().put_object, Bucket=settings.s3_bucket,
-                                Key=object_name, Body=data, ContentType=content_type,
+                                Key=s3_key(object_name), Body=data, ContentType=content_type,
                                 ServerSideEncryption="AES256", CacheControl="private, no-store")
     else:
         directory = os.path.join(_uploads_root(), sub)
@@ -88,6 +88,14 @@ def s3_client():
                                       retries={"max_attempts": 2}))
 
 
+def s3_key(object_name: str) -> str:
+    validate_key(object_name)
+    prefix = settings.s3_prefix.strip("/")
+    # The database retains portable keys; only S3 uses the bucket prefix.
+    key = object_name.replace("voice/", "voice_notes/", 1) if prefix else object_name
+    return f"{prefix}/{key}" if prefix else key
+
+
 def validate_key(object_name: str) -> None:
     if not re.fullmatch(r"(?:images|voice)/[a-f0-9]{32}\.[a-z0-9]+", object_name):
         raise error(400, "Invalid object name")
@@ -100,7 +108,7 @@ def stored_response(object_name: str):
     if settings.storage_backend == "s3":
         validate_key(object_name)
         url = s3_client().generate_presigned_url("get_object", Params={
-            "Bucket": settings.s3_bucket, "Key": object_name,
+            "Bucket": settings.s3_bucket, "Key": s3_key(object_name),
             "ResponseCacheControl": "private, no-store",
         }, ExpiresIn=60)
         return RedirectResponse(url, status_code=307, headers=headers)
@@ -124,7 +132,7 @@ def delete_stored(object_name: str) -> None:
     try:
         if settings.storage_backend == "s3":
             validate_key(object_name)
-            s3_client().delete_object(Bucket=settings.s3_bucket, Key=object_name)
+            s3_client().delete_object(Bucket=settings.s3_bucket, Key=s3_key(object_name))
             return
         full = open_stored(object_name)
         os.remove(full)
