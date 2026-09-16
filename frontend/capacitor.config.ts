@@ -1,14 +1,18 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
+// The mobile app is a native shell around the live deployment. The webview
+// loads the server itself, so the page origin IS the API origin: cookie
+// sessions, the CSRF double-submit token and camera/mic permissions behave
+// exactly as in a desktop browser, and frontend fixes go live without
+// reinstalling the app.
+const SERVER_URL = process.env.CAP_SERVER_URL ?? 'https://13.202.242.159'
+
 const config: CapacitorConfig = {
   appId: 'com.cashbook.office',
   appName: 'Cashbook',
   webDir: 'dist',
-  // Local development: serve the built app from the dev machine's backend.
-  // For a device on the same network, replace with your machine's LAN IP.
   server: {
-    // androidScheme https makes the webview origin https://localhost,
-    // which matches the browser deployment and keeps cookie handling consistent.
+    url: SERVER_URL,
     androidScheme: 'https',
   },
 }

@@ -1,8 +1,9 @@
 /** Typed API client: cookie session + CSRF header, JSON and multipart helpers. */
 
 // Web deployment serves the API behind the same origin (vite dev proxy or
-// reverse proxy), so the base is ''. In the Capacitor Android build the API
-// lives on another origin; set VITE_API_BASE at build time (see ANDROID.md).
+// reverse proxy), so the base is ''. The mobile apps are native shells that
+// load the deployment directly (server.url, see MOBILE.md); if the web assets
+// are ever bundled into the webview instead, set VITE_API_BASE at build time.
 const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? ''
 
 function csrfToken(): string {
