@@ -2,6 +2,17 @@
 
 Open **http://127.0.0.1:5173**.
 
+## Start everything with one command
+
+Keep Docker Desktop running, then run this from any PowerShell directory:
+
+```powershell
+& 'C:\Users\Ali Irfan\Documents\Codex\2026-09-10\te\cashbook_workspace\Start-Cashbook.ps1'
+```
+
+The script starts the existing `cashbook-pg` container (port 5433), waits for PostgreSQL, starts the backend/frontend only if needed, and checks the API proxy. It never creates, resets, or replaces the database. The separate `postgres-db` container on port 5432 is not this application's database.
+
+
 | Username | Local demo password | Account |
 | --- | --- | --- |
 | admin | admin123 | Administrator |
