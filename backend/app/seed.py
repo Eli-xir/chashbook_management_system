@@ -85,6 +85,8 @@ async def seed_database(admin_password: str, debit_password: str, credit_passwor
 
 
 async def main() -> None:
+    if settings.env != "local":
+        raise SystemExit("Demo seeding is disabled outside local mode. Use app.bootstrap.")
     # Non-interactive: python -m app.seed [admin_pw debit_pw credit_pw]
     args = sys.argv[1:]
     if len(args) == 3:

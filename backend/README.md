@@ -18,4 +18,4 @@ The owner has frozen the PostgreSQL schema. Integer IDs, upload ownership, submi
 
 Tests create and drop a random disposable PostgreSQL database. They use an isolated temporary directory for state and uploads, never the application's local state. Set `CASHBOOK_TEST_ADMIN_DSN` to an appropriate local PostgreSQL admin connection when the default test server differs. No test resets the normal development database.
 
-Real SMS/AWS/S3 deployment and native Android packaging remain future work. OTP recovery uses the local mock provider. No Android tooling is needed for this server or the browser frontend.
+For production use the merged main branch and ../deploy/README.md. Private S3 and optional SNS adapters are implemented; real AWS deployment/verification still requires client access. Production SMS is disabled by default. Install requirements-dev.txt for tests. No Android tooling is needed for the website.

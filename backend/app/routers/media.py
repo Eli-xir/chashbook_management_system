@@ -3,9 +3,12 @@
 Owner decision: no schema additions, so draft ownership lives in a process-local
 map (JSON-persisted). Rows in Images/Voice_notes are created at upload time so
 transactions can reference them; drafts not attached within a cleanup window are
-swept on backend startup. Deleting a transaction never deletes files here —
+swept on backend startup. Deleting a transaction never deletes files here -
 attachment rows are shared metadata and remain referenced-safe.
 """
+
+from ..config import settings
+from ..state import state_path, write_json
 
 import json
 import os
@@ -14,7 +17,6 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
-from fastapi.responses import FileResponse
 
 from .. import idgen, storage
 from ..db import pool
@@ -22,7 +24,7 @@ from ..deps import ROLE_ADMIN, admin_user, any_user, check_csrf, current_user, e
 
 router = APIRouter(prefix="/media", tags=["media"])
 
-_STATE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".media_state.json")
+_STATE_FILE = state_path(".media_state.json")
 DRAFT_TTL_SECONDS = 24 * 60 * 60
 
 _media: dict[str, dict[int, dict]] = {"images": {}, "voice_notes": {}}
@@ -40,13 +42,13 @@ def _load() -> None:
             for kind in ("images", "voice_notes"):
                 _media[kind].update({int(k): v for k, v in data.get(kind, {}).items()})
         except (json.JSONDecodeError, OSError, ValueError):
-            pass
+            if settings.env != "local":
+                raise RuntimeError("Cannot read persistent state; restore a valid state file")
     _loaded = True
 
 
 def _persist() -> None:
-    with open(_STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump(_media, f)
+    write_json(_STATE_FILE, _media)
 
 
 def mark_attached(kind: str, media_id: int) -> None:
@@ -181,8 +183,7 @@ async def get_image_file(image_id: int, user: dict = Depends(any_user)):
         if row is None:
             raise error(404, "File not found")
         entry = {"object_name": row["image_url"]}
-    path = storage.open_stored(entry["object_name"])
-    return FileResponse(path, headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+    return storage.stored_response(entry["object_name"])
 
 
 @router.get("/voice/{voice_id}/file")
@@ -193,5 +194,4 @@ async def get_voice_file(voice_id: int, user: dict = Depends(any_user)):
         if row is None:
             raise error(404, "File not found")
         entry = {"object_name": row["voice_url"]}
-    path = storage.open_stored(entry["object_name"])
-    return FileResponse(path, headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+    return storage.stored_response(entry["object_name"])

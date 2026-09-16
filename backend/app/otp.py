@@ -6,6 +6,8 @@ Codes are stored as a keyed digest, never plaintext. The mock SMS provider
 prints to the local console and is only selectable in local configuration.
 """
 
+from .state import state_path, write_json
+
 import hashlib
 import hmac
 import json
@@ -23,8 +25,8 @@ MAX_CHALLENGES_PER_USER = 3
 MAX_CHALLENGES_PER_IP = 10
 GRANT_TTL_SECONDS = 10 * 60
 
-_STATE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".otp_state.json")
-_DIGEST_KEY_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".otp_secret")
+_STATE_FILE = state_path(".otp_state.json")
+_DIGEST_KEY_FILE = state_path(".otp_secret")
 
 _challenges: dict[str, dict] = {}  # challenge_id -> state
 _grants: dict[str, dict] = {}      # grant_id -> state
@@ -50,13 +52,14 @@ def _load() -> None:
             _challenges = data.get("challenges", {})
             _grants = data.get("grants", {})
         except (json.JSONDecodeError, OSError):
+            if settings.env != "local":
+                raise RuntimeError("Cannot read OTP state; restore a valid state file")
             _challenges, _grants = {}, {}
     _loaded = True
 
 
 def _persist() -> None:
-    with open(_STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump({"challenges": _challenges, "grants": _grants}, f)
+    write_json(_STATE_FILE, {"challenges": _challenges, "grants": _grants})
 
 
 def _digest(code: str, user_id: str) -> str:
@@ -107,9 +110,15 @@ def send_otp(user_id: str, recovery_number: str, ip: str) -> str:
 
     if settings.sms_provider == "mock" and settings.sms_mock_allowed:
         print(f"[MOCK SMS] Recovery code for {recovery_number}: {code}", flush=True)
+    elif settings.sms_provider == "sns":
+        import boto3
+        boto3.client("sns", region_name=settings.aws_region).publish(
+            PhoneNumber=recovery_number,
+            Message=f"Your Cashbook password reset code is {code}. Expires in 5 minutes.",
+            MessageAttributes={"AWS.SNS.SMS.SMSType": {"DataType": "String", "StringValue": "Transactional"}},
+        )
     else:
-        # Real providers integrate behind this call. Nothing is configured for local use.
-        raise error(500, "No SMS provider configured")
+        raise error(503, "SMS recovery is unavailable. Contact your admin.")
     return challenge_id
 
 

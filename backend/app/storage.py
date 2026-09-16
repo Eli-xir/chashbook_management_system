@@ -6,6 +6,10 @@ paths are never trusted. Content type and size are validated on save.
 
 import os
 import uuid
+import re
+from functools import lru_cache
+from starlette.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse, RedirectResponse
 
 from fastapi import UploadFile
 
@@ -60,12 +64,47 @@ async def save_upload(upload: UploadFile, kind: str) -> dict:
 
     object_id = uuid.uuid4().hex
     sub = "images" if kind == "image" else "voice"
-    directory = os.path.join(_uploads_root(), sub)
-    os.makedirs(directory, exist_ok=True)
     stored_name = f"{object_id}{ext}"
-    with open(os.path.join(directory, stored_name), "wb") as f:
-        f.write(data)
-    return {"object_name": f"{sub}/{stored_name}", "size": len(data), "content_type": upload.content_type or ext}
+    object_name = f"{sub}/{stored_name}"
+    content_type = next(mime for mime, suffix in allowed.items() if suffix == ext)
+    if settings.storage_backend == "s3":
+        await run_in_threadpool(s3_client().put_object, Bucket=settings.s3_bucket,
+                                Key=object_name, Body=data, ContentType=content_type,
+                                ServerSideEncryption="AES256", CacheControl="private, no-store")
+    else:
+        directory = os.path.join(_uploads_root(), sub)
+        os.makedirs(directory, exist_ok=True)
+        with open(os.path.join(directory, stored_name), "wb") as f:
+            f.write(data)
+    return {"object_name": object_name, "size": len(data), "content_type": content_type}
+
+
+@lru_cache
+def s3_client():
+    import boto3
+    from botocore.config import Config
+    return boto3.client("s3", region_name=settings.aws_region,
+                        config=Config(signature_version="s3v4", connect_timeout=5, read_timeout=20,
+                                      retries={"max_attempts": 2}))
+
+
+def validate_key(object_name: str) -> None:
+    if not re.fullmatch(r"(?:images|voice)/[a-f0-9]{32}\.[a-z0-9]+", object_name):
+        raise error(400, "Invalid object name")
+
+
+def stored_response(object_name: str):
+    """Call only AFTER the route has authorized the user for this attachment."""
+    headers = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+               "Referrer-Policy": "no-referrer"}
+    if settings.storage_backend == "s3":
+        validate_key(object_name)
+        url = s3_client().generate_presigned_url("get_object", Params={
+            "Bucket": settings.s3_bucket, "Key": object_name,
+            "ResponseCacheControl": "private, no-store",
+        }, ExpiresIn=60)
+        return RedirectResponse(url, status_code=307, headers=headers)
+    return FileResponse(open_stored(object_name), headers=headers)
 
 
 def open_stored(object_name: str):
@@ -83,6 +122,10 @@ def delete_stored(object_name: str) -> None:
     """Best-effort removal for orphaned uploads. Referenced files are never deleted
     here; callers decide reference safety."""
     try:
+        if settings.storage_backend == "s3":
+            validate_key(object_name)
+            s3_client().delete_object(Bucket=settings.s3_bucket, Key=object_name)
+            return
         full = open_stored(object_name)
         os.remove(full)
     except Exception:

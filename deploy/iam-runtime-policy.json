@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PrivateCashbookAttachments",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": ["arn:aws:s3:::REPLACE_MEDIA_BUCKET/images/*", "arn:aws:s3:::REPLACE_MEDIA_BUCKET/voice/*"]
+    },
+    {
+      "Sid": "AppendBackups",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:AbortMultipartUpload"],
+      "Resource": "arn:aws:s3:::REPLACE_BACKUP_BUCKET/backups/*"
+    }
+  ]
+}

@@ -1,135 +1,24 @@
-# Current local build
+# Cashbook Management System
 
-Open **http://127.0.0.1:5173**. The updated backend runs on port **8001**. See [LOCAL_HANDOFF.md](LOCAL_HANDOFF.md) for verified local accounts, exact directories, startup commands, and remaining deployment work. The instructions below describe the preceding setup; use the handoff for this running version.
+`main` combines the database, FastAPI backend and React frontend. The three development branches remain available; deploy from `main`.
 
-# Office Cashbook
+- `database/db_init.sql`: fresh PostgreSQL schema (not an upgrade migration).
+- `backend/`: API, permissions, transactions/version history and private attachments.
+- `frontend/`: guided mobile entry and admin workspace.
+- `deploy/`: Lightsail Docker deployment, HTTPS proxy, S3 configuration and backup script.
 
-A small-office cashbook: React (web + Capacitor/Android shell) frontend,
-FastAPI backend, PostgreSQL. Three roles (admin, debit_user, credit_user),
-four transaction types (credit, debit, payable_credit, payable_debit),
-head-tree permissions with inheritance, corrections-as-new-versions,
-OTP password recovery via a mock SMS provider (local only), private local
-file storage.
+## Deploy to AWS
 
-## Repository layout
+Start with [the client access checklist](deploy/CLIENT_CHECKLIST.md), then follow [the deployment runbook](deploy/README.md).
 
-Ordinary branches, one per working area (no worktrees):
+Target: Mumbai, fresh database, one backend worker, private S3. The repository is prepared for deployment; AWS access, a domain, real S3 verification and a restore drill are still needed. SMS recovery is disabled until a provider is approved. Never seed demo users into production.
 
-- `database_local` — `database/db_init.sql`, schema docs. The authoritative schema.
-- `backend_local` — `backend/` FastAPI application and tests.
-- `frontend_local` — `frontend/` React application and Capacitor config.
+## Current local installation
 
-Merge all three into `main` when going to production.
+The working Windows installation and startup script are documented in [LOCAL_HANDOFF.md](LOCAL_HANDOFF.md). That script preserves the existing local backend checkout/data. Production uses all code from this merged `main` repository through Docker; it does not copy the local database, state, uploads or passwords.
 
-## Running locally (Windows)
+## Development checks
 
-Prerequisites: Python 3.13+, Node 20+, a PostgreSQL 17 server (a Docker
-container works fine), Docker Desktop if you use the container.
+Install `backend/requirements-dev.txt` in a Python virtual environment. Start a disposable-capable local PostgreSQL server and configure `CASHBOOK_TEST_ADMIN_DSN`, then run `python -m pytest` from `backend/`. Tests create a random database and drop it afterward; never point them at a production administrator connection.
 
-### 1. Database
-
-```bat
-docker run -d --name cashbook-pg -e POSTGRES_PASSWORD=cashbook_local ^
-  -e POSTGRES_DB=cashbook_dev -p 5433:5432 postgres:17-alpine
-```
-
-Initialize the schema (fresh databases only — never run this over a populated DB):
-
-```bat
-docker cp database\db_init.sql cashbook-pg:/tmp/db_init.sql
-docker exec cashbook-pg psql -U postgres -d cashbook_dev -q -f /tmp/db_init.sql
-```
-
-### 2. Backend (port 8000)
-
-```bat
-cd backend
-python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
-copy .env.example .env
-.venv\Scripts\python -m app.seed admin123 debit123 credit123
-.venv\Scripts\python -m uvicorn app.main:app --port 8000
-```
-
-`app.seed` refuses to run on a non-empty database. Demo accounts (LOCAL ONLY,
-not production secrets):
-
-| Account  | Password  | Role        | Recovery number |
-|----------|-----------|-------------|-----------------|
-| admin    | admin123  | admin       | 0300-0000001    |
-| debit1   | debit123  | debit_user  | 0300-0000002    |
-| credit1  | credit123 | credit_user | 0300-0000003    |
-
-### 3. Frontend (port 5173)
-
-```bat
-cd frontend
-npm install
-npx vite --port 5173
-```
-
-Open http://localhost:5173 — the dev server proxies `/api` to port 8000.
-
-### Resetting the dev database
-
-```bat
-cd backend
-.venv\Scripts\python -m app.reset_dev
-.venv\Scripts\python -m app.seed admin123 debit123 credit123
-```
-
-Then restart the backend so its in-process ID counters and state files re-sync.
-
-## Tests
-
-23 integration tests run against a disposable `cashbook_test` database:
-
-```bat
-cd backend
-.venv\Scripts\python -m pytest tests -q
-```
-
-Covers: sign-in/session enforcement, role-derived transaction types and
-direction forgery prevention, admin/read endpoint protection, permission
-inheritance, inactive-ancestor blocking, transactionable-flag enforcement,
-head-move cycle rejection, move identity preservation, idempotency (including
-concurrent duplicates), correction history and stale-edit rejection, concurrent
-corrections, deactivation totals and delete semantics, payable grouping,
-recovery lifecycle (cooldown, attempts, single-use grant, replay), recovery
-number uniqueness, role/password change session invalidation, attachment
-ownership, last-admin protection, CSRF.
-
-## Configuration
-
-`backend/.env` (see `.env.example`): DB DSN, session TTL, upload dir, SMS
-provider (`mock` only in local env), CORS origins, cookie SameSite.
-
-## Android
-
-See `frontend/ANDROID.md`. Capacitor config and pinned packages are in place;
-no APK has been built on this machine (no JDK/Android SDK) — that document
-lists exactly what is missing.
-
-## Owner-accepted design decisions
-
-Per instruction, the database schema is frozen — zero additions. The backend
-compensates in-process (single-instance app):
-
-- **ID generation**: startup reads `MAX(id)` per table, then allocates from an
-  in-process counter. If you insert rows by hand, restart the backend.
-- **Idempotency keys**: stored in a local JSON file next to the backend, not
-  in the database.
-- **Upload draft ownership**: tracked in the same local state file, not in the
-  `Images`/`Voice_notes` tables.
-- **OTP challenges / reset grants**: in-process state persisted to
-  `.otp_state.json`; codes stored as keyed digests only.
-- **Recovery number**: the first `Contacts` row per user is the designated
-  recovery number; cross-account uniqueness is enforced in the backend.
-
-## Known gaps (deliberate, for later)
-
-- Production deployment (AWS), real SMS provider, S3 storage: see
-  `AWS_DEPLOYMENT_INPUTS.md`.
-- No APK built or device-tested yet (no Android tooling on this machine).
-- Screenshots/UX polish: flows were exercised end-to-end in a browser;
-  visual review on real hardware is left to the owner.
+From `frontend/`: `npm ci` then `npm run build`. No Android SDK is required for the website.

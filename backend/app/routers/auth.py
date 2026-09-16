@@ -10,6 +10,7 @@ from ..deps import (
     error, set_auth_cookies,
 )
 from ..db import pool
+from ..config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -109,6 +110,8 @@ async def change_password(body: PasswordChangeBody, request: Request, response: 
 async def forgot_password(body: ForgotBody, request: Request):
     """Always returns the same shape; sends OTP only if the account is active
     with a recovery number. The challenge_id is not secret; the code is."""
+    if settings.sms_provider == "disabled":
+        raise error(503, "SMS recovery is not available yet. Please ask your admin to reset your password.")
     challenge_id = secrets.token_urlsafe(24)  # dummy, unused when no challenge exists
     row = await pool().fetchrow(
         """

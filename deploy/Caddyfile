@@ -1,0 +1,22 @@
+{$CASHBOOK_DOMAIN} {
+    encode zstd gzip
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy no-referrer
+        Strict-Transport-Security "max-age=31536000"
+        Permissions-Policy "camera=(self), microphone=(self), geolocation=()"
+    }
+    request_body {
+        max_size 12MB
+    }
+    handle_path /api/* {
+        reverse_proxy backend:8000
+    }
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        header Cache-Control "no-cache"
+        file_server
+    }
+}

@@ -1,3 +1,5 @@
+from ..config import settings
+from ..state import state_path, write_json
 import asyncio
 import json
 import hashlib
@@ -21,7 +23,7 @@ router = APIRouter(prefix="/transactions", tags=["transactions"])
 # Owner decision: no schema additions, so idempotency keys live in this process
 # (persisted to a local JSON file). Single backend instance makes this sound;
 # if rows are inserted outside this app, restart to re-sync state.
-_STATE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".idempotency_state.json")
+_STATE_FILE = state_path(".idempotency_state.json")
 _keys: dict[str, dict | int] = {}
 _loaded = False
 
@@ -36,7 +38,8 @@ def _load() -> None:
                 data = json.load(f)
             _keys.update(data)
         except (json.JSONDecodeError, OSError, ValueError):
-            pass
+            if settings.env != "local":
+                raise RuntimeError("Cannot read persistent state; restore a valid state file")
     _loaded = True
 
 

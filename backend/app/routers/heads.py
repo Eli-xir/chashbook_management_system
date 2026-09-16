@@ -152,7 +152,7 @@ async def head_image(head_id: int, user: dict = Depends(current_user)):
             if head_id not in visible:
                 raise error(403, 'Not available')
         name = await conn.fetchval('SELECT image_url FROM Images WHERE image_id = $1', head['image_id'])
-    return FileResponse(storage.open_stored(name), headers={'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'})
+    return storage.stored_response(name)
 
 
 @router.post("/{head_id}/move")

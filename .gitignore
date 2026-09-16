@@ -44,3 +44,7 @@ test_uploads/
 .media_state.json
 smoke_test.py
 cookies*.txt
+
+.pytest_cache/
+deploy/secrets/
+deploy/backups/

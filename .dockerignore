@@ -1,0 +1,17 @@
+**/.git
+**/.venv
+**/node_modules
+**/dist
+**/__pycache__
+**/.pytest_cache
+**/.env
+**/.env.*
+**/*.log
+**/*.pem
+**/*.key
+**/.*state.json
+**/.otp_secret
+**/local_uploads
+**/test_uploads
+deploy/secrets
+deploy/backups
