@@ -1,0 +1,26 @@
+/* src/pages/Admin/components/UsersTab.css */
+.user-card {
+    border: 1px solid var(--color-line, #2A2A28);
+    border-radius: 2px;
+}
+
+.user-card--inactive { opacity: 0.6; }
+
+.user-card-header {
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--color-text, #F2F0EA);
+    font-family: "Inter", sans-serif;
+    font-size: 0.9rem;
+    padding: 10px 12px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.user-card-header:disabled { cursor: default; }
+
+.user-card-body {
+    padding: 0 12px 12px;
+    font-size: 0.85rem;
+}

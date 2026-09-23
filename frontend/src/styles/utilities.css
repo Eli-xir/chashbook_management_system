@@ -1,0 +1,110 @@
+/* src/styles/utilities.css */
+:root {
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+}
+
+.gap-xs { gap: var(--space-xs); }
+.gap-sm { gap: var(--space-sm); }
+.gap-md { gap: var(--space-md); }
+.gap-lg { gap: var(--space-lg); }
+
+.p-sm { padding: var(--space-sm); }
+.p-md { padding: var(--space-md); }
+.p-lg { padding: var(--space-lg); }
+
+.flex-row { display: flex; flex-direction: row; }
+.flex-col { display: flex; flex-direction: column; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.justify-between { justify-content: space-between; }
+.justify-end { justify-content: flex-end; }
+.flex-wrap { flex-wrap: wrap; }
+
+.text-muted { color: var(--color-text-muted, #9B9690); }
+.section-label {
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted, #9B9690);
+    font-weight: 600;
+}
+
+.btn {
+    font-family: "Inter", sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 8px 14px;
+    border-radius: 2px;
+    border: 1px solid var(--color-line, #2A2A28);
+    background: transparent;
+    color: var(--color-text, #F2F0EA);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn--ghost:hover:not(:disabled) { border-color: var(--color-gold, #C9A227); }
+
+.btn--primary {
+    background: var(--color-gold, #C9A227);
+    border-color: var(--color-gold, #C9A227);
+    color: var(--color-ink, #0B0B0C);
+}
+.btn--primary:hover:not(:disabled) { background: var(--color-gold-soft, #E4C766); }
+
+.btn--danger { border-color: #7a2e2e; color: #e07a7a; }
+.btn--danger:hover:not(:disabled) { background: #7a2e2e; color: #f2f0ea; }
+
+.btn--toggle-active {
+    background: var(--color-gold, #C9A227);
+    border-color: var(--color-gold, #C9A227);
+    color: var(--color-ink, #0B0B0C);
+}
+
+.segmented-control {
+    display: flex;
+    border: 1px solid var(--color-line, #2A2A28);
+    border-radius: 2px;
+    overflow: hidden;
+    width: fit-content;
+}
+
+.segmented-option {
+    font-family: "Inter", sans-serif;
+    font-size: 0.85rem;
+    padding: 6px 14px;
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted, #9B9690);
+    cursor: pointer;
+}
+
+.segmented-option + .segmented-option { border-left: 1px solid var(--color-line, #2A2A28); }
+
+.segmented-option--active {
+    background: var(--color-gold, #C9A227);
+    color: var(--color-ink, #0B0B0C);
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0) rotate(0deg); }
+    20% { transform: translateX(-1px) rotate(-0.5deg); }
+    40% { transform: translateX(1px) rotate(0.5deg); }
+    60% { transform: translateX(-1px) rotate(-0.4deg); }
+    80% { transform: translateX(1px) rotate(0.4deg); }
+}
+
+.shake-on-hover:hover,
+.shake-active {
+    animation: shake 0.35s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .shake-on-hover:hover,
+    .shake-active {
+        animation: none;
+    }
+}

@@ -1,0 +1,58 @@
+/* src/pages/Admin/components/HeadsTab.css */
+.heads-toolbar { margin-bottom: var(--space-sm); }
+.heads-tab-hint { font-size: 0.8rem; }
+
+.heads-tree {
+    border: 1px solid var(--color-line, #2A2A28);
+    border-radius: 2px;
+    min-height: 200px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding: var(--space-xs) 0;
+}
+
+.head-node-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    cursor: grab;
+    font-size: 0.9rem;
+}
+
+.head-node-row--drag-over {
+    background: rgba(201, 162, 39, 0.12);
+    outline: 1px dashed var(--color-gold, #C9A227);
+}
+
+.head-node-row--inactive {
+    opacity: 0.5;
+    text-decoration: line-through;
+}
+
+.head-node-toggle {
+    background: none;
+    border: none;
+    color: var(--color-text-muted, #9B9690);
+    cursor: pointer;
+    width: 16px;
+}
+
+.head-node-name { flex: 1; }
+
+.head-node-badge {
+    font-size: 0.65rem;
+    letter-spacing: 0.03em;
+    color: var(--color-text-muted, #9B9690);
+    border: 1px solid var(--color-line, #2A2A28);
+    padding: 1px 6px;
+    border-radius: 2px;
+}
+
+.heads-tree-root-dropzone {
+    margin-top: var(--space-sm);
+    padding: 10px;
+    text-align: center;
+    font-size: 0.75rem;
+    border-top: 1px dashed var(--color-line, #2A2A28);
+}

@@ -1,0 +1,55 @@
+/* src/pages/Admin/components/ConfirmChangesDialog.css */
+.dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.dialog-panel {
+    background: var(--color-surface, #141414);
+    border: 1px solid var(--color-line, #2A2A28);
+    border-radius: 2px;
+    padding: var(--space-lg);
+    width: min(520px, 90vw);
+    max-height: 80vh;
+    overflow-y: auto;
+    color: var(--color-text, #F2F0EA);
+    font-family: "Inter", sans-serif;
+}
+
+.diff-tree {
+    border: 1px solid var(--color-line, #2A2A28);
+    border-radius: 2px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: var(--space-xs) 0;
+}
+
+.diff-node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+}
+
+.diff-node--moved { background: rgba(201, 162, 39, 0.08); }
+.diff-node--merge-source { background: rgba(224, 122, 122, 0.08); }
+.diff-node--merge-target { background: rgba(94, 173, 122, 0.1); }
+
+.diff-node-name--strike { text-decoration: line-through; color: var(--color-text-muted, #9B9690); }
+
+.diff-node-tag {
+    font-size: 0.7rem;
+    padding: 1px 6px;
+    border-radius: 2px;
+    border: 1px solid var(--color-line, #2A2A28);
+}
+
+.diff-node-tag--moved { color: var(--color-gold, #C9A227); border-color: var(--color-gold, #C9A227); }
+.diff-node-tag--merge { color: #e07a7a; border-color: #7a2e2e; }
