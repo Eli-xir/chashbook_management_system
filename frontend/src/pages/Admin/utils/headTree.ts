@@ -1,96 +1,113 @@
-// src/pages/Admin/utils/headTree.ts
-import type { Head, HeadNode, StagedChange } from '../types';
+import type { Head, HeadNode, StagedChange } from '../types.ts';
 
 export function buildHeadTree(heads: Head[]): HeadNode[] {
-  const byId = new Map<number, HeadNode>();
-  heads.forEach((h) => byId.set(h.head_id, { ...h, children: [] }));
-
+  const byId = new Map(heads.map((head) => [head.head_id, { ...head, children: [] } as HeadNode]));
   const roots: HeadNode[] = [];
-  byId.forEach((node) => {
-    if (node.parent_head_id === null || !byId.has(node.parent_head_id)) {
-      roots.push(node);
-    } else {
-      byId.get(node.parent_head_id)!.children.push(node);
-    }
-  });
-
-  const sortChildren = (nodes: HeadNode[]) => {
+  for (const node of byId.values()) {
+    const parent = node.parent_head_id === null ? undefined : byId.get(node.parent_head_id);
+    (parent ? parent.children : roots).push(node);
+  }
+  function sort(nodes: HeadNode[]) {
     nodes.sort((a, b) => a.head_name.localeCompare(b.head_name));
-    nodes.forEach((n) => sortChildren(n.children));
-  };
-  sortChildren(roots);
-
+    nodes.forEach((node) => sort(node.children));
+  }
+  sort(roots);
   return roots;
 }
 
-// True if candidateDescendantId is headId itself, or a descendant of it.
-// Used to block a drop that would create a cycle (A -> B -> A).
-export function isDescendant(heads: Head[], headId: number, candidateDescendantId: number): boolean {
-  const byId = new Map(heads.map((h) => [h.head_id, h]));
-  let current = byId.get(candidateDescendantId);
-  while (current) {
-    if (current.head_id === headId) return true;
-    current = current.parent_head_id !== null ? byId.get(current.parent_head_id) : undefined;
+export function isDescendant(heads: Head[], ancestor: number, candidate: number): boolean {
+  const byId = new Map(heads.map((head) => [head.head_id, head]));
+  const visited = new Set<number>();
+  let current = byId.get(candidate);
+  while (current && !visited.has(current.head_id)) {
+    if (current.head_id === ancestor) return true;
+    visited.add(current.head_id);
+    current = current.parent_head_id === null ? undefined : byId.get(current.parent_head_id);
   }
   return false;
 }
 
-// Re-applies staged "move" ops on top of the original flat list so the tree
-// re-renders with pending moves visible before anything hits the server.
-export function applyStagedMoves(heads: Head[], changes: StagedChange[]): Head[] {
-  const result = heads.map((h) => ({ ...h }));
-  const byId = new Map(result.map((h) => [h.head_id, h]));
-
-  changes.forEach((change) => {
-    if (change.op === 'move') {
-      const head = byId.get(change.head_id);
-      if (head) head.parent_head_id = change.new_parent_id;
+// One projection drives the editor, review, and local save. Temporary IDs are negative.
+export function applyHeadChanges(heads: Head[], changes: StagedChange[]): Head[] {
+  let result = heads.map((head) => ({ ...head }));
+  for (const change of changes) {
+    if (change.op === 'create' || change.op === 'edit') {
+      const name = change.head_name.trim();
+      const ownId = change.op === 'edit' ? change.head_id : undefined;
+      if (!name || name.length > 48) throw new Error('Head names must contain 1–48 characters.');
+      if (result.some((head) => head.head_id !== ownId && head.head_name === name)) {
+        throw new Error('A head with that name already exists.');
+      }
     }
-  });
-
+    if (change.op === 'edit') {
+      const head = result.find((head) => head.head_id === change.head_id);
+      if (!head) throw new Error('This head no longer exists.');
+      if (head.image_url !== change.image_url) head.attachment_id = null;
+      Object.assign(head, {
+        head_name: change.head_name.trim(), image_url: change.image_url,
+        is_transactionable: change.is_transactionable,
+      });
+      continue;
+    }
+    if (change.op === 'create') {
+      if (!change.head_name.trim() || result.some((h) => h.head_id === change.temp_id)) {
+        throw new Error('Give each new head a name and a unique ID.');
+      }
+      if (change.parent_head_id !== null && !result.some((h) => h.head_id === change.parent_head_id)) {
+        throw new Error('The destination head no longer exists.');
+      }
+      result.push({
+        head_id: change.temp_id, head_name: change.head_name.trim(), parent_head_id: change.parent_head_id,
+        is_active: true, is_transactionable: change.is_transactionable ?? true,
+      });
+      continue;
+    }
+    if (change.op === 'delete') {
+      const head = result.find((head) => head.head_id === change.head_id);
+      if (!head) throw new Error('This head no longer exists.');
+      if (!['hard_delete', 'backup'].includes(change.transaction_handling)) {
+        throw new Error('Choose how to handle this head’s transactions.');
+      }
+      // Delete this node only; preserve its children at the same parent level.
+      result = result.filter((item) => item.head_id !== head.head_id);
+      result.forEach((item) => { if (item.parent_head_id === head.head_id) item.parent_head_id = head.parent_head_id; });
+      continue;
+    }
+    const source = change.op === 'move' ? change.head_id : change.source_head_id;
+    const target = change.op === 'move' ? change.new_parent_id : change.target_head_id;
+    const head = result.find((h) => h.head_id === source);
+    if (!head || (target !== null && !result.some((h) => h.head_id === target))) {
+      throw new Error('One of these heads no longer exists.');
+    }
+    if (target !== null && isDescendant(result, source, target)) {
+      throw new Error('A head cannot be placed or merged inside its own branch.');
+    }
+    if (change.op === 'move') head.parent_head_id = target;
+    else {
+      result = result.filter((h) => h.head_id !== source);
+      result.forEach((h) => { if (h.parent_head_id === source) h.parent_head_id = target; });
+    }
+  }
   return result;
 }
 
-export interface DiffAnnotation {
-  moved?: { fromParentName: string; toParentName: string };
-  mergeRole?: 'source' | 'target';
-  mergeCounterpartName?: string;
-}
-
-// Builds what the confirmation dialog shows: the resulting tree, annotated
-// so every moved/merged node carries enough info to render as a visible diff.
-export function buildDiffTree(
-  originalHeads: Head[],
-  changes: StagedChange[]
-): { tree: HeadNode[]; annotations: Map<number, DiffAnnotation> } {
-  const nameById = new Map(originalHeads.map((h) => [h.head_id, h.head_name]));
-  const annotations = new Map<number, DiffAnnotation>();
-
-  changes.forEach((change) => {
-    if (change.op === 'move') {
-      const head = originalHeads.find((h) => h.head_id === change.head_id);
-      annotations.set(change.head_id, {
-        moved: {
-          fromParentName: head?.parent_head_id != null ? nameById.get(head.parent_head_id) ?? 'Root' : 'Root',
-          toParentName: change.new_parent_id != null ? nameById.get(change.new_parent_id) ?? 'Root' : 'Root',
-        },
-      });
-    } else {
-      annotations.set(change.source_head_id, {
-        ...annotations.get(change.source_head_id),
-        mergeRole: 'source',
-        mergeCounterpartName: nameById.get(change.target_head_id) ?? `#${change.target_head_id}`,
-      });
-      annotations.set(change.target_head_id, {
-        ...annotations.get(change.target_head_id),
-        mergeRole: 'target',
-        mergeCounterpartName: nameById.get(change.source_head_id) ?? `#${change.source_head_id}`,
-      });
+export function describeChanges(heads: Head[], changes: StagedChange[]): string[] {
+  let current = heads;
+  return changes.map((change) => {
+    const name = (id: number | null) => current.find((h) => h.head_id === id)?.head_name ?? 'Top level';
+    let description: string;
+    if (change.op === 'create') description = `Add “${change.head_name}” under ${name(change.parent_head_id)} (${change.is_transactionable === false ? 'non-transactionable' : 'transactionable'})`;
+    else if (change.op === 'edit') description = `Edit ${name(change.head_id)} → ${change.head_name} (name / image; ${change.is_transactionable ? 'transactionable' : 'non-transactionable'})`;
+    else if (change.op === 'delete') {
+      const head = current.find((head) => head.head_id === change.head_id);
+      description = `Delete ${name(change.head_id)}; ${change.transaction_handling === 'backup' ? 'request a backend backup of its transactions' : 'request hard deletion of all its transactions'}. Subheads move to ${name(head?.parent_head_id ?? null)}.`;
     }
+    else if (change.op === 'merge') description = `Merge ${name(change.source_head_id)} into ${name(change.target_head_id)}`;
+    else {
+      const from = current.find((h) => h.head_id === change.head_id)!.parent_head_id;
+      description = `Move ${name(change.head_id)}: ${name(from)} → ${name(change.new_parent_id)}`;
+    }
+    current = applyHeadChanges(current, [change]);
+    return description;
   });
-
-  const movedHeads = applyStagedMoves(originalHeads, changes);
-  const tree = buildHeadTree(movedHeads);
-
-  return { tree, annotations };
 }

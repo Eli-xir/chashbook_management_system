@@ -1,227 +1,54 @@
-
-.login-page {
-    display:flex;
-    flex-direction:row;
-    min-height: 100vh;
-}
-
+.login-page { display: flex; min-height: 100dvh; }
 .info-section {
-    flex: 1.3;
-    background: var(--color-ink);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding: clamp(24px,5vw,64px);
+  flex: 1.3;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(24px, 5vw, 64px);
 }
-
-.info-content {
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:32px;
-    max-width:360px;
-}
-
-.brand-logo {
-    width: 160px;
-    height: auto;
-}
-
-.info-lines {
-    width: 100%;
-    max-width: 320px;
-}
-
-.info-tagline {
-    font-family: "Cormorant Garamond", serif;
-    font-size: 1.15rem;
-    letter-spacing: 0.02em;
-    color: var(--color-text-muted);
-    text-align:center;
-}
-
-.login-section {
-    flex: 1;
-    min-width: 340px;
-    background: var(--color-ink);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding: clamp(24px,5vw,48px);
-}
-
+.info-content { position: relative; display: flex; flex-direction: column; align-items: center; gap: 28px; max-width: 360px; }
+.brand-logo { width: 160px; height: auto; }
+.info-lines { width: 100%; max-width: 320px; }
+.login-section { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; padding: clamp(24px, 5vw, 48px); }
 .login-card {
-    width:100%;
-    max-width:360px;
-    display:flex;
-    flex-direction:column;
-    gap:18px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-line);
-    border-radius: var(--radius);
-    padding: 36px 32px;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  padding: 36px 32px;
 }
-
-.login-card h1 {
-    font-family: "Cormorant Garamond", serif;
-    font-size: 1.8rem;
-    font-weight: 600;
-    color: var(--color-text);
-}
-
-.subtitle {
-    font-family: "Inter", sans-serif;
-    font-size: 0.9rem;
-    color: var(--color-text-muted);
-    margin-top:4px;
-}
-
-.field {
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-    font-family: "Inter", sans-serif;
-}
-
-.field > label {
-    font-size: 0.85rem;
-    font-weight:500;
-    color: var(--color-text-muted);
-}
-
-.field > input {
-    padding: 10px 12px;
-    font-size:0.95rem;
-    font-family: "Inter", sans-serif;
-    color: var(--color-text);
-    background: var(--color-ink);
-    border: 1px solid var(--color-line);
-    border-radius: var(--radius);
-    outline:none;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.field input::placeholder {
-    color: #55524d;
-}
-
-.field input:focus {
-    border-color: var(--color-gold);
-    box-shadow: 0 0 0 3px rgba(201,162,39,0.15);
-}
-
-.login-button {
-    margin-top:12px;
-    padding:11px 16px;
-    font-size:0.9rem;
-    font-family: "Inter", sans-serif;
-    font-weight:600;
-    letter-spacing: 0.02em;
-    color: var(--color-ink);
-    background: var(--color-gold);
-    border: none;
-    border-radius: var(--radius);
-    cursor:pointer;
-    transition: background 0.15s ease;
-}
-
-.login-button:hover {
-    background: var(--color-gold-soft);
-}
-
-@media (max-width:900px) {
-    .info-section { flex:1; }
-    .login-section { flex:1; }
-}
-
-@media (max-width:700px){
-    .login-page { flex-direction:column; }
-    .info-section {
-        min-height:auto;
-        padding: 40px 20px;
-        order:1;
-    }
-    .info-lines { max-width: 220px; }
-    .login-card {
-        border:none;
-        border-radius:0;
-        background: var(--color-ink);
-        width:100%;
-        padding-left:clamp(20px,5vw,40px);
-        padding-right:clamp(20px,5vw,40px);
-        padding-top:clamp(50px,15vh,100px);
-    }
-}
-
-.info-section {
-    position: relative;
-    overflow: hidden;
-}
-
+.login-card h1 { font-family: Georgia, serif; font-weight: 600; }
+.subtitle { font-size: .9rem; color: var(--color-text-muted); margin-top: 4px; }
+.login-button { margin-top: 12px; padding: 11px 16px; font-size: .9rem; font-weight: 600; color: var(--color-ink); background: var(--color-gold); border: 0; border-radius: var(--radius); cursor: pointer; }
+.login-button:hover { background: var(--color-gold-soft); }
 .blueprint-grid {
-    position: absolute;
-    inset: 0;
-    background-image:
-        repeating-linear-gradient(0deg, rgba(201,162,39,0.06) 0, rgba(201,162,39,0.06) 1px, transparent 1px, transparent 32px),
-        repeating-linear-gradient(90deg, rgba(201,162,39,0.06) 0, rgba(201,162,39,0.06) 1px, transparent 1px, transparent 32px);
-    pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(201,162,39,.06) 0, rgba(201,162,39,.06) 1px, transparent 1px, transparent 32px),
+    repeating-linear-gradient(90deg, rgba(201,162,39,.06) 0, rgba(201,162,39,.06) 1px, transparent 1px, transparent 32px);
+  pointer-events: none;
 }
+.draw-line { stroke-dasharray: 500; stroke-dashoffset: 500; animation: draw-in 1.4s ease forwards; }
+.draw-line:nth-child(2) { animation-delay: .15s; }
+.draw-line:nth-child(3) { animation-delay: .5s; }
+@keyframes draw-in { to { stroke-dashoffset: 0; } }
+.title-block { width: 100%; max-width: 320px; border: 1px solid var(--color-line); }
+.title-block-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; font-size: .7rem; letter-spacing: .03em; }
+.title-block-row + .title-block-row { border-top: 1px solid var(--color-line); }
+.title-block-row span:first-child { color: var(--color-text-muted); }
+.title-block-row.highlight span:last-child { color: var(--color-gold); }
 
-.info-content {
-    position: relative;
-    z-index: 1;
-    gap: 28px;
+@media (max-width: 700px) {
+  .login-page { flex-direction: column; }
+  .info-section { padding: 40px 20px; order: 1; }
+  .info-lines { max-width: 220px; }
+  .login-card { border: 0; background: var(--color-ink); padding: 32px 0; }
 }
-
-.draw-line {
-    stroke-dasharray: 500;
-    stroke-dashoffset: 500;
-    animation: draw-in 1.4s ease forwards;
-}
-
-.draw-line:nth-child(2) { animation-delay: 0.15s; }
-.draw-line:nth-child(3) { animation-delay: 0.5s; }
-
-@keyframes draw-in {
-    to { stroke-dashoffset: 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .draw-line {
-        animation: none;
-        stroke-dashoffset: 0;
-    }
-}
-
-.title-block {
-    width: 100%;
-    max-width: 320px;
-    border: 1px solid var(--color-line);
-    font-family: "Inter", sans-serif;
-}
-
-.title-block-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--color-line);
-    font-size: 0.7rem;
-    letter-spacing: 0.03em;
-}
-
-.title-block-row:last-child {
-    border-bottom: none;
-}
-
-.title-block-row span:first-child {
-    color: var(--color-text-muted);
-}
-
-.title-block-row span:last-child {
-    color: var(--color-text);
-    font-weight: 500;
-}
-
-.title-block-row.highlight span:last-child {
-    color: var(--color-gold);
-}
+@media (prefers-reduced-motion: reduce) { .draw-line { stroke-dashoffset: 0; } }

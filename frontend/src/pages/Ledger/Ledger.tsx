@@ -1,0 +1,165 @@
+import { useEffect, useState } from 'react';
+import type { AdminUser, FiltersState, Head, Transaction } from '../Admin/types';
+import { cashbookApi } from '../../data/cashbookApi';
+import { direction, headBranchIds, headPath, ledgerReport, money } from './ledgerModel';
+import type { LedgerOrder } from './ledgerModel';
+import { exportLedger } from './ledgerExport';
+import type { ReportDocument } from './ledgerExport';
+import { TransactionCard } from './TransactionCard';
+import { UserPreview } from '../Admin/components/UserPreview';
+import { Dialog } from '../Admin/components/Dialog';
+import './Ledger.css';
+
+type LedgerData = Awaited<ReturnType<typeof cashbookApi.ledger>>;
+export function Ledger({ filters, revision, heads, users, onDirtyChange }: {
+  filters: FiltersState; revision: number; heads: Head[]; users: AdminUser[]; onDirtyChange: (dirty: boolean) => void;
+}) {
+  const [data, setData] = useState<LedgerData | null>(null);
+  const [order, setOrder] = useState<LedgerOrder>('chronological');
+  const [pagination, setPagination] = useState({ scope: '', page: 0 });
+  const scope = JSON.stringify(filters);
+  const page = pagination.scope === scope ? pagination.page : 0;
+  function setPage(next: number) { setPagination({ scope, page: next }); }
+  const [pageSize, setPageSize] = useState(20);
+  const [selected, setSelected] = useState<Transaction | null>(null);
+  const [crediting, setCrediting] = useState(false);
+  const [creditUserId, setCreditUserId] = useState('');
+  const [creditDirty, setCreditDirty] = useState(false);
+  const [creditBusy, setCreditBusy] = useState(false);
+  const [confirmCreditClose, setConfirmCreditClose] = useState(false);
+  const [error, setError] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [reload, setReload] = useState(0);
+  const [showInactive, setShowInactive] = useState(false);
+  useEffect(() => { onDirtyChange(selected !== null || creditDirty); return () => onDirtyChange(false); }, [selected, creditDirty, onDirtyChange]);
+  function closeCredit() {
+    if (creditBusy) return;
+    if (creditDirty) setConfirmCreditClose(true);
+    else setCrediting(false);
+  }
+  const creditUser = data?.users.find((user) => user.user_id === creditUserId && user.is_active && user.user_id !== 'admin-1');
+  useEffect(() => {
+    let ignore = false;
+    cashbookApi.ledger().then((result) => { if (!ignore) { setData(result); setError(''); } })
+      .catch((error) => { if (!ignore) setError(error instanceof Error ? error.message : 'Could not load ledger.'); });
+    return () => { ignore = true; };
+  }, [revision, reload, heads, users]);
+  async function refresh() { setData(await cashbookApi.ledger()); }
+  const reportHeads = data?.heads ?? heads;
+  const report = ledgerReport(data?.transactions ?? [], filters, order, reportHeads);
+  const branch = headBranchIds(reportHeads, filters.headId);
+  const pageCount = Math.max(1, Math.ceil(report.rows.length / pageSize));
+  const currentPage = Math.min(page, pageCount - 1);
+  const userName = (id: string) => data?.users.find((user) => user.user_id === id)?.user_name ?? 'Unavailable account';
+  const title = filters.userScope === 'all' ? 'All users' : userName(filters.userScope);
+  const receivedLabel = `Total received by ${filters.userScope === 'all' ? 'users' : userName(filters.userScope)}`;
+  const branchLabel = filters.headId == null ? '' : `${headPath(reportHeads, filters.headId)} · Includes subheads`;
+  const dateLabel = filters.dateFrom && filters.dateTo ? `${filters.dateFrom} to ${filters.dateTo}`
+    : filters.dateFrom ? `From ${filters.dateFrom}` : filters.dateTo ? `Through ${filters.dateTo}` : '';
+  const subtitle = [branchLabel, dateLabel].filter(Boolean).join(' · ');
+  const columns = ['Date/time', 'User', 'Entered by', 'Head', 'Category', 'Credit', 'Debit', 'Balance'];
+  const entryCells = (entry: Transaction, balance: number): (string | number)[] => [
+    new Date(entry.createdAt).toLocaleString(), userName(entry.userId), userName(entry.createdBy),
+    entry.headPath ?? headPath(data?.heads ?? [], entry.headId), entry.categoryName ?? data?.categories.find((item) => item.id === entry.categoryId)?.name ?? '',
+    direction(entry) === 'credit' ? entry.amount : '', direction(entry) === 'debit' ? entry.amount : '', balance,
+  ];
+  const totalCells = (label: string, balance: number, credit: number | string = '', debit: number | string = ''): (string | number)[] => [label, '', '', '', '', credit, debit, balance];
+  function pageRows(index: number) {
+    const start = index * pageSize, rows: { cells: (string | number)[]; entry?: Transaction }[] = [];
+    const total = (label: string, balance: number, credit: string | number = '', debit: string | number = '') => rows.push({ cells: totalCells(label, balance, credit, debit) });
+    total(index === 0 ? 'Balance brought forward' : 'Page brought forward', start ? report.rows[start - 1].balance : report.opening);
+    report.rows.slice(start, start + pageSize).forEach(({ entry, balance }, offset) => {
+      const position = start + offset, type = direction(entry);
+      if (order !== 'chronological' && (offset === 0 || direction(report.rows[position - 1].entry) !== type)) {
+        total(`${type === 'credit' ? 'Credits' : 'Debits'}${offset === 0 && start && direction(report.rows[position - 1].entry) === type ? ' (continued)' : ''}`, balance - (type === 'credit' ? entry.amount : -entry.amount));
+      }
+      rows.push({ cells: entryCells(entry, balance), entry });
+      if (order !== 'chronological' && (!report.rows[position + 1] || direction(report.rows[position + 1].entry) !== type)) {
+        total(`${type === 'credit' ? 'Credits' : 'Debits'} subtotal`, balance, type === 'credit' ? report.credit : '', type === 'debit' ? report.debit : '');
+      }
+    });
+    const ending = report.rows[Math.min(start + pageSize, report.rows.length) - 1]?.balance ?? report.opening;
+    total(index === pageCount - 1 ? 'Totals / closing balance' : 'Page carried forward', ending,
+      index === pageCount - 1 ? report.credit : '', index === pageCount - 1 ? report.debit : '');
+    if (index === pageCount - 1) {
+      total(receivedLabel, report.totalReceived);
+      total('Total Bill Payment', report.totalBillPayment);
+      total('Remaining Payable Balance', report.remainingPayable);
+    }
+    return rows;
+  }
+  async function exportReport(format: 'pdf' | 'excel' | 'print') {
+    setExporting(true); setError('');
+    try {
+      const document: ReportDocument = { title, subtitle, columns, pages: Array.from({ length: pageCount }, (_, index) => pageRows(index).map((row) => row.cells)) };
+      await exportLedger(document, format);
+    } catch (error) { setError(error instanceof Error ? error.message : 'Could not export ledger.'); }
+    finally { setExporting(false); }
+  }
+  const invalidDates = !!filters.dateFrom && !!filters.dateTo && filters.dateFrom > filters.dateTo;
+  return <div className="ledger-view flex-col gap-md">
+    <div className="flex-row flex-wrap items-center justify-between gap-sm"><h1>{title}</h1>
+      <button className="btn btn--primary" disabled={!data} onClick={() => {
+        setCreditUserId(filters.userScope === 'all' ? '' : filters.userScope); setCreditDirty(false); setCrediting(true);
+      }}>Credit a user</button></div>
+    {subtitle && <p className="hint text-muted">{subtitle}</p>}
+    <div className="ledger-toolbar flex-row flex-wrap gap-sm">
+      <label className="field"><span>Arrangement</span><select value={order} onChange={(event) => { setOrder(event.target.value as LedgerOrder); setPage(0); }}>
+        <option value="chronological">Chronological</option><option value="credit-first">Credits, then debits</option><option value="debit-first">Debits, then credits</option>
+      </select></label>
+      <label className="field"><span>Rows per page</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }}>
+        {[10, 20, 50, 100].map((size) => <option key={size}>{size}</option>)}
+      </select></label>
+      {(['pdf', 'excel', 'print'] as const).map((format) => <button className="btn" key={format} disabled={!data || exporting || invalidDates} onClick={() => void exportReport(format)}>{format === 'pdf' ? 'PDF' : format === 'excel' ? 'Excel' : 'Print'}</button>)}
+    </div>
+    {error && <p role="alert" className="text-error">{error} <button className="btn" onClick={() => setReload((value) => value + 1)}>Reload</button></p>}
+    {invalidDates ? <p role="alert">Choose an end date on or after the start date.</p> : !data ? <p>Loading ledger…</p> : <>
+      <dl className="ledger-totals">
+        {Object.entries({ [receivedLabel]: report.totalReceived, 'Total Bill Payment': report.totalBillPayment, 'Remaining Payable Balance': report.remainingPayable }).map(([label, value]) => <div key={label}
+          title={label === 'Remaining Payable Balance' ? 'Bills minus received, including carry-forward. Positive means payable to the user.' : undefined}>
+          <dt>{label}</dt><dd>{money(value)}</dd></div>)}
+      </dl>
+      <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{columns.map((label) => <th key={label}
+        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{label}</th>)}</tr></thead><tbody>
+        {pageRows(currentPage).map(({ cells, entry: rowEntry }, index) => {
+          return <tr key={rowEntry?.id ?? index} className={rowEntry ? 'ledger-entry' : 'ledger-total'} onClick={() => { if (rowEntry) setSelected(rowEntry); }}>
+            {cells.map((value, column) => <td key={column}>{column === 0 && rowEntry ? <button className="ledger-row-link" onClick={() => setSelected(rowEntry)}>{value}</button> : typeof value === 'number' ? money(value) : value}</td>)}
+          </tr>;
+        })}
+      </tbody></table></div>
+      {!report.rows.length && <p className="text-muted">No entries in this selection.</p>}
+      <div className="flex-row items-center justify-between gap-sm">
+        <button className="btn" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous</button>
+        <span>Page {currentPage + 1} / {pageCount} · {report.rows.length} entries</span>
+        <button className="btn" disabled={currentPage + 1 === pageCount} onClick={() => setPage(currentPage + 1)}>Next</button>
+      </div>
+      <details open={showInactive} onToggle={(event) => setShowInactive(event.currentTarget.open)}><summary>Deactivated entries</summary>
+        {data.transactions.filter((entry) => !entry.active && (filters.userScope === 'all' || entry.userId === filters.userScope) && (!branch || branch.has(entry.headId))).map((entry) =>
+          <button className="btn" key={entry.id} onClick={() => setSelected(entry)}>{new Date(entry.createdAt).toLocaleString()} · {userName(entry.userId)} · {money(entry.amount)}</button>)}
+      </details>
+    </>}
+    {selected && data && <TransactionCard key={selected.id} entry={selected}
+      admin heads={data.heads} users={data.users} categories={data.categories}
+      onClose={() => { setSelected(null); setReload((value) => value + 1); }} onChanged={refresh} />}
+    {crediting && data && <Dialog title="Credit a user" onClose={closeCredit} busy={creditBusy}>
+      {creditUser ? <UserPreview key={creditUser.user_id} user={creditUser} heads={data.heads} assigned={[]} pending={false}
+        adminCredit onClose={closeCredit} onDirtyChange={setCreditDirty} onBusyChange={setCreditBusy}
+        onSubmitted={async () => { await refresh(); setCrediting(false); }} /> : <div className="flex-col gap-md">
+        <p>Choose the user receiving this credit.</p>
+        {data.users.filter((user) => user.is_active && user.user_id !== 'admin-1').map((user) =>
+          <button className="user-choice-card" key={user.user_id} onClick={() => setCreditUserId(user.user_id)}>
+            <span className="user-card-label">{user.user_name}</span><span className="user-card-arrow" aria-hidden="true">›</span>
+          </button>)}
+        {!data.users.some((user) => user.is_active && user.user_id !== 'admin-1') && <p className="text-muted">Create an active user first.</p>}
+        <button className="btn" onClick={closeCredit}>Cancel</button>
+      </div>}
+    </Dialog>}
+    {confirmCreditClose && <Dialog title="Discard this credit draft?" onClose={() => setConfirmCreditClose(false)}>
+      <p>The credit has not been sent.</p>
+      <div className="flex-row justify-end gap-sm">
+        <button className="btn" onClick={() => setConfirmCreditClose(false)}>Keep editing</button>
+        <button className="btn btn--primary" onClick={() => { setConfirmCreditClose(false); setCrediting(false); setCreditDirty(false); }}>Discard</button>
+      </div>
+    </Dialog>}
+  </div>;
+}

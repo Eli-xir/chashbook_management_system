@@ -1,17 +1,25 @@
+import {useNavigate} from 'react-router-dom'
 import {useState} from 'react'
-import {Link} from 'react-router-dom'
+import {cashbookApi} from './data/cashbookApi'
+import type {AppSession} from './pages/Admin/types'
 import logo from './assets/logo.jpeg'
-import './App.css'
 import './Login.css'
 
-function Login() {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
+function Login({ onSignedIn }: { onSignedIn: (session: AppSession) => Promise<void> }) {
+    const navigate = useNavigate();
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
 
-    function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
-        console.log(`Your username ${username}`);
-        console.log(`Your password ${password}`);
+        const fields = new FormData(e.currentTarget);
+        setBusy(true); setError('');
+        try {
+            const session = await cashbookApi.signIn(String(fields.get('username') ?? ''), String(fields.get('password') ?? ''));
+            await onSignedIn(session);
+            navigate(session.role === 'admin' ? '/Admin' : '/User', { replace: true });
+        } catch (error) { setError(error instanceof Error ? error.message : 'Could not sign in.'); }
+        finally { setBusy(false); }
     }
  
     return (
@@ -68,8 +76,6 @@ function Login() {
                             type="text"
                             autoComplete="username"
                             placeholder="Enter your username"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
                             required
                         />
                     </div>
@@ -81,15 +87,13 @@ function Login() {
                             name="password"
                             autoComplete="current-password"
                             placeholder="Enter your password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
                             required
                         />
                     </div>
-                    <button className="login-button" type="submit">
-                        Login
+                    {error && <p role="alert" className="text-error">{error}</p>}
+                    <button className="login-button" type="submit" disabled={busy}>
+                        {busy ? 'Signing in…' : 'Login'}
                     </button>
-                    <Link to="/" className="app-link">Go to app</Link>
                 </form>
             </div>
         </div>

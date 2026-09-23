@@ -1,52 +1,21 @@
-// src/pages/Admin/hooks/useStagedHeadChanges.ts
-import { useCallback, useState } from 'react';
-import type { StagedChange } from '../types';
+import { useState } from 'react';
+import type { Head, StagedChange } from '../types';
 
-interface UseStagedHeadChangesResult {
-  changes: StagedChange[];
-  addChange: (change: StagedChange) => void;
-  undo: () => void;
-  redo: () => void;
-  clear: () => void;
-  canUndo: boolean;
-  canRedo: boolean;
-  hasPendingChanges: boolean;
-}
-
-// Tracks the pending head-tree edit set (moves + merges) with undo/redo,
-// entirely client-side until the admin hits Apply and it's sent as one batch.
-export function useStagedHeadChanges(): UseStagedHeadChangesResult {
-  const [history, setHistory] = useState<StagedChange[][]>([[]]);
-  const [pointer, setPointer] = useState(0);
-
-  const changes = history[pointer];
-
-  const addChange = useCallback(
-    (change: StagedChange) => {
-      setHistory((prev) => {
-        const truncated = prev.slice(0, pointer + 1);
-        return [...truncated, [...truncated[truncated.length - 1], change]];
-      });
-      setPointer((p) => p + 1);
-    },
-    [pointer]
-  );
-
-  const undo = useCallback(() => setPointer((p) => Math.max(0, p - 1)), []);
-  const redo = useCallback(() => setPointer((p) => Math.min(history.length - 1, p + 1)), [history.length]);
-  const clear = useCallback(() => {
-    setHistory([[]]);
-    setPointer(0);
-  }, []);
-
+// Keep the history and cursor together so every edit is one atomic state update.
+export function useStagedHeadChanges(initialHeads: Head[]) {
+  const [{ heads, history, cursor }, setState] = useState({ heads: initialHeads, history: [[]] as StagedChange[][], cursor: 0 });
   return {
-    changes,
-    addChange,
-    undo,
-    redo,
-    clear,
-    canUndo: pointer > 0,
-    canRedo: pointer < history.length - 1,
-    hasPendingChanges: changes.length > 0,
+    heads,
+    changes: history[cursor],
+    canUndo: cursor > 0,
+    canRedo: cursor < history.length - 1,
+    addChange: (change: StagedChange) => setState(({ heads, history, cursor }) => ({
+      heads,
+      history: [...history.slice(0, cursor + 1), [...history[cursor], change]],
+      cursor: cursor + 1,
+    })),
+    undo: () => setState((s) => ({ ...s, cursor: Math.max(0, s.cursor - 1) })),
+    redo: () => setState((s) => ({ ...s, cursor: Math.min(s.history.length - 1, s.cursor + 1) })),
+    clear: (heads: Head[]) => setState({ heads, history: [[]], cursor: 0 }),
   };
 }

@@ -1,34 +1,21 @@
-/* src/pages/Admin/AdminPage.css */
 .admin-page {
-    display: flex;
-    flex-direction: row;
-    min-height: 100vh;
-    background: var(--color-ink, #0B0B0C);
+  display: flex;
+  min-height: 100dvh;
 }
-
-.admin-panel--sidebar {
-    flex: 1;
-    min-width: 320px;
-    border-right: 1px solid var(--color-line, #2A2A28);
-}
-
-.admin-panel--ledger {
-    flex: 2;
-}
+.admin-panel--sidebar { flex: 1; min-width: 320px; border-right: 1px solid var(--color-line); }
+.admin-panel--ledger { flex: 2; min-width: 0; padding: var(--space-lg); }
+.mobile-only { display: none; }
+.ledger-link { margin-top: var(--space-lg); }
 
 @media (max-width: 800px) {
-    .admin-page {
-        overflow-x: auto;
-        scroll-snap-type: x mandatory;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .admin-panel--sidebar,
-    .admin-panel--ledger {
-        flex: none;
-        width: 100%;
-        min-width: 100%;
-        scroll-snap-align: start;
-        border-right: none;
-    }
+  .admin-page { height: 100dvh; overflow-x: auto; scroll-snap-type: x mandatory; }
+  .admin-panel--sidebar, .admin-panel--ledger {
+    flex: 0 0 100%;
+    min-width: 0;
+    height: 100%;
+    overflow-y: auto;
+    scroll-snap-align: start;
+    border: 0;
+  }
+  .mobile-only { display: block; }
 }

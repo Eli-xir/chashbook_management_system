@@ -1,41 +1,8 @@
-/* src/pages/Admin/components/Sidebar.css */
-.sidebar {
-    height: 100%;
-    background: var(--color-ink, #0B0B0C);
-    color: var(--color-text, #F2F0EA);
-    font-family: "Inter", sans-serif;
-}
-
-.sidebar-nav {
-    padding: var(--space-md);
-    border-bottom: 1px solid var(--color-line, #2A2A28);
-}
-
+.sidebar { height: 100%; }
+.sidebar-nav { padding: var(--space-md); gap: var(--space-sm); border-bottom: 1px solid var(--color-line); flex-wrap: wrap; }
 .sidebar-tabs { gap: var(--space-xs); }
-
-.sidebar-tab {
-    background: transparent;
-    border: none;
-    color: var(--color-text-muted, #9B9690);
-    font-family: "Inter", sans-serif;
-    font-size: 0.85rem;
-    padding: 6px 10px;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-}
-
-.sidebar-tab--active {
-    color: var(--color-text, #F2F0EA);
-    border-bottom-color: var(--color-gold, #C9A227);
-}
-
-.sidebar-content {
-    padding: var(--space-md);
-    overflow-y: auto;
-}
-
-.field-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.85rem;
-}
+.sidebar-tab { font: inherit; font-size: .85rem; padding: 8px; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--color-text-muted); cursor: pointer; }
+.sidebar-tab--active { color: var(--color-text); border-bottom-color: var(--color-gold); }
+.sidebar-content { padding: var(--space-md); }
+.user-context { border-bottom: 1px solid var(--color-line); padding-bottom: var(--space-md); margin-bottom: var(--space-md); }
+.refresh-notice { margin-bottom: var(--space-md); }

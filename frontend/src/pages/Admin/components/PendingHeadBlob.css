@@ -1,0 +1,18 @@
+.pending-head-blob {
+  align-self: flex-start;
+  max-width: 100%;
+  border: 1px dashed var(--color-gold);
+  border-radius: 12px;
+  background: rgba(201, 162, 39, .08);
+}
+.pending-head-blob :is(button, input) {
+  max-width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 8px 14px;
+  color: var(--color-gold);
+  font: inherit;
+}
+.pending-head-blob button { cursor: grab; overflow-wrap: anywhere; }
+.pending-head-blob input { width: 220px; }
+.pending-head-blob input::selection { color: white; background: #2463d4; }

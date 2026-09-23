@@ -1,0 +1,16 @@
+.ledger-toolbar { align-items: end; }
+.ledger-totals { display: flex; flex-wrap: wrap; gap: 20px; border-block: 1px solid var(--color-line); padding-block: 12px; }
+.ledger-totals dt { color: var(--color-text-muted); font-size: .8rem; }
+.ledger-totals dd { font-variant-numeric: tabular-nums; margin-top: 4px; }
+.ledger-table-scroll { overflow-x: auto; }
+.ledger-table { width: 100%; min-width: 800px; border-collapse: collapse; font-size: .8rem; }
+.ledger-table th, .ledger-table td { border: 1px solid var(--color-line); padding: 7px; text-align: left; vertical-align: top; }
+.ledger-table th { background: var(--color-surface); }
+.ledger-table td:nth-child(n+6):nth-child(-n+8) { text-align: right; font-variant-numeric: tabular-nums; }
+.ledger-entry:hover { background: var(--color-surface); }
+.ledger-entry { cursor: pointer; }
+.ledger-row-link { border: 0; background: none; color: var(--color-gold-soft); font: inherit; text-align: left; cursor: pointer; min-height: 32px; }
+.ledger-total { font-weight: bold; background: var(--color-surface); }
+.ledger-version { border-top: 1px solid var(--color-line); padding-block: 12px; }
+.ledger-version summary { cursor: pointer; padding-bottom: 8px; }
+.ledger-attachment-disabled { pointer-events: none; opacity: .5; }
