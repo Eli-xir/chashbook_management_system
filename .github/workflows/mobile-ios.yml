@@ -28,16 +28,16 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: mobile/package-lock.json
-      - name: Sync Capacitor assets and pods
+      - name: Sync Capacitor assets
         working-directory: mobile
         run: |
           npm ci
           npx cap sync ios
-          pod --version || sudo gem install cocoapods
       - name: Build unsigned archive
         working-directory: mobile/ios/App
         run: |
-          xcodebuild -workspace App.xcworkspace -scheme App \
+          # Capacitor 8 uses Swift Package Manager; the project builds directly.
+          xcodebuild -project App.xcodeproj -scheme App \
             -configuration Release -destination 'generic/platform=iOS' \
             -archivePath build/App.xcarchive archive CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY=""
       - name: Package unsigned IPA
