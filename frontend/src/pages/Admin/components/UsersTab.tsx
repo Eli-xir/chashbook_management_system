@@ -19,6 +19,7 @@ interface UsersTabProps {
 
 export function UsersTab(props: UsersTabProps) {
   const { currentAdminUserId, users, selectedUserId, onSelect, onViewLedger, onAction, onDirtyChange } = props;
+  const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -42,17 +43,19 @@ export function UsersTab(props: UsersTabProps) {
       <button className="btn btn--primary" onClick={() => setEditing({
         mode: 'create', user: { user_id: '', user_name: '', contacts: [], is_active: true },
       })}>+ Create user</button>
+      <input type="search" aria-label="Search users" placeholder="Search users by name or description" value={search} onChange={(event) => setSearch(event.target.value)} />
       {[true, false].map((self) => (
         <section key={String(self)} className="flex-col gap-sm">
           <h3 className="section-label">{self ? 'Your account' : 'All users'}</h3>
           {!self && users.every((user) => user.user_id === currentAdminUserId) && <p className="text-muted">No other users yet.</p>}
-          {users.filter((user) => (user.user_id === currentAdminUserId) === self).map((user) => (
+          {users.filter((user) => (user.user_id === currentAdminUserId) === self && (self || `${user.user_name} ${user.description ?? ''}`.toLowerCase().includes(search.toLowerCase()))).map((user) => (
             <details key={user.user_id} className={`user-card ${selectedUserId === user.user_id ? 'user-card--selected' : ''}`}
               open={self ? true : undefined} name={self ? undefined : 'users'}>
               <summary className="user-card-header" onClick={() => { if (!self) onSelect(user.user_id); }}>
                 {user.user_name} {!user.is_active && <span className="head-node-badge">deactivated</span>}
               </summary>
               <div className="user-card-body flex-col gap-sm">
+                <p className="text-muted">{user.description}</p>
                 <dl className="flex-col gap-xs">
                   <div className="field-row"><dt className="text-muted">Name</dt><dd>{user.user_name}</dd></div>
                   <div className="field-row">

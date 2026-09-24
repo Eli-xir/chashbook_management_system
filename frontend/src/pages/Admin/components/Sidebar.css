@@ -1,8 +1,0 @@
-.sidebar { height: 100%; }
-.sidebar-nav { padding: var(--space-md); gap: var(--space-sm); border-bottom: 1px solid var(--color-line); flex-wrap: wrap; }
-.sidebar-tabs { gap: var(--space-xs); }
-.sidebar-tab { font: inherit; font-size: .85rem; padding: 8px; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--color-text-muted); cursor: pointer; }
-.sidebar-tab--active { color: var(--color-text); border-bottom-color: var(--color-gold); }
-.sidebar-content { padding: var(--space-md); }
-.user-context { border-bottom: 1px solid var(--color-line); padding-bottom: var(--space-md); margin-bottom: var(--space-md); }
-.refresh-notice { margin-bottom: var(--space-md); }

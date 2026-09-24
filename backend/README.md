@@ -1,3 +1,5 @@
+> Current behavior: version 3 removes categories from the API/UI, adds descriptions, and makes permissions inherit through branches. See [migration and API changes](../database/migrations/README.md); that note supersedes older category and exact-head examples below.
+
 # Backend and frontend communication points
 
 Run from this folder with `uvicorn main:app --reload` after activating `.venv`. Configuration is loaded from `.env` automatically. See the root README for setup and initial admin login.

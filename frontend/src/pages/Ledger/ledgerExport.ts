@@ -15,7 +15,7 @@ export function creditDocument(overview: UserOverview, userName: string): Report
     const rows: (string | number)[][] = [[start ? 'Page brought forward' : 'Opening balance', '', '', '', balance]];
     entries.slice(start, start + 20).forEach((entry) => {
       balance = roundMoney(balance + entry.amount);
-      rows.push([new Date(entry.createdAt).toLocaleString(), entry.headPath ?? '', entry.categoryName ?? '', entry.amount, balance]);
+      rows.push([new Date(entry.createdAt).toLocaleString(), entry.headPath ?? '', entry.description ?? '', entry.amount, balance]);
     });
     rows.push([start + 20 >= entries.length ? 'Total credits received' : 'Page carried forward', '', '', '', balance]);
     pages.push(rows);
@@ -25,7 +25,7 @@ export function creditDocument(overview: UserOverview, userName: string): Report
     ['Total paid', '', '', '', overview.totalBillPayment],
     ['Remaining balance', '', '', '', overview.balance],
   );
-  return { title: userName, subtitle: 'Credits received', columns: ['Date/time', 'Head', 'Category', 'Credit', 'Received to date'], pages };
+  return { title: userName, subtitle: 'Credits received', columns: ['Date/time', 'Head', 'Description', 'Credit', 'Received to date'], pages };
 }
 export function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob), link = document.createElement('a');
@@ -34,7 +34,7 @@ export function download(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 export type ReportFormat = 'pdf' | 'excel' | 'csv';
-const columnWidths = (report: ReportDocument) => report.columns.length === 8 ? [24, 17, 17, 40, 19, 23, 23, 23] : [30, 65, 27, 30, 34];
+const columnWidths = (report: ReportDocument) => report.columns.length === 8 ? [24, 17, 17, 29, 30, 23, 23, 23] : [30, 65, 27, 30, 34];
 const numeric = (value: string | number) => typeof value === 'number' ? `PKR ${value.toLocaleString('en-PK', { maximumFractionDigits: 2 })}` : value;
 function labelSpan(report: ReportDocument, row: (string | number)[]) {
   if (row[1] !== '' || row[report.columns.indexOf('Head')] !== '') return 1;

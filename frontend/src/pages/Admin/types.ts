@@ -20,6 +20,7 @@ export interface AdminUser {
   role?: 'admin' | 'user';
   user_id: string;
   user_name: string;
+  description?: string;
   contact_no?: string;
   contacts?: string[];
   is_active: boolean;
@@ -27,6 +28,7 @@ export interface AdminUser {
 
 export interface FiltersState {
   headId?: number | null;
+  description?: string;
   dateFrom: string;
   dateTo: string;
   userScope: string;
@@ -50,11 +52,13 @@ export type CreateChange = {
   temp_id: number;
   head_name: string;
   parent_head_id: number | null;
+  head_description?: string;
   is_transactionable?: boolean;
 };
 
 export type EditHeadChange = {
   op: 'edit';
+  head_description?: string;
   head_id: number;
   head_name: string;
   image_url: string | null;
@@ -70,27 +74,26 @@ export type ActiveHeadChange = { op: 'active'; head_id: number; is_active: boole
 export type BackupHeadChange = { op: 'backup'; head_id: number; };
 export type StagedChange = MoveChange | MergeChange | CreateChange | EditHeadChange | DeleteHeadChange | ActiveHeadChange | BackupHeadChange;
 export type Permissions = Record<string, number[]>;
-export interface AdminData { heads: Head[]; users: AdminUser[]; permissions: Permissions; categories?: Category[]; }
-export interface UserProfile { user_name: string; contacts: string[]; }
+export interface AdminData { heads: Head[]; users: AdminUser[]; permissions: Permissions; }
+export interface UserProfile { user_name: string; description?: string; contacts: string[]; }
 export interface CreateUserInput extends UserProfile { password: string; }
 export interface Attachment { id: string; kind: 'image' | 'voice'; name: string; url: string; }
-export interface Category { id: number; name: string; }
-export interface TransactionInput { amount: number; categoryId: number; headId: number; attachments: Attachment[]; transactionTypeId?: number; }
+export interface ReferenceType { id: number; name: string; }
+export interface TransactionInput { amount: number; description?: string; headId: number; attachments: Attachment[]; transactionTypeId?: number; }
 export interface TransactionRevision extends TransactionInput {
   versionId: string; recordedAt: string; editorId: string; action: string; active: boolean;
-  headPath?: string; categoryName?: string;
+  headPath?: string;
 }
 export interface Transaction extends TransactionInput {
   id: string; userId: string; createdBy: string; active: boolean; createdAt: string;
   versions?: TransactionRevision[];
-  headPath?: string; categoryName?: string;
+  headPath?: string;
 }
 export interface AppSession { userId: string; role: 'admin' | 'user'; }
 export interface AccountTotals { totalReceived: number; totalBillPayment: number; remainingPayable: number; }
-export interface UserOverview extends AccountTotals { balance: number; credits: Transaction[]; categories: Category[]; }
+export interface UserOverview extends AccountTotals { balance: number; credits: Transaction[]; }
 export interface CashbookData extends AdminData {
   transactions: Transaction[];
 }
 
-export type SidebarTab = 'filters' | 'heads' | 'users';
 export type UserAction = 'deactivate' | 'reactivate' | 'delete';

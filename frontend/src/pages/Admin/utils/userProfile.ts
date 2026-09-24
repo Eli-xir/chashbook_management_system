@@ -8,5 +8,5 @@ export function validateProfile(profile: UserProfile): UserProfile {
   if (!user_name || user_name.length > 48) throw new Error('Enter a name of 1–48 characters.');
   if (contacts.some((contact) => contact.length > 24)) throw new Error('Contact numbers can contain up to 24 characters.');
   if (new Set(contacts).size !== contacts.length) throw new Error('Each contact number should be listed once.');
-  return { user_name, contacts };
+  return { user_name, contacts, description: profile.description?.trim() ?? '' };
 }

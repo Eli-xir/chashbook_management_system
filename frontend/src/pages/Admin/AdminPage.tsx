@@ -1,18 +1,19 @@
-import { useRef, useState } from 'react';
-import type { AdminData, AdminUser, CreateUserInput, FiltersState, Head, SidebarTab, StagedChange, UserAction, UserProfile } from './types';
-import { Sidebar } from './components/Sidebar';
-import { FiltersTab } from './components/FiltersTab';
+import { useState } from 'react';
+import type { CashbookData, AdminUser, CreateUserInput, FiltersState, Head, StagedChange, UserAction, UserProfile } from './types';
 import { HeadsTab } from './components/HeadsTab';
 import { UsersTab } from './components/UsersTab';
-import { PermissionsEditor } from './components/PermissionsEditor';
+import { PermissionChanges } from './components/PermissionChanges';
 import { UserPreview } from './components/UserPreview';
+import { UserPicker } from './components/UserPicker';
 import { Dialog } from './components/Dialog';
 import { usePermissionChanges } from './hooks/usePermissionChanges';
 import { permissionDiff } from './utils/permissions';
 import { Ledger } from '../Ledger/Ledger';
+import { accountTotals, money } from '../Ledger/ledgerModel';
+import logo from '../../assets/logo.jpeg';
 import './AdminPage.css';
 
-interface AdminPageProps extends AdminData {
+interface AdminPageProps extends CashbookData {
   currentAdminUserId: string;
   onLogout: () => void;
   onRefresh: () => Promise<void>;
@@ -21,17 +22,21 @@ interface AdminPageProps extends AdminData {
   onSaveProfile: (userId: string, profile: UserProfile) => Promise<void>;
   onCreateUser: (input: CreateUserInput) => Promise<AdminUser>;
   onChangePassword?: (userId: string, password: string) => Promise<void>;
-  onCreateCategory: (name: string) => Promise<void>;
-  onDeleteCategory: (id: number) => Promise<void>;
   onUserAction?: (userId: string, action: UserAction) => Promise<void>;
 }
-
+const cards = [
+  { id: 'users', title: 'Users', icon: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0', tone: 'blue' },
+  { id: 'company', title: 'Company Statement', icon: 'M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1M9 13h1m4 0h1M10 21v-4h4v4', tone: 'gold' },
+  { id: 'statement', title: 'Users Statement', icon: 'M6 3h12v18H6zM9 7h6M9 11h6M9 15h2', tone: 'green' },
+  { id: 'heads', title: 'Heads Management', icon: 'M3 6h6l2 2h10v12H3zM3 6V4h6l2 2M8 12h8M8 16h5', tone: 'purple' },
+] as const;
+type Page = 'home' | typeof cards[number]['id'];
 export function AdminPage(props: AdminPageProps) {
-  const { currentAdminUserId, users, heads, permissions, onLogout, onSubmitHeadChanges } = props;
-  const [activeTab, setActiveTab] = useState<SidebarTab>('filters');
+  const { users, heads, permissions, currentAdminUserId } = props;
+  const [page, setPage] = useState<Page>('home');
   const [filters, setFilters] = useState<FiltersState>({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' });
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [permissionMode, setPermissionMode] = useState(false);
+  const [showPermissions, setShowPermissions] = useState(false);
   const [preview, setPreview] = useState(false);
   const [headDirty, setHeadDirty] = useState(false);
   const [userDirty, setUserDirty] = useState(false);
@@ -43,168 +48,93 @@ export function AdminPage(props: AdminPageProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [confirmRefresh, setConfirmRefresh] = useState(false);
   const [notice, setNotice] = useState('');
-  const [categoryName, setCategoryName] = useState('');
-  const [savingCategory, setSavingCategory] = useState(false);
-  const permissionEditor = usePermissionChanges(permissions);
-  const selectableUsers = users.filter((user) => user.user_id !== currentAdminUserId);
-  const selectedUser = selectableUsers.find((user) => user.user_id === selectedUserId);
-  const dirty = headDirty || userDirty || permissionEditor.dirty || transactionDirty || ledgerDirty;
-  const ledger = useRef<HTMLElement>(null);
-
-  function navigatePreview(action: () => void) {
-    if (transactionBusy) { setNotice('Finish the recording or wait for the current operation first.'); return; }
-    if (transactionDirty) setPendingNavigation(() => action);
+  const [headAction, setHeadAction] = useState<{ head: Head; action: 'give' | 'revoke' } | null>(null);
+  const [actionUser, setActionUser] = useState('');
+  const editor = usePermissionChanges(permissions, heads);
+  const selectableUsers = users.filter((u) => u.user_id !== currentAdminUserId && u.role !== 'admin');
+  const selectedUser = selectableUsers.find((u) => u.user_id === selectedUserId);
+  const dirty = headDirty || userDirty || editor.dirty || transactionDirty || ledgerDirty;
+  const totals = accountTotals(props.transactions);
+  const diff = permissionDiff(permissions[selectedUserId] ?? [], editor.ids(selectedUserId));
+  function navigate(action: () => void) {
+    if (transactionBusy) { setNotice('Finish the recording or current operation first.'); return; }
+    if (transactionDirty || ledgerDirty) setPendingNavigation(() => action);
     else action();
   }
-  function selectUser(userId: string) {
-    if (userId === currentAdminUserId || userId === selectedUserId) return;
-    navigatePreview(() => setSelectedUserId(userId));
-  }
-
-  function showLedger() {
-    ledger.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-    ledger.current?.focus({ preventScroll: true });
-  }
-  function viewLedger(userId: string) {
-    navigatePreview(() => {
-      setFilters((previous) => ({ ...previous, userScope: userId }));
-      setSelectedUserId(userId);
-      setPreview(false);
-      showLedger();
-    });
-  }
-  async function userAction(userId: string, action: UserAction) {
-    if (userId === selectedUserId && transactionDirty) throw new Error('Finish or cancel this user’s transaction draft first.');
-    if (!props.onUserAction) throw new Error('Account actions are not connected yet. No changes were made.');
-    await props.onUserAction(userId, action);
+  function statement(userScope: string, headId = filters.headId, company = false) {
+    navigate(() => { setFilters((f) => ({ ...f, userScope, headId })); setPage(company ? 'company' : 'statement'); setPreview(false); });
   }
   async function refresh() {
-    setRefreshing(true);
-    setNotice('');
+    setRefreshing(true); setNotice('');
     try {
-      await props.onRefresh();
-      permissionEditor.reset();
-      setRevision((value) => value + 1);
-      setHeadDirty(false);
-      setUserDirty(false);
-      setTransactionDirty(false);
-      setConfirmRefresh(false);
-      setNotice('Saved data refreshed.');
-    } catch { setNotice('Refresh failed. Your edits have been kept; please try again.'); }
+      await props.onRefresh(); editor.reset(); setRevision((n) => n + 1);
+      setHeadDirty(false); setUserDirty(false); setTransactionDirty(false); setLedgerDirty(false); setConfirmRefresh(false);
+    } catch (error) { setNotice((error as Error).message); }
     finally { setRefreshing(false); }
   }
-  const previewDiff = permissionDiff(permissions[selectedUserId] ?? [], permissionEditor.ids(selectedUserId));
-
-  return (
-    <main className="admin-page">
-      <div className="admin-panel--sidebar">
-        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} onLogout={() => navigatePreview(onLogout)}
-          refreshing={refreshing} onRefresh={() => {
-            if (transactionBusy) { setNotice('Finish the recording or current operation before refreshing.'); return; }
-            if (dirty) setConfirmRefresh(true); else void refresh();
-          }}>
-          <div className="user-context flex-col gap-sm">
-            <label className="field">
-              <span>Selected user</span>
-              <select value={selectedUser?.user_id ?? ''} onChange={(event) => selectUser(event.target.value)}>
-                <option value="">Choose a user…</option>
-                {selectableUsers.map((user) => <option key={user.user_id} value={user.user_id}>
-                  {user.user_name}{user.is_active ? '' : ' (deactivated)'}
-                </option>)}
-              </select>
-            </label>
-            {selectedUser && (
-              <div className="flex-row flex-wrap gap-sm">
-                <button className="btn" aria-pressed={preview} onClick={() => navigatePreview(() => {
-                  setPreview(!preview); if (!preview) showLedger();
-                })}>User preview</button>
-                <button className="btn" aria-pressed={permissionMode && activeTab === 'heads'}
-                  onClick={() => { setPermissionMode(!(permissionMode && activeTab === 'heads')); setActiveTab('heads'); }}>Give permissions</button>
-              </div>
-            )}
-          </div>
-          {notice && <p role="status" className="hint refresh-notice">{notice}</p>}
-          <section id="panel-filters" aria-label="Filters" hidden={activeTab !== 'filters'}>
-            <FiltersTab users={selectableUsers} filters={filters} onChange={setFilters} />
-            <details className="disclosure"><summary>Categories</summary>
-              {props.categories?.map((category) => <div key={category.id} className="flex-row items-center justify-between gap-sm">
-                <span>{category.name}</span>
-                <button className="btn" disabled={savingCategory} onClick={async () => {
-                  setSavingCategory(true); setNotice('');
-                  try { await props.onDeleteCategory(category.id); setNotice('Category removed. Existing transactions are preserved.'); }
-                  catch (error) { setNotice((error as Error).message); }
-                  finally { setSavingCategory(false); }
-                }}>Remove</button>
-              </div>)}
-              <form className="flex-col gap-sm" onSubmit={async (event) => {
-                event.preventDefault(); setSavingCategory(true); setNotice('');
-                try { await props.onCreateCategory(categoryName); setCategoryName(''); setNotice('Category added.'); }
-                catch (error) { setNotice((error as Error).message); }
-                finally { setSavingCategory(false); }
-              }}>
-                <label className="field"><span>New category</span><input required maxLength={48} value={categoryName}
-                  disabled={savingCategory} onChange={(event) => setCategoryName(event.target.value)} /></label>
-                <button className="btn" disabled={savingCategory}>{savingCategory ? 'Saving…' : 'Add category'}</button>
-              </form>
-            </details>
-          </section>
-          <section id="panel-heads" aria-label="Heads" hidden={activeTab !== 'heads'}>
-            {permissionMode && (
-              <div className="flex-col gap-md">
-                {selectedUser ? (
-                  <PermissionsEditor key={selectedUserId + ':' + revision} user={selectedUser} heads={heads}
-                    editor={permissionEditor} onSave={props.onSavePermissions} />
-                ) : <p className="text-muted">Choose a user above to assign permissions.</p>}
-              </div>
-            )}
-            <div hidden={permissionMode}>
-              <HeadsTab key={revision} heads={heads} reservedIds={Object.values(permissions).flat()}
-                filterHeadId={filters.headId} onFilterHead={(headId) => navigatePreview(() => {
-                  setFilters((previous) => ({ ...previous, headId })); setPreview(false); showLedger();
-                })}
-                onSubmitChanges={onSubmitHeadChanges} onDirtyChange={setHeadDirty} />
-            </div>
-          </section>
-          <section id="panel-users" aria-label="Users" hidden={activeTab !== 'users'}>
-            <UsersTab key={revision} currentAdminUserId={currentAdminUserId} users={users}
-              selectedUserId={selectedUserId} onSelect={selectUser} onViewLedger={viewLedger} onCreateUser={props.onCreateUser}
-              onAction={userAction} onSaveProfile={props.onSaveProfile}
-              onChangePassword={props.onChangePassword} onDirtyChange={setUserDirty} />
-          </section>
-          <button className="btn mobile-only ledger-link" onClick={showLedger}>Ledger →</button>
-        </Sidebar>
+  return <main className="admin-page">
+    <header className="admin-header">
+      <button className="brand-home" onClick={() => navigate(() => { setPage('home'); setPreview(false); })}><img src={logo} alt="" /><span>Sohail Malik Architects<small>Cashbook</small></span></button>
+      <div className="flex-row flex-wrap gap-sm">
+        {page !== 'home' && <button className="btn" onClick={() => navigate(() => { setPage('home'); setPreview(false); })}>← Home</button>}
+        <button className="btn" disabled={refreshing || transactionBusy} onClick={() => dirty ? setConfirmRefresh(true) : void refresh()}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>
+        <button className="btn" onClick={() => navigate(props.onLogout)}>Logout</button>
       </div>
-      <section ref={ledger} className="admin-panel--ledger flex-col gap-md" tabIndex={-1} aria-label="Ledger">
-        <button className="btn mobile-only" onClick={() =>
-          document.getElementById(`panel-${activeTab}`)?.scrollIntoView({ block: 'nearest', inline: 'start' })
-        }>Controls</button>
-        {preview && selectedUser ? (
-          <UserPreview key={selectedUserId + ':' + revision} user={selectedUser} heads={heads} assigned={permissionEditor.ids(selectedUserId)}
-            onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy}
-            pending={previewDiff.granted.length + previewDiff.revoked.length > 0} onClose={() => navigatePreview(() => setPreview(false))} />
-        ) : <Ledger key={revision} filters={filters} revision={revision} heads={heads} users={users} onDirtyChange={setLedgerDirty} />}
-      </section>
-      {confirmRefresh && (
-        <Dialog title="Refresh saved data?" onClose={() => setConfirmRefresh(false)} busy={refreshing}>
-          <p>You have unapplied edits. Refresh will discard these drafts and reload saved data.</p>
-          {notice && <p role="alert">{notice}</p>}
-          <div className="flex-row justify-end gap-sm">
-            <button className="btn" disabled={refreshing} onClick={() => setConfirmRefresh(false)}>Keep editing</button>
-            <button className="btn btn--primary" disabled={refreshing} onClick={refresh}>
-              {refreshing ? 'Refreshing…' : 'Discard drafts and refresh'}
-            </button>
-          </div>
-        </Dialog>
-      )}
-      {pendingNavigation && <Dialog title="Discard this transaction draft?" onClose={() => setPendingNavigation(null)}>
-        <p>The amount, selections and attachments have not been submitted.</p>
-        <div className="flex-row justify-end gap-sm">
-          <button className="btn" onClick={() => setPendingNavigation(null)}>Keep editing</button>
-          <button className="btn btn--primary" onClick={() => {
-            pendingNavigation(); setPendingNavigation(null); setTransactionDirty(false);
-          }}>Discard and continue</button>
+    </header>
+    {notice && <p role="status">{notice}</p>}
+    <section className="admin-home" hidden={page !== 'home'}>
+      <h1>Overview</h1>
+      <dl className="home-totals">{Object.entries({ Credits: totals.totalBillPayment, Debits: totals.totalReceived, Balance: totals.remainingPayable }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{money(value)}</dd></div>)}</dl>
+      <nav className="home-cards" aria-label="Cashbook sections">{cards.map((card) => <button key={card.id} className={`home-card home-card--${card.tone}`} onClick={() => navigate(() => { setPreview(false); setPage(card.id); })}>
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={card.icon} /></svg><span>{card.title}</span>
+      </button>)}</nav>
+    </section>
+    <div className={`admin-content${preview ? ' admin-content--preview' : ''}`}>
+      <section className="admin-controls flex-col gap-md" hidden={page !== 'users' && page !== 'heads'}>
+        <h1>{page === 'heads' ? 'Heads Management' : 'Users'}</h1>
+        {page === 'heads' && <UserPicker users={selectableUsers} value={selectedUserId} onChange={(id) => navigate(() => setSelectedUserId(id))} />}
+        {selectedUser && <p className="text-muted">{selectedUser.user_name}</p>}
+        {selectedUser && <div className="flex-row gap-sm">
+          <button className="btn" aria-pressed={preview} onClick={() => navigate(() => setPreview(!preview))}>User preview</button>
+          <button className="btn" aria-pressed={showPermissions && page === 'heads'} onClick={() => { setShowPermissions(!(showPermissions && page === 'heads')); setPage('heads'); }}>Show permissions</button>
+        </div>}
+        <div hidden={page !== 'heads'}>
+          {selectedUser && <PermissionChanges key={`${selectedUserId}:${revision}`} user={selectedUser} heads={heads} editor={editor} onSave={props.onSavePermissions} />}
+          <div><HeadsTab key={revision} heads={heads} permissionIds={showPermissions && selectedUser ? editor.ids(selectedUserId) : undefined} reservedIds={Object.values(permissions).flat().map(Math.abs)} onSubmitChanges={props.onSubmitHeadChanges} onDirtyChange={setHeadDirty}
+            onHeadAction={(head, action) => {
+              if (head.head_id < 0) { setNotice('Apply this new head first.'); return; }
+              setActionUser(selectedUserId); setHeadAction({ head, action }); setNotice('');
+            }} /></div>
         </div>
-      </Dialog>}
-    </main>
-  );
+        <div hidden={page !== 'users'}><UsersTab key={revision} currentAdminUserId={currentAdminUserId} users={users} selectedUserId={selectedUserId}
+          onSelect={(id) => navigate(() => setSelectedUserId(id))} onViewLedger={(id) => statement(id)} onCreateUser={props.onCreateUser} onSaveProfile={props.onSaveProfile}
+          onChangePassword={props.onChangePassword} onDirtyChange={setUserDirty} onAction={async (id, action) => {
+            if (id === selectedUserId && transactionDirty) throw new Error('Finish or cancel this transaction draft first.');
+            await props.onUserAction?.(id, action);
+          }} /></div>
+      </section>
+      {preview && selectedUser ? <section className="admin-preview"><UserPreview key={`${selectedUserId}:${revision}`} user={selectedUser} onRefresh={props.onRefresh} heads={heads} assigned={editor.ids(selectedUserId)} pending={diff.granted.length + diff.revoked.length > 0}
+        onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} onClose={() => navigate(() => setPreview(false))} /></section>
+        : (page === 'company' || page === 'statement') && <Ledger key={`${revision}:${page}`} company={page === 'company'} filters={filters} onFilterChange={setFilters} revision={revision} heads={heads} users={users} onDirtyChange={setLedgerDirty}
+          onChanged={props.onRefresh} />}
+    </div>
+    {headAction && <Dialog title={`${headAction.action === 'give' ? 'Give permission' : 'Revoke permission'} · ${headAction.head.head_name}`} onClose={() => setHeadAction(null)}>
+      <UserPicker users={selectableUsers} value={actionUser} onChange={setActionUser} />
+      <p className="hint">Includes subheads. Changes are saved when you apply permissions.</p>
+      <div className="flex-row justify-end gap-sm">
+        <button className="btn" onClick={() => setHeadAction(null)}>Back</button>
+        <button className="btn btn--primary" disabled={!actionUser} onClick={() => {
+          editor.stageBranch(actionUser, headAction.head.head_id, headAction.action === 'give');
+          setSelectedUserId(actionUser); setHeadAction(null);
+        }}>Stage permission change</button>
+      </div>
+    </Dialog>}
+    {confirmRefresh && <Dialog title="Discard drafts and refresh?" onClose={() => setConfirmRefresh(false)} busy={refreshing}>
+      <p>Refresh will discard unapplied edits and reload saved data.</p>
+      <div className="flex-row justify-end gap-sm"><button className="btn" disabled={refreshing} onClick={() => setConfirmRefresh(false)}>Keep editing</button><button className="btn btn--primary" disabled={refreshing} onClick={refresh}>Refresh</button></div>
+    </Dialog>}
+    {pendingNavigation && <Dialog title="Discard the open transaction draft?" onClose={() => setPendingNavigation(null)}>
+      <div className="flex-row justify-end gap-sm"><button className="btn" onClick={() => setPendingNavigation(null)}>Keep editing</button><button className="btn btn--primary" onClick={() => { pendingNavigation(); setPendingNavigation(null); setTransactionDirty(false); setLedgerDirty(false); }}>Discard and continue</button></div>
+    </Dialog>}
+  </main>;
 }

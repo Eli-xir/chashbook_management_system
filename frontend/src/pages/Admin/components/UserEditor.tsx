@@ -10,6 +10,7 @@ export function UserEditor({ user, mode, onSaveProfile, onChangePassword, onCrea
   onSaveProfile: (userId: string, profile: UserProfile) => Promise<void>;
   onChangePassword?: (userId: string, password: string) => Promise<void>;
 }) {
+  const [description, setDescription] = useState(user.description ?? '');
   const [name, setName] = useState(user.user_name);
   const [contacts, setContacts] = useState(() => userContacts(user).map((value, id) => ({ id, value })));
   const nextContactId = useRef(userContacts(user).length);
@@ -34,7 +35,7 @@ export function UserEditor({ user, mode, onSaveProfile, onChangePassword, onCrea
         setPassword('');
         setConfirmation('');
       } else {
-        const profile = validateProfile({ user_name: name, contacts: contacts.map((contact) => contact.value) });
+        const profile = validateProfile({ user_name: name, description, contacts: contacts.map((contact) => contact.value) });
         if (creating) await onCreateUser({ ...profile, password });
         else await onSaveProfile(user.user_id, profile);
       }
@@ -48,11 +49,8 @@ export function UserEditor({ user, mode, onSaveProfile, onChangePassword, onCrea
       onClose={onClose} busy={busy}>
       <form className="flex-col gap-md" onSubmit={(event) => { event.preventDefault(); void save(); }}>
         <fieldset className="field flex-col gap-md" disabled={busy}>
+          {!changingPassword && <label className="field"><span>Name</span><input required maxLength={48} value={name} onChange={(event) => setName(event.target.value)} /></label>}
           {(changingPassword || creating) && <>
-            <label className="field">
-              <span>Name</span>
-              <input required maxLength={48} value={name} onChange={(event) => setName(event.target.value)} />
-            </label>
             <label className="field">
               <span>New password</span>
               <PasswordInput autoComplete="new-password" required value={password}
@@ -68,6 +66,7 @@ export function UserEditor({ user, mode, onSaveProfile, onChangePassword, onCrea
             </p>}
           </>}
           {!changingPassword && <>
+            <label className="field"><span>Description</span><textarea maxLength={4000} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
             <h3 className="section-label">Contact numbers</h3>
             {contacts.map((contact, index) => (
               <div key={contact.id} className="contact-editor flex-row items-center gap-sm">

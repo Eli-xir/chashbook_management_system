@@ -19,6 +19,7 @@ class Login(Model):
 
 
 class Profile(Model):
+    description: str = Field(default="", max_length=4000)
     user_name: Name
     contacts: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=24)]] = Field(default_factory=list, max_length=20)
 
@@ -34,7 +35,7 @@ class AttachmentRef(Model):
 class TransactionInput(Model):
     amount: Decimal = Field(ge=0, le=999999999999.99, max_digits=18, decimal_places=2, allow_inf_nan=False)
     headId: int
-    categoryId: int
+    description: str = Field(default="", max_length=4000)
     transactionTypeId: Literal[1] = 1
     attachments: list[AttachmentRef] = Field(default_factory=list)
 
@@ -44,13 +45,15 @@ class HeadCreate(Model):
     temp_id: int = Field(lt=0)
     head_name: Name
     parent_head_id: int | None
-    is_transactionable: bool = True
+    head_description: str = Field(default="", max_length=4000)
+    is_transactionable: bool = False
 
 
 class HeadEdit(Model):
     op: Literal['edit']
     head_id: int
     head_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)]
+    head_description: str | None = Field(default=None, max_length=4000)
     image_url: str | None
     is_transactionable: bool
 
@@ -113,11 +116,5 @@ class TransactionChange(Model):
     input: TransactionInput | None = None
 
 
-class CategoryChange(Model):
-    op: Literal['category']
-    action: Literal['create', 'delete'] = 'create'
-    name: Name | None = None
-    id: int | None = None
 
-
-Change = Annotated[HeadsChange | PermissionsChange | UserChange | TransactionChange | CategoryChange, Field(discriminator='op')]
+Change = Annotated[HeadsChange | PermissionsChange | UserChange | TransactionChange, Field(discriminator='op')]

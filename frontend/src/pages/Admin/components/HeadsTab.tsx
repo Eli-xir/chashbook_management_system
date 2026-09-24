@@ -4,17 +4,18 @@ import { applyHeadChanges, buildHeadTree } from '../utils/headTree';
 import { useStagedHeadChanges } from '../hooks/useStagedHeadChanges';
 import { HeadTreeNode } from './HeadTreeNode';
 import { ConfirmChangesDialog } from './ConfirmChangesDialog';
-import { PendingHeadBlob } from './PendingHeadBlob';
+import { NewHeadName } from './NewHeadName';
+import { permittedHeads } from '../utils/permissions';
 import { HeadEditor } from './HeadEditor';
 import { Dialog } from './Dialog';
 import './HeadsTab.css';
 
-export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, filterHeadId, onFilterHead }: {
+export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, onHeadAction, permissionIds }: {
   heads: Head[]; onSubmitChanges: (changes: StagedChange[]) => Promise<Head[]>;
   reservedIds: number[];
+  permissionIds?: number[];
   onDirtyChange: (dirty: boolean) => void;
-  filterHeadId?: number | null;
-  onFilterHead: (headId: number | null) => void;
+  onHeadAction: (head: Head, action: 'give' | 'revoke') => void;
 }) {
   const staged = useStagedHeadChanges(heads);
   const [mergeMode, setMergeMode] = useState(false);
@@ -22,13 +23,24 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, f
   const [backupBeforeMerge, setBackupBeforeMerge] = useState(true);
   const [reviewing, setReviewing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [name, setName] = useState('New head');
-  const [selected, setSelected] = useState<number | 'new' | null>(null);
+  const [selected, setSelected] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<Head | null>(null);
-  const [pickingFilter, setPickingFilter] = useState(false);
+  const [search, setSearch] = useState('');
+  const [menuHead, setMenuHead] = useState<Head | null>(null);
+  const [newChild, setNewChild] = useState<{ parentId: number | null; name: string } | null>(null);
   const displayed = applyHeadChanges(staged.heads, staged.changes);
-  const dirty = staged.changes.length > 0 || editing !== null || pendingMerge !== null || name !== 'New head';
+  const assigned = permissionIds ? new Set(permittedHeads(displayed, permissionIds).map((h) => h.head_id)) : undefined;
+  const matches = new Set(displayed.filter((h) => `${h.head_name} ${h.head_description ?? ''}`.toLowerCase().includes(search.toLowerCase())).map((h) => h.head_id));
+  for (const id of [...matches]) {
+    let head = displayed.find((h) => h.head_id === id);
+    const seen = new Set<number>();
+    while (head?.parent_head_id != null && !seen.has(head.parent_head_id)) {
+      seen.add(head.parent_head_id); matches.add(head.parent_head_id); head = displayed.find((h) => h.head_id === head?.parent_head_id);
+    }
+  }
+  const searchTree = displayed.filter((h) => matches.has(h.head_id));
+  const dirty = newChild !== null || staged.changes.length > 0 || editing !== null || pendingMerge !== null;
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
 
   function stage(change: StagedChange) {
@@ -41,19 +53,25 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, f
     } catch (error) { setError((error as Error).message); return false; }
   }
 
+  function nextTemporaryId() {
+    return Math.min(0, ...reservedIds, ...displayed.map((h) => h.head_id),
+      ...staged.changes.filter((c) => c.op === 'create').map((c) => c.temp_id)) - 1;
+  }
+  function finishNewChild() {
+    if (!newChild) return;
+    if (stage({ op: 'create', temp_id: nextTemporaryId(), parent_head_id: newChild.parentId,
+      head_name: newChild.name, is_transactionable: false })) setNewChild(null);
+  }
+
   function drop(source: string, target: number | null) {
     if (submitting) return;
     const id = Number(source);
-    if (source !== 'new' && (!source || !Number.isFinite(id))) return;
-    if (source !== 'new' && id === target) { setSelected(null); return; }
-    if (mergeMode && source !== 'new' && target === null) {
+    if (!source || !Number.isFinite(id)) return;
+    if (id === target) { setSelected(null); return; }
+    if (mergeMode && target === null) {
       setError('Choose a head to merge into.'); return;
     }
-    const change: StagedChange = source === 'new'
-      ? { op: 'create', temp_id: Math.min(0, ...reservedIds, ...staged.heads.map((h) => h.head_id),
-          ...staged.changes.filter((c) => c.op === 'create').map((c) => c.temp_id)) - 1,
-          head_name: name, parent_head_id: target, is_transactionable: true }
-      : mergeMode
+    const change: StagedChange = mergeMode
         ? { op: 'merge', source_head_id: id, target_head_id: target! }
         : { op: 'move', head_id: id, new_parent_id: target };
     if (change.op === 'move' && displayed.find((h) => h.head_id === id)?.parent_head_id === target) return;
@@ -62,7 +80,7 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, f
       catch (error) { setError((error as Error).message); }
       return;
     }
-    if (stage(change) && source === 'new') setName('New head');
+    stage(change);
   }
 
   async function apply() {
@@ -79,16 +97,7 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, f
 
   return (
     <div className="flex-col gap-md">
-      <div className="field">
-        <span className="section-label">Selected head · ledger filter</span>
-        <div className="flex-row items-center gap-sm">
-          <button className="btn" aria-pressed={pickingFilter} onClick={() => {
-            setPickingFilter(!pickingFilter); setSelected(null);
-          }}>{filterHeadId == null ? 'All heads' : `${heads.find((head) => head.head_id === filterHeadId)?.head_name ?? 'Unavailable head'} + subheads`}</button>
-          {filterHeadId != null && <button className="btn" onClick={() => { setPickingFilter(false); onFilterHead(null); }}>Clear</button>}
-        </div>
-        <p className="hint text-muted">{pickingFilter ? 'Tap a head below to filter its entire branch.' : 'Tap the selected-head field to choose a branch from the tree.'}</p>
-      </div>
+      <input type="search" aria-label="Search heads" placeholder="Search heads…" title="Search head names and descriptions" value={search} onChange={(event) => setSearch(event.target.value)} />
       <div className="flex-row flex-wrap gap-sm">
         <button className="btn" aria-pressed={mergeMode} onClick={() => { setMergeMode(!mergeMode); setSelected(null); }}>
           Merge {mergeMode ? 'on' : 'off'}
@@ -96,30 +105,30 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, f
         <button className="btn" disabled={!staged.canUndo} onClick={() => { staged.undo(); setSelected(null); setError(''); }}>Undo</button>
         <button className="btn" disabled={!staged.canRedo} onClick={() => { staged.redo(); setSelected(null); setError(''); }}>Redo</button>
       </div>
-      <section className="flex-col gap-sm">
-        <h3 className="section-label">New node</h3>
-        <PendingHeadBlob name={name} onRename={setName} onSelect={() => setSelected((current) => (current === 'new' ? null : 'new'))} />
-        <p className="hint text-muted">Double-click to change the name, drag to move it in the tree.</p>
-      </section>
+      <button className="btn" disabled={newChild !== null || submitting} onClick={() => {
+        setNewChild({ parentId: null, name: 'New Head' }); setSelected(null); setSearch(''); setMergeMode(false); setError('');
+      }}>New head</button>
       {mergeMode && <p className="hint text-muted">Merge mode: drop a head onto another to combine their branches.</p>}
       <div className="heads-tree">
-        {displayed.length === 0 && <p className="empty-state text-muted">No heads yet. Place your first node below.</p>}
+        {displayed.length === 0 && !newChild && <p className="empty-state text-muted">No heads yet. Create your first head.</p>}
         <ul>
-          {buildHeadTree(displayed).map((node) => (
-            <HeadTreeNode key={node.head_id} node={node} mergeMode={!pickingFilter && mergeMode}
-              selected={pickingFilter ? filterHeadId : selected} onDrop={pickingFilter ? undefined : drop} onEdit={pickingFilter ? undefined : setEditing}
-              onToggleTransactionable={pickingFilter ? undefined : (head) => stage({ op: 'edit', head_id: head.head_id,
+          {buildHeadTree(searchTree).map((node) => (
+            <HeadTreeNode key={node.head_id} node={node} mergeMode={mergeMode} assigned={assigned}
+              newChild={newChild ? { ...newChild, onChange: (name) => setNewChild({ ...newChild, name }),
+                onCommit: finishNewChild, onCancel: () => { setNewChild(null); setError(''); } } : undefined}
+              selected={selected} onDrop={drop} onEdit={setEditing} onContext={setMenuHead}
+              onToggleTransactionable={(head) => stage({ op: 'edit', head_id: head.head_id,
                 head_name: head.head_name, image_url: head.image_url ?? null, is_transactionable: !head.is_transactionable })}
               onSelect={(id) => {
-                if (pickingFilter) {
-                  if (!heads.some((head) => head.head_id === id)) { setError('Apply this new head before using it as a ledger filter.'); return; }
-                  setPickingFilter(false); setError(''); onFilterHead(id);
-                } else if (selected === null) setSelected(id);
+                if (selected === null) setSelected(id);
                 else drop(String(selected), id);
               }} />
           ))}
+          {newChild?.parentId === null && <NewHeadName name={newChild.name}
+            onChange={(name) => setNewChild({ ...newChild, name })} onCommit={finishNewChild}
+            onCancel={() => { setNewChild(null); setError(''); }} />}
         </ul>
-        <button className="heads-tree-root-dropzone" disabled={pickingFilter} onDragOver={(event) => event.preventDefault()}
+        <button className="heads-tree-root-dropzone" onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => { event.preventDefault(); drop(event.dataTransfer.getData('text/plain'), null); }}
           onClick={() => { if (selected !== null) drop(String(selected), null); }}>
           Drop here for top level
@@ -130,6 +139,16 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, f
         onClick={() => { setError(''); setReviewing(true); }}>Apply{staged.changes.length ? ` (${staged.changes.length})` : ''}</button>
       {reviewing && <ConfirmChangesDialog originalHeads={staged.heads} changes={staged.changes} error={error}
         isSubmitting={submitting} onCancel={() => setReviewing(false)} onConfirm={apply} />}
+      {menuHead && <Dialog title={menuHead.head_name} onClose={() => setMenuHead(null)}>
+        <div className="head-context-menu">
+          {(['give', 'revoke'] as const).map((action) => <button className="btn" key={action} onClick={() => { onHeadAction(menuHead, action); setMenuHead(null); }}>{action === 'give' ? 'Give permission' : 'Revoke permission'}</button>)}
+          <button className="btn" onClick={() => {
+            setNewChild({ parentId: menuHead.head_id, name: 'New Head' });
+            setMenuHead(null); setSelected(null); setSearch(''); setMergeMode(false); setError('');
+          }}>Add subhead</button>
+          <button className="btn" onClick={() => setMenuHead(null)}>Back</button>
+        </div>
+      </Dialog>}
       {editing && <HeadEditor head={editing} onSave={stage} onClose={() => setEditing(null)} />}
       {pendingMerge && <Dialog title="Merge heads" onClose={() => setPendingMerge(null)}>
         <p>Merge “{displayed.find((head) => head.head_id === pendingMerge.source_head_id)?.head_name}” into “{displayed.find((head) => head.head_id === pendingMerge.target_head_id)?.head_name}”. The source head will be removed.</p>

@@ -61,14 +61,12 @@ export default function App() {
             const saved = await cashbookApi.createUser(input); setData(saved.data); return saved.user;
           }}
           onChangePassword={async (userId, password) => { await cashbookApi.changePassword(userId, password); }}
-          onCreateCategory={async (name) => { setData(await cashbookApi.createCategory(name)); }}
-          onDeleteCategory={async (id) => { setData(await cashbookApi.deleteCategory(id)); }}
           onUserAction={async (userId, action) => { setData(await cashbookApi.userAction(userId, action)); }}
           onRefresh={async () => { setData(await cashbookApi.refresh()); }}
           onLogout={() => { void logout(); }} /> : <Navigate to={home} replace />
       } />
       <Route path="/User" element={user && session?.role === 'user' ?
-        <main className="user-page"><UserPreview key={user.user_id} user={user} preview={false}
+        <main className="user-page"><UserPreview key={user.user_id} user={user} preview={false} onRefresh={async () => setData(await cashbookApi.refresh())}
           heads={permittedHeads(data.heads, data.permissions[user.user_id] ?? [])}
           assigned={data.permissions[user.user_id] ?? []} pending={false} onClose={() => { void logout(); }} />
         </main> : <Navigate to={home} replace />} />

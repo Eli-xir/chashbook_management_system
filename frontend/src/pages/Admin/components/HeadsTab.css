@@ -26,9 +26,6 @@
   background: rgba(201, 162, 39, .12);
   box-shadow: inset 0 0 0 1px var(--color-gold), 0 0 10px rgba(201, 162, 39, .16);
 }
-.permission-tree .head-node-row { margin: 5px 2px; }
-.permission-tree .head-node-name[aria-pressed="true"] { outline: none; }
-.permission-tree .head-node-name:focus-visible { outline: 2px solid var(--color-gold); }
 .head-icon { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; vertical-align: middle; }
 .head-edit { float: right; padding: 3px 8px; border: 1px solid var(--color-line); background: none; color: var(--color-gold); cursor: pointer; border-radius: var(--radius); }
 .head-edit:hover { border-color: var(--color-gold); }
@@ -40,3 +37,6 @@
 .head-image-preview { width: 96px; height: 96px; object-fit: cover; border-radius: 4px; }
 .preview-heads { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: var(--space-md); }
 .preview-head { border: 1px solid var(--color-line); padding: var(--space-md); border-radius: var(--radius); overflow-wrap: anywhere; }
+
+.head-new-name { width: min(100%, 320px); min-height: 44px; border: 1px solid #699de2; border-radius: 6px; padding: 8px; background: var(--color-ink); color: var(--color-text); }
+.head-new-name::selection { background: #2563eb; color: white; }

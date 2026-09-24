@@ -1,6 +1,6 @@
-import type { AppSession, Attachment, Category, CreateUserInput, CashbookData, StagedChange, Transaction, TransactionInput, UserAction, UserOverview, UserProfile } from '../pages/Admin/types';
+import type { AppSession, Attachment, ReferenceType, CreateUserInput, CashbookData, StagedChange, Transaction, TransactionInput, UserAction, UserOverview, UserProfile } from '../pages/Admin/types';
 
-type State = CashbookData & { categories: Category[]; transactionTypes: Category[]; headRevision: number };
+type State = CashbookData & { transactionTypes: ReferenceType[]; headRevision: number };
 let headRevision = 0;
 const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
@@ -39,8 +39,6 @@ export const cashbookApi = {
   createUser: ({ password, ...profile }: CreateUserInput) => change<{ data: State; user: State['users'][number] }>({ op: 'user', action: 'create', profile, password }),
   changePassword: (userId: string, password: string) => change<State>({ op: 'user', action: 'password', userId, password }),
   userAction: (userId: string, action: UserAction) => change<State>({ op: 'user', action, userId }),
-  createCategory: (name: string) => change<State>({ op: 'category', name }),
-  deleteCategory: (id: number) => change<State>({ op: 'category', action: 'delete', id }),
   userOverview: (userId: string) => request<UserOverview>(`/state?userId=${encodeURIComponent(userId)}`),
   submitTransaction: (userId: string, input: TransactionInput) => change<{ id: string; applied: boolean }>({ op: 'transaction', action: 'submit', userId, input }),
   creditUser: (userId: string, input: TransactionInput) => change<Transaction>({ op: 'transaction', action: 'credit', userId, input }),

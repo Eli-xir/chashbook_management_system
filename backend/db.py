@@ -42,6 +42,8 @@ def initialize():
             db.execute('ALTER TABLE category_groups ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true')
             db.execute('ALTER TABLE heads ALTER COLUMN head_name TYPE varchar(160)')
             db.execute('INSERT INTO schema_version VALUES (2)')
+        if db.execute('SELECT max(version) AS version FROM schema_version').fetchone()['version'] < 3:
+            db.execute((ROOT.parent / 'database/migrations/003_descriptions_permissions.sql').read_text(encoding='utf-8'))
         if not db.execute('SELECT 1 FROM users WHERE user_role_id = 1').fetchone():
             password = os.getenv('ADMIN_PASSWORD', '')
             if not password or password == 'replace-with-your-password':

@@ -17,7 +17,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 [hidden] { display: none !important; }
 body { background: var(--color-ink); color: var(--color-text); font-family: Inter, sans-serif; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button { touch-action: manipulation; }
 :focus-visible { outline: 2px solid var(--color-gold); outline-offset: 3px; }
 h1 { font-size: 1.8rem; }
@@ -47,7 +47,7 @@ p { line-height: 1.5; }
 .field { display: flex; flex-direction: column; gap: 6px; border: 0; min-width: 0; }
 .field > label, .field > legend { font-size: .85rem; color: var(--color-text-muted); }
 .field > legend { margin-bottom: 6px; }
-.field > input, .field > select, .password-input > input {
+.field > input, .field > select, .field > textarea, input[type="search"], .user-picker select, .password-input > input {
   width: 100%;
   min-width: 0;
   padding: 10px 12px;
@@ -157,6 +157,8 @@ fieldset:disabled { opacity: .65; }
 .attachment-remove { align-self: flex-start; width: 44px; height: 44px; padding: 0; font-size: 1.4rem; }
 @media (pointer: coarse) {
   .btn, .field > input, .field > select, .head-node-name, .head-edit { min-height: 44px; }
-  .field > input, .field > select, .password-input > input { font-size: 16px; }
+  .field > input, .field > select, .field > textarea, input[type="search"], .user-picker select, .password-input > input { font-size: 16px; }
   input[type="file"]::file-selector-button { min-height: 44px; margin-right: 8px; }
 }
+
+textarea { min-height: 90px; resize: vertical; }

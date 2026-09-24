@@ -1,22 +1,22 @@
 import { useState } from 'react';
-import type { AdminUser, Category, Head, Transaction, TransactionInput } from '../Admin/types';
+import type { AdminUser, Head, Transaction, TransactionInput } from '../Admin/types';
 import { Dialog } from '../Admin/components/Dialog';
 import { AttachmentInput } from '../Admin/components/AttachmentInput';
 import { cashbookApi } from '../../data/cashbookApi';
 import { direction, headPath, historyOf, money } from './ledgerModel';
 import './Ledger.css';
 
-export function TransactionCard({ entry, admin = false, heads = [], users = [], categories = [], initialUserId = '', onClose, onChanged }: {
-  entry?: Transaction; admin?: boolean; heads?: Head[]; users?: AdminUser[]; categories?: Category[];
+export function TransactionCard({ entry, admin = false, company = false, heads = [], users = [], initialUserId = '', onClose, onChanged }: {
+  entry?: Transaction; admin?: boolean; company?: boolean; heads?: Head[]; users?: AdminUser[];
   initialUserId?: string; onClose: () => void; onChanged?: () => Promise<void>;
 }) {
   const [current, setCurrent] = useState(entry);
   const [editing, setEditing] = useState(!entry);
   const [input, setInput] = useState<TransactionInput>(() => entry ? {
-    amount: entry.amount, headId: entry.headId, categoryId: entry.categoryId, attachments: entry.attachments,
+    amount: entry.amount, headId: entry.headId, description: entry.description ?? '', attachments: entry.attachments,
     transactionTypeId: entry.transactionTypeId ?? 1,
   } : { amount: 0, headId: heads.find((head) => head.is_active && head.is_transactionable)?.head_id ?? 0,
-    categoryId: categories[0]?.id ?? 1, attachments: [], transactionTypeId: 1 });
+    description: '', attachments: [], transactionTypeId: 1 });
   const [userId, setUserId] = useState(initialUserId);
   const [busy, setBusy] = useState(false);
   const [imageBusy, setImageBusy] = useState(false);
@@ -26,7 +26,6 @@ export function TransactionCard({ entry, admin = false, heads = [], users = [], 
   const locked = busy || imageBusy || voiceBusy;
   const userName = (id: string) => users.find((user) => user.user_id === id)?.user_name ?? 'Unavailable account';
   const path = (id: number, saved?: string) => saved ?? headPath(heads, id);
-  const category = (id: number, saved?: string) => saved ?? categories.find((item) => item.id === id)?.name ?? 'Unavailable category';
   async function save() {
     setBusy(true); setError('');
     try {
@@ -48,7 +47,7 @@ export function TransactionCard({ entry, admin = false, heads = [], users = [], 
     } catch (error) { setError(error instanceof Error ? error.message : 'Could not update.'); }
     finally { setBusy(false); }
   }
-  return <Dialog title={current ? `${direction(current) === 'credit' ? 'Credit' : 'Debit'} · ${money(current.amount)}` : 'Credit a user'} onClose={onClose} busy={locked}>
+  return <Dialog title={current ? `${direction(current, company) === 'credit' ? 'Credit' : 'Debit'} · ${money(current.amount)}` : 'Credit a user'} onClose={onClose} busy={locked}>
     {editing && admin ? <form className="flex-col gap-md" onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <fieldset className="field flex-col gap-md" disabled={locked}>
         {!current && <label className="field"><span>User</span><select required value={userId} onChange={(event) => setUserId(event.target.value)}>
@@ -61,11 +60,7 @@ export function TransactionCard({ entry, admin = false, heads = [], users = [], 
           {!heads.some((head) => head.head_id === input.headId && head.is_active && head.is_transactionable) && input.headId !== 0 && <option value={input.headId} disabled>Choose an active transactionable head</option>}
           {heads.filter((head) => head.is_active && head.is_transactionable).map((head) => <option key={head.head_id} value={head.head_id}>{headPath(heads, head.head_id)}</option>)}
         </select></label>
-        <label className="field"><span>Category</span><select value={input.categoryId} onChange={(event) => setInput({ ...input, categoryId: Number(event.target.value) })}>
-          {!categories.some((item) => item.id === input.categoryId) && <option value={input.categoryId} disabled>Choose an available category</option>}
-          {categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select></label>
-        <p className="hint text-muted">Transaction type: General</p>
+<label className="field"><span>Description</span><textarea maxLength={4000} value={input.description ?? ''} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>
       </fieldset>
       {(['image', 'voice'] as const).map((kind) => <section key={kind} className="flex-col gap-sm">
         <h3>{kind === 'image' ? 'Images' : 'Voice notes'}</h3>
@@ -84,7 +79,7 @@ export function TransactionCard({ entry, admin = false, heads = [], users = [], 
         <dt>Date/time</dt><dd>{new Date(current.createdAt).toLocaleString()}</dd>
         {admin && <><dt>User</dt><dd>{userName(current.userId)}</dd><dt>Entered by</dt><dd>{userName(current.createdBy)}</dd></>}
         <dt>Head</dt><dd>{path(current.headId, current.headPath)}</dd>
-        <dt>Category</dt><dd>{category(current.categoryId, current.categoryName)}</dd>
+        <dt>Description</dt><dd>{current.description || '—'}</dd>
         <dt>Type</dt><dd>General</dd>
         {admin && <><dt>Status</dt><dd>{current.active ? 'Active' : 'Deactivated'}</dd></>}
       </dl>
@@ -93,7 +88,7 @@ export function TransactionCard({ entry, admin = false, heads = [], users = [], 
         <AttachmentInput kind={kind} items={current.attachments.filter((item) => item.kind === kind)} />
       </section>)}
       {admin && <div className="flex-row flex-wrap gap-sm">
-        <button className="btn" disabled={locked} onClick={() => { setInput({ amount: current.amount, headId: current.headId, categoryId: current.categoryId, attachments: current.attachments, transactionTypeId: current.transactionTypeId ?? 1 }); setEditing(true); }}>Edit</button>
+        <button className="btn" disabled={locked} onClick={() => { setInput({ amount: current.amount, headId: current.headId, description: current.description ?? '', attachments: current.attachments, transactionTypeId: current.transactionTypeId ?? 1 }); setEditing(true); }}>Edit</button>
         <button className="btn" disabled={locked} onClick={() => void action(current.active ? 'deactivate' : 'reactivate')}>{current.active ? 'Deactivate' : 'Reactivate'}</button>
         <button className="btn btn--danger" disabled={locked} onClick={() => setDeleting(true)}>Delete</button>
       </div>}
@@ -107,7 +102,7 @@ export function TransactionCard({ entry, admin = false, heads = [], users = [], 
       {[...historyOf(current)].reverse().map((version) => <details key={version.versionId} className="ledger-version">
         <summary>{version.action} · {money(version.amount)} · {new Date(version.recordedAt).toLocaleString()}</summary>
         <p className="hint">By {userName(version.editorId)} · {version.active ? 'Active' : 'Deactivated'}</p>
-        <p>{path(version.headId, version.headPath)} · {category(version.categoryId, version.categoryName)}</p>
+        <p>{path(version.headId, version.headPath)} · {version.description}</p>
         {(['image', 'voice'] as const).map((kind) => <AttachmentInput key={kind} kind={kind} items={version.attachments.filter((item) => item.kind === kind)} />)}
       </details>)}
     </section>}

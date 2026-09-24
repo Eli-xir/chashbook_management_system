@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import type { Permissions } from '../types';
-import { permissionDiff, startPermissions, togglePermission } from '../utils/permissions';
+import type { Head, Permissions } from '../types';
+import { changeBranch, permissionDiff, startPermissions } from '../utils/permissions';
 import type { PermissionHistory } from '../utils/permissions';
 
-export function usePermissionChanges(saved: Permissions) {
+export function usePermissionChanges(saved: Permissions, heads: Head[]) {
   const [drafts, setDrafts] = useState<Record<string, PermissionHistory>>({});
   const get = (userId: string) => drafts[userId] ?? startPermissions(saved[userId] ?? []);
   function update(userId: string, edit: (state: PermissionHistory) => PermissionHistory) {
@@ -18,7 +18,14 @@ export function usePermissionChanges(saved: Permissions) {
       const diff = permissionDiff(state.history[0], state.history[state.cursor]);
       return diff.granted.length + diff.revoked.length > 0;
     }),
-    toggle: (userId: string, headId: number) => update(userId, (state) => togglePermission(state, headId)),
+    stageBranch: (userId: string, headId: number, allow: boolean) => update(userId, (state) => {
+      const ids = state.history[state.cursor];
+      const next = changeBranch(ids, heads, headId, allow);
+      const diff = permissionDiff(ids, next);
+      return diff.granted.length || diff.revoked.length
+        ? { history: [...state.history.slice(0, state.cursor + 1), next], cursor: state.cursor + 1 }
+        : state;
+    }),
     undo: (userId: string) => update(userId, (s) => ({ ...s, cursor: Math.max(0, s.cursor - 1) })),
     redo: (userId: string) => update(userId, (s) => ({ ...s, cursor: Math.min(s.history.length - 1, s.cursor + 1) })),
     commit: (userId: string, ids: number[]) => update(userId, () => startPermissions(ids)),

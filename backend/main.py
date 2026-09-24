@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 
 from db import UPLOADS, connect, initialize, password_hash, password_matches
 from models import Change, Login
-from service import apply_change, attachment, overview, require, state
+from service import apply_change, attachment, overview, require, state, user_permissions
 import storage
 
 COOKIE = 'cashbook_session'
@@ -184,14 +184,14 @@ def download_attachment(attachment_id: int, db: DB, actor: Actor):
     row = db.execute('SELECT * FROM attachments WHERE attachment_id=%s', (attachment_id,)).fetchone()
     require(row, 'Attachment not found.', 404)
     if actor['user_role_id'] != 1:
-        allowed = db.execute('''SELECT 1 FROM heads h JOIN user_head_permissions p USING(head_id)
-            WHERE h.attachment_id=%s AND h.is_active AND NOT h.is_deleted AND p.user_id=%s
+        allowed = db.execute('''SELECT 1 FROM heads h
+            WHERE h.attachment_id=%s AND h.is_active AND NOT h.is_deleted AND h.head_id=ANY(%s)
             UNION ALL SELECT 1 FROM transactions t JOIN transaction_version_attachments va ON va.version_id=t.current_version_id
             WHERE va.attachment_id=%s AND t.user_id=%s AND t.created_by_user_id<>t.user_id AND t.is_active
             UNION ALL SELECT 1 FROM attachments a WHERE a.attachment_id=%s AND a.uploaded_by=%s AND NOT a.is_submitted
             AND NOT EXISTS(SELECT 1 FROM transaction_version_attachments va WHERE va.attachment_id=a.attachment_id)
             AND NOT EXISTS(SELECT 1 FROM heads h WHERE h.attachment_id=a.attachment_id) LIMIT 1''',
-            (attachment_id, actor['user_id'])*3).fetchone()
+            (attachment_id, list(user_permissions(db, actor['user_id'])), attachment_id, actor['user_id'], attachment_id, actor['user_id'])).fetchone()
         require(allowed, 'Attachment not found.', 404)
     if not storage.BUCKET:
         require((UPLOADS / row['attachment_url']).is_file(), 'Attachment file is missing.', 404)

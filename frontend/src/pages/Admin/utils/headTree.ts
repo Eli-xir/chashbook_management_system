@@ -58,7 +58,7 @@ export function applyHeadChanges(heads: Head[], changes: StagedChange[], preview
       if (!head) throw new Error('This head no longer exists.');
       if (head.image_url !== change.image_url) head.attachment_id = null;
       Object.assign(head, {
-        head_name: change.head_name.trim(), image_url: change.image_url,
+        head_name: change.head_name.trim(), head_description: change.head_description ?? head.head_description, image_url: change.image_url,
         is_transactionable: change.is_transactionable,
       });
       continue;
@@ -72,7 +72,7 @@ export function applyHeadChanges(heads: Head[], changes: StagedChange[], preview
       }
       result.push({
         head_id: change.temp_id, head_name: change.head_name.trim(), parent_head_id: change.parent_head_id,
-        is_active: true, is_transactionable: change.is_transactionable ?? true,
+        head_description: change.head_description ?? '', is_active: true, is_transactionable: change.is_transactionable ?? false,
       });
       continue;
     }

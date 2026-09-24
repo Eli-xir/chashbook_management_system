@@ -9,15 +9,16 @@ import { creditDocument } from '../../Ledger/ledgerExport';
 import { ReportActions } from '../../Ledger/ReportActions';
 import { money } from '../../Ledger/ledgerModel';
 
-type Screen = 'home' | 'category' | 'heads' | 'images' | 'voice' | 'review';
+type Screen = 'home' | 'heads' | 'images' | 'voice' | 'review';
 const formatAmount = (value: number) => money(value);
 const ignoreChange = (_value: boolean) => {};
 
-export function UserPreview({ user, heads, assigned, pending, onClose, preview = true, adminCredit = false, onSubmitted,
+export function UserPreview({ user, heads, assigned, pending, onClose, preview = true, adminCredit = false, onSubmitted, onRefresh,
   onDirtyChange = ignoreChange, onBusyChange = ignoreChange }: {
   user: AdminUser; heads: Head[]; assigned: number[]; pending: boolean; onClose: () => void;
   preview?: boolean;
   adminCredit?: boolean;
+  onRefresh?: () => Promise<void>;
   onSubmitted?: () => Promise<void>;
   onDirtyChange?: (dirty: boolean) => void;
   onBusyChange?: (busy: boolean) => void;
@@ -30,7 +31,8 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
   const [overview, setOverview] = useState<UserOverview | null>(null);
   const [screen, setScreen] = useState<Screen>('home');
   const [amount, setAmount] = useState('');
-  const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [description, setDescription] = useState('');
+  const [search, setSearch] = useState('');
   const [path, setPath] = useState<number[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
@@ -47,17 +49,14 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
   const children = visible.filter((head) => headId === undefined
     ? head.parent_head_id === null || !visibleIds.has(head.parent_head_id)
     : head.parent_head_id === headId).sort((a, b) => a.head_name.localeCompare(b.head_name));
-  const category = overview?.categories.find((item) => item.id === categoryId);
   const amountValid = amount.trim() !== '' && Number.isFinite(Number(amount)) && Number(amount) > 0;
-  const valid = amountValid && !!category && !!selectedHead?.is_transactionable;
-  const dirty = amount !== '' || attachments.length > 0 || screen !== 'home';
+  const valid = amountValid && !!selectedHead?.is_transactionable;
+  const dirty = amount !== '' || description !== '' || attachments.length > 0 || screen !== 'home';
   const locked = busy || attachmentBusy;
-  const title = screen === 'category' ? 'Choose a category' : screen === 'heads'
+  const title = screen === 'heads'
     ? selectedHead?.head_name ?? (headId === undefined ? 'Choose a head' : 'Head unavailable')
     : screen === 'images' ? 'Images' : screen === 'voice' ? 'Voice notes' : 'Review transaction';
-  const choices = screen === 'category'
-    ? (overview?.categories ?? []).map((item) => ({ id: item.id, name: item.name, image: null as string | null }))
-    : children.map((head) => ({ id: head.head_id, name: head.head_name, image: head.image_url }));
+  const choices = children.filter((head) => `${head.head_name} ${head.head_description ?? ''}`.toLowerCase().includes(search.toLowerCase())).map((head) => ({ id: head.head_id, name: head.head_name, image: head.image_url }));
 
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => { onBusyChange(locked); }, [locked, onBusyChange]);
@@ -73,21 +72,21 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
     return () => { ignore = true; };
   }, [user.user_id, reload]);
 
-  function go(next: Screen) { setError(''); setScreen(next); }
+  function go(next: Screen) { setSearch(''); setError(''); setScreen(next); }
   function back() {
     if (locked) return;
-    if (screen === 'heads' && path.length) { setPath((current) => current.slice(0, -1)); setError(''); }
-    else go(screen === 'category' ? 'home' : screen === 'heads' ? 'category'
+    if (screen === 'heads' && path.length) { setPath((current) => current.slice(0, -1)); setSearch(''); setError(''); }
+    else go(screen === 'heads' ? 'home'
       : screen === 'images' ? 'heads' : screen === 'voice' ? 'images' : 'voice');
   }
   async function submit() {
     if (previewOnly || !valid || pending || !user.is_active || locked) return;
     setBusy(true); setError('');
     try {
-      const input = { amount: Number(amount), categoryId: categoryId!, headId: headId!, attachments };
+      const input = { amount: Number(amount), description, headId: headId!, attachments };
       if (adminCredit) await cashbookApi.creditUser(user.user_id, input);
       else await cashbookApi.submitTransaction(user.user_id, input);
-      setScreen('home'); setAmount(''); setCategoryId(null); setPath([]); setAttachments([]); setSuccess(true);
+      setScreen('home'); setAmount(''); setDescription(''); setPath([]); setAttachments([]); setSuccess(true);
       setReload((value) => value + 1);
       await onSubmitted?.();
     } catch (error) { setError(error instanceof Error ? error.message : 'Could not submit. Your input has been kept.'); }
@@ -101,7 +100,11 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
     <header className="preview-toolbar flex-row items-center justify-between gap-sm">
       <span className="hint text-muted">{adminCredit ? `Credit · ${user.user_name}` : preview ? `Preview · ${user.user_name}` : 'Cashbook'}</span>
       <div className="flex-row items-center gap-sm">
-      <button className="btn" disabled={locked || refreshing} onClick={() => setReload((value) => value + 1)}>
+      <button className="btn" disabled={locked || refreshing} onClick={async () => {
+        setRefreshing(true);
+        try { await onRefresh?.(); setReload((value) => value + 1); }
+        catch (error) { setError((error as Error).message); setRefreshing(false); }
+      }}>
         {refreshing ? 'Refreshing…' : 'Refresh'}
       </button>
       <button className={`btn${preview ? ' preview-close' : ''}`} disabled={locked}
@@ -160,24 +163,25 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
         </article>
         <form className="flex-col gap-md" onSubmit={(event) => {
           event.preventDefault();
-          if (amountValid && user.is_active) { setSuccess(false); go('category'); }
+          if (amountValid && user.is_active) { setSuccess(false); go('heads'); }
         }}>
           <label className="user-card-panel field amount-card">
             <span>Enter amount (PKR)</span>
             <input type="number" inputMode="decimal" min="0" max="999999999999.99" step="0.01" required value={amount}
               onChange={(event) => setAmount(event.target.value)} placeholder="0" aria-label="Enter amount in PKR" />
           </label>
+<label className="field"><span>Description (optional)</span><textarea maxLength={4000} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
           <button className="btn btn--primary user-next" disabled={!amountValid || !user.is_active}>Next</button>
         </form>
       </>}
-      {(screen === 'category' || screen === 'heads') && <>
+      {(screen === 'heads') && <>
         {screen === 'heads' && selectedHead?.is_transactionable &&
-          <button className="btn btn--primary user-next" disabled={!user.is_active || !amountValid || !category}
+          <button className="btn btn--primary user-next" disabled={!user.is_active || !amountValid}
             onClick={() => go('images')}>Make a new transaction</button>}
+        <input type="search" aria-label="Search heads" placeholder="Search heads" value={search} onChange={(event) => setSearch(event.target.value)} />
         <div className="user-card-list flex-col gap-md">
           {choices.map((item) => <button key={item.id} className="user-choice-card" onClick={() => {
-            if (screen === 'category') { setCategoryId(item.id); setPath([]); go('heads'); }
-            else { setPath((current) => [...current, item.id]); setError(''); }
+            setPath((current) => [...current, item.id]); setSearch(''); setError('');
           }}>
             <span className="user-card-art" aria-hidden="true">
               {item.image ? <img src={item.image} alt="" /> :
@@ -208,10 +212,10 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
           <dl className="review-details">
             {adminCredit && <><dt>Credit to</dt><dd>{user.user_name}</dd></>}
             <dt>Amount</dt><dd>{formatAmount(Number(amount))}</dd>
-            <dt>Category</dt><dd>{category?.name ?? 'Choose a category'}</dd>
+            <dt>Description</dt><dd>{description || '—'}</dd>
             <dt>Head</dt><dd>{selectedHead?.head_name ?? 'Head no longer available'}</dd>
           </dl>
-          {!valid && <p role="alert">Go back and check the amount, category and head.</p>}
+          {!valid && <p role="alert">Go back and check the amount and head.</p>}
         </div>
         {(['image', 'voice'] as const).map((kind) => attachments.some((item) => item.kind === kind) &&
           <div className="user-card-panel flex-col gap-sm" key={kind}>
@@ -243,13 +247,13 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
             <strong className="credit-amount">+{formatAmount(credit.amount)}</strong>
           </div>
           <time className="hint text-muted" dateTime={credit.createdAt}>{new Date(credit.createdAt).toLocaleString()}</time>
-          <span className="hint text-muted">{credit.headPath} · {credit.categoryName}</span>
+          <span className="hint text-muted">{credit.headPath} · {credit.description}</span>
           {credit.attachments.length > 0 && <span className="hint">{credit.attachments.length} attachments</span>}
         </button>)}
       </section>}
     </div>}
     {openedCredit && <TransactionCard key={openedCredit.id} entry={openedCredit} heads={heads}
-      categories={overview?.categories} onClose={() => setOpenedCredit(null)} />}
+      onClose={() => setOpenedCredit(null)} />}
     {confirmLogout && <Dialog title="Discard draft and log out?" onClose={() => setConfirmLogout(false)}>
       <p>Your transaction has not been sent yet.</p>
       <div className="flex-row justify-end gap-sm">

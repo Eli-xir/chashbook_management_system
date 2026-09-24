@@ -33,6 +33,26 @@ def heads(db):
              'image_url': f"/api/attachments/{row['attachment_id']}" if row['attachment_id'] else None} for row in rows]
 
 
+def effective_permissions(tree, rules):
+    by_id = {h['head_id']: h for h in tree}
+    decisions = {abs(i): i > 0 for i in rules}
+    result = set()
+    for head in tree:
+        cursor, seen = head['head_id'], set()
+        while cursor in by_id and cursor not in seen:
+            seen.add(cursor)
+            if cursor in decisions:
+                if decisions[cursor]: result.add(head['head_id'])
+                break
+            cursor = by_id[cursor]['parent_head_id']
+    return result
+
+
+def user_permissions(db, user_id):
+    rules = db.execute('SELECT head_id,allowed FROM user_head_permissions WHERE user_id=%s', (user_id,)).fetchall()
+    return effective_permissions(heads(db), [r['head_id'] if r['allowed'] else -r['head_id'] for r in rules])
+
+
 def path(db, head_id):
     by_id = {h['head_id']: h for h in db.execute('SELECT head_id,parent_head_id,head_name FROM heads').fetchall()}
     names, seen = [], set()
@@ -67,8 +87,8 @@ def ledger(db, user_id=None, credits_only=False):
         by_entry.setdefault(v['transaction_id'], []).append({
             'versionId': str(v['version_id']), 'recordedAt': v['created_at'].isoformat(),
             'editorId': str(v['editor_id']), 'action': v['action'], 'amount': float(v['transaction_amount']),
-            'headId': v['head_id'], 'categoryId': v['category_group_id'], 'transactionTypeId': v['transaction_type_id'],
-            'active': v['is_active'], 'headPath': v['head_path'], 'categoryName': v['category_name'],
+            'headId': v['head_id'], 'description': v['description'], 'transactionTypeId': v['transaction_type_id'],
+            'active': v['is_active'], 'headPath': v['head_path'],
             'attachments': by_version.get(v['version_id'], [])})
     result = []
     for row in entries:
@@ -77,14 +97,10 @@ def ledger(db, user_id=None, credits_only=False):
         result.append({k: v for k, v in current.items() if k not in ('versionId', 'recordedAt', 'editorId', 'action')})
         result[-1].update(id=str(row['transaction_id']), userId=str(row['user_id']), createdBy=str(row['created_by_user_id']),
                           createdAt=row['created_at'].isoformat(), headId=row['head_id'], headPath=path(db, row['head_id']),
-                          categoryId=row['category_group_id'], active=row['is_active'])
+                          active=row['is_active'])
         if not credits_only:
             result[-1]['versions'] = history
     return result
-
-
-def categories(db):
-    return db.execute('SELECT category_group_id AS id,category_group_name AS name FROM category_groups WHERE is_active ORDER BY category_group_id').fetchall()
 
 
 def overview(db, user_id):
@@ -97,31 +113,32 @@ def overview(db, user_id):
         WHERE t.user_id=%s AND t.is_active''', (user['user_id'],)).fetchone()
     received, bills = amounts['received'], amounts['bills']
     return {'balance': float(received-bills), 'totalReceived': float(received), 'totalBillPayment': float(bills),
-            'remainingPayable': float(bills-received), 'credits': list(reversed(ledger(db, user_id, True))), 'categories': categories(db)}
+            'remainingPayable': float(bills-received), 'credits': list(reversed(ledger(db, user_id, True)))}
 
 
 def state(db, actor):
     is_admin = actor['user_role_id'] == 1
-    users = db.execute('SELECT user_id,user_name,is_active,user_role_id FROM users ORDER BY user_role_id,user_name').fetchall() if is_admin else [actor]
+    users = db.execute('SELECT user_id,user_name,description,is_active,user_role_id FROM users ORDER BY user_role_id,user_name').fetchall() if is_admin else [actor]
     contacts = db.execute('SELECT user_id,contact_no FROM contacts ORDER BY contact_id').fetchall() if is_admin else []
     profiles = []
     for u in users:
         profiles.append({'user_id': str(u['user_id']), 'user_name': u['user_name'], 'is_active': u['is_active'],
-                         'role': 'admin' if u['user_role_id'] == 1 else 'user',
+                         'description': u.get('description', ''), 'role': 'admin' if u['user_role_id'] == 1 else 'user',
                          'contacts': [c['contact_no'] for c in contacts if c['user_id'] == u['user_id']]})
     permissions = {}
     grants = db.execute('SELECT * FROM user_head_permissions' + ('' if is_admin else ' WHERE user_id=%s'),
                         () if is_admin else (actor['user_id'],)).fetchall()
     for grant in grants:
-        permissions.setdefault(str(grant['user_id']), []).append(grant['head_id'])
+        permissions.setdefault(str(grant['user_id']), []).append(grant['head_id'] if grant['allowed'] else -grant['head_id'])
     visible = heads(db)
     if not is_admin:
-        assigned = permissions.get(str(actor['user_id']), [])
+        assigned = effective_permissions(visible, permissions.get(str(actor['user_id']), []))
+        permissions[str(actor['user_id'])] = list(assigned)
         visible = [h for h in visible if h['is_active'] and h['head_id'] in assigned]
         allowed = {h['head_id'] for h in visible}
         visible = [{**h, 'parent_head_id': h['parent_head_id'] if h['parent_head_id'] in allowed else None} for h in visible]
     return {'heads': visible, 'users': profiles, 'permissions': permissions,
-            'transactions': ledger(db) if is_admin else [], 'categories': categories(db),
+            'transactions': ledger(db) if is_admin else [],
             'transactionTypes': [{'id': 1, 'name': 'General'}],
             'headRevision': db.execute('SELECT revision FROM head_revision').fetchone()['revision']}
 
@@ -135,10 +152,10 @@ def user_change(db, actor, change, session_id):
         profile = change.profile
         if creating:
             require(change.password and change.password.strip(), 'Enter an initial password.')
-            user = db.execute('INSERT INTO users(user_name,password_hash,user_role_id) VALUES (%s,%s,2) RETURNING *',
-                              (profile.user_name, password_hash(change.password))).fetchone()
+            user = db.execute('INSERT INTO users(user_name,password_hash,user_role_id,description) VALUES (%s,%s,2,%s) RETURNING *',
+                              (profile.user_name, password_hash(change.password), profile.description)).fetchone()
         else:
-            db.execute('UPDATE users SET user_name=%s WHERE user_id=%s', (profile.user_name, user['user_id']))
+            db.execute('UPDATE users SET user_name=%s,description=%s WHERE user_id=%s', (profile.user_name, profile.description, user['user_id']))
         db.execute('DELETE FROM contacts WHERE user_id=%s', (user['user_id'],))
         for contact in dict.fromkeys(profile.contacts):
             db.execute('INSERT INTO contacts(user_id,contact_no) VALUES (%s,%s)', (user['user_id'], contact))
@@ -171,10 +188,9 @@ def validate_input(db, actor, value, user_id, submission=False):
     require(value, 'Enter the transaction details.')
     head = db.execute('SELECT * FROM heads WHERE head_id=%s AND NOT is_deleted', (value.headId,)).fetchone()
     require(head and head['is_active'] and head['is_transactionable'], 'Choose an active transactionable head.')
-    require(db.execute('SELECT 1 FROM category_groups WHERE category_group_id=%s AND is_active', (value.categoryId,)).fetchone(), 'Choose an available category.')
     if submission:
         require(value.amount > 0, 'Enter an amount greater than zero.')
-        require(db.execute('SELECT 1 FROM user_head_permissions WHERE user_id=%s AND head_id=%s', (user_id, value.headId)).fetchone(), 'This head is not assigned to the user.', 403)
+        require(value.headId in user_permissions(db, user_id), 'This head is not assigned to the user.', 403)
     ids = list(dict.fromkeys(int(a.id) for a in value.attachments))
     for aid in ids:
         row = db.execute('SELECT * FROM attachments WHERE attachment_id=%s', (aid,)).fetchone()
@@ -187,13 +203,13 @@ def validate_input(db, actor, value, user_id, submission=False):
 def revise(db, entry, editor_id, action, value=None, attachment_ids=None):
     old = db.execute('SELECT * FROM transaction_versions WHERE version_id=%s', (entry['current_version_id'],)).fetchone()
     head_id = value.headId if value else entry['head_id']
-    category_id = value.categoryId if value else entry['category_group_id']
-    category_name = db.execute('SELECT category_group_name FROM category_groups WHERE category_group_id=%s', (category_id,)).fetchone()['category_group_name']
+    category_id = None if value else entry['category_group_id']
+    category_name = old['category_name'] if old else ''
     version_id = db.execute('''INSERT INTO transaction_versions
-        (transaction_id,transaction_amount,transaction_type_id,editor_id,action,head_id,category_group_id,is_active,head_path,category_name)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING version_id''',
+        (transaction_id,transaction_amount,transaction_type_id,editor_id,action,head_id,category_group_id,is_active,head_path,category_name,description)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING version_id''',
         (entry['transaction_id'], value.amount if value else old['transaction_amount'], value.transactionTypeId if value else old['transaction_type_id'],
-         editor_id, action, head_id, category_id, entry['is_active'], path(db, head_id), category_name)).fetchone()['version_id']
+         editor_id, action, head_id, category_id, entry['is_active'], path(db, head_id), category_name, value.description if value else old['description'])).fetchone()['version_id']
     if attachment_ids is None:
         attachment_ids = [r['attachment_id'] for r in db.execute('SELECT attachment_id FROM transaction_version_attachments WHERE version_id=%s', (entry['current_version_id'],)).fetchall()]
     for aid in attachment_ids:
@@ -215,7 +231,7 @@ def transaction_change(db, actor, change):
         require(user['is_active'], 'This account is deactivated.')
         ids = validate_input(db, actor, change.input, user['user_id'], submitting)
         entry = db.execute('''INSERT INTO transactions(head_id,category_group_id,user_id,created_by_user_id,current_version_id)
-            VALUES (%s,%s,%s,%s,0) RETURNING *''', (change.input.headId, change.input.categoryId, user['user_id'],
+            VALUES (%s,%s,%s,%s,0) RETURNING *''', (change.input.headId, None, user['user_id'],
             actor['user_id'])).fetchone()
         revise(db, entry, actor['user_id'], 'Created', change.input, ids)
     else:
@@ -239,7 +255,7 @@ def transaction_change(db, actor, change):
 def backup_head(db, source, actor_id):
     tree = heads(db)
     stamp = db.execute('SELECT clock_timestamp() AS time').fetchone()['time'].strftime('%Y%m%d-%H%M%S-%f')
-    suffix = f' · Backup {stamp}'
+    suffix = f' Â· Backup {stamp}'
     copied, pending = {}, [source]
     while pending:
         old_id = pending.pop(0)
@@ -261,12 +277,12 @@ def backup_head(db, source, actor_id):
             new_head = copied.get(version['head_id'], version['head_id'])
             new_version = db.execute('''INSERT INTO transaction_versions
                 (transaction_id,transaction_amount,transaction_type_id,created_at,editor_id,action,head_id,
-                 category_group_id,is_active,head_path,category_name)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING version_id''',
+                 category_group_id,is_active,head_path,category_name,description)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING version_id''',
                 (new_id, version['transaction_amount'], version['transaction_type_id'], version['created_at'],
                  version['editor_id'], version['action'], new_head, version['category_group_id'],
                  version['is_active'],
-                 path(db, new_head) if current else version['head_path'], version['category_name'])).fetchone()['version_id']
+                 path(db, new_head) if current else version['head_path'], version['category_name'], version['description'])).fetchone()['version_id']
             # Media is immutable and retained when originals are deleted, so references safely preserve every file.
             db.execute('''INSERT INTO transaction_version_attachments(version_id,attachment_id)
                 SELECT %s,attachment_id FROM transaction_version_attachments WHERE version_id=%s''', (new_version, version['version_id']))
@@ -292,8 +308,8 @@ def head_changes(db, actor, change):
     for item in change.changes:
         if item.op == 'create':
             require(item.temp_id not in temporary, 'Duplicate temporary head.')
-            temporary[item.temp_id] = db.execute('INSERT INTO heads(head_name,parent_head_id,is_transactionable) VALUES (%s,%s,%s) RETURNING head_id',
-                (item.head_name, resolve(item.parent_head_id), item.is_transactionable)).fetchone()['head_id']
+            temporary[item.temp_id] = db.execute('INSERT INTO heads(head_name,parent_head_id,is_transactionable,head_description) VALUES (%s,%s,%s,%s) RETURNING head_id',
+                (item.head_name, resolve(item.parent_head_id), item.is_transactionable, item.head_description)).fetchone()['head_id']
             continue
         source = resolve(item.source_head_id if item.op == 'merge' else item.head_id)
         head = db.execute('SELECT * FROM heads WHERE head_id=%s', (source,)).fetchone()
@@ -306,8 +322,8 @@ def head_changes(db, actor, change):
                 require(match, 'Upload a head image first.')
                 aid = int(match.group(1))
                 require(db.execute('SELECT 1 FROM attachments WHERE attachment_id=%s AND attachment_type_id=1', (aid,)).fetchone(), 'Choose an image attachment.')
-            db.execute('UPDATE heads SET head_name=%s,attachment_id=%s,is_transactionable=%s WHERE head_id=%s',
-                       (item.head_name, aid, item.is_transactionable, source))
+            db.execute('UPDATE heads SET head_name=%s,attachment_id=%s,is_transactionable=%s,head_description=COALESCE(%s,head_description) WHERE head_id=%s',
+                       (item.head_name, aid, item.is_transactionable, item.head_description, source))
         elif item.op == 'active':
             ids = {source}
             if not item.is_active:
@@ -338,7 +354,7 @@ def head_changes(db, actor, change):
                     revise(db, entry, actor['user_id'], 'Head merged')
                 db.execute('UPDATE heads SET parent_head_id=%s WHERE parent_head_id=%s', (target, source))
                 db.execute('UPDATE heads SET is_deleted=true,is_active=false,parent_head_id=NULL WHERE head_id=%s', (source,))
-    # Never transfer, grant, or revoke permissions as a side effect of head operations.
+    # Explicit rules stay attached to heads; inherited access follows the current tree.
     db.execute('UPDATE head_revision SET revision=revision+1')
     return state(db, actor)
 
@@ -351,19 +367,13 @@ def apply_change(db, actor, change, session_id):
         return user_change(db, actor, change, session_id)
     if change.op == 'heads':
         return head_changes(db, actor, change)
-    if change.op == 'category':
-        if change.action == 'delete':
-            require(db.execute('UPDATE category_groups SET is_active=false WHERE category_group_id=%s AND is_active RETURNING category_group_id', (change.id,)).fetchone(), 'Category not found.', 404)
-        else:
-            require(change.name, 'Enter a category name.')
-            db.execute('''INSERT INTO category_groups(category_group_name) VALUES (%s)
-                ON CONFLICT(category_group_name) DO UPDATE SET is_active=true''', (change.name,))
     if change.op == 'permissions':
         account(db, change.userId, field=True)
         ids = list(set(change.ids))
-        found = db.execute('SELECT head_id FROM heads WHERE head_id=ANY(%s)', (ids,)).fetchall()
+        require(all(i != 0 and -i not in ids for i in ids), "Conflicting permission rules.")
+        found = db.execute('SELECT head_id FROM heads WHERE head_id=ANY(%s)', ([abs(i) for i in ids],)).fetchall()
         require(len(found) == len(ids), 'One of these heads no longer exists.')
         db.execute('DELETE FROM user_head_permissions WHERE user_id=%s', (change.userId,))
         for head_id in ids:
-            db.execute('INSERT INTO user_head_permissions VALUES (%s,%s)', (head_id, change.userId))
+            db.execute('INSERT INTO user_head_permissions(head_id,user_id,allowed) VALUES (%s,%s,%s)', (abs(head_id), change.userId, head_id > 0))
     return state(db, actor)
