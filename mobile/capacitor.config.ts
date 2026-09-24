@@ -11,7 +11,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  */
 const config: CapacitorConfig = {
   appId: 'com.sohailmalikarchitects.cashbook',
-  appName: 'Cashbook',
+  appName: 'Sohail Management',
   webDir: 'www',
   server: {
     url: 'https://sohail-malik-architect-management.vercel.app',
