@@ -98,13 +98,10 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, f
       </div>
       <section className="flex-col gap-sm">
         <h3 className="section-label">New node</h3>
-        <PendingHeadBlob name={name} onRename={setName} onSelect={() => setSelected('new')} />
-        <p className="hint text-muted">Double-click or press F2 to rename. Drag into a folder, or select a node and tap its destination.</p>
+        <PendingHeadBlob name={name} onRename={setName} onSelect={() => setSelected((current) => (current === 'new' ? null : 'new'))} />
+        <p className="hint text-muted">Double-click to change the name, drag to move it in the tree.</p>
       </section>
       {mergeMode && <p className="hint text-muted">Merge mode: drop a head onto another to combine their branches.</p>}
-      {selected !== null && (
-        <button className="btn" onClick={() => setSelected(null)}>Cancel selection</button>
-      )}
       <div className="heads-tree">
         {displayed.length === 0 && <p className="empty-state text-muted">No heads yet. Place your first node below.</p>}
         <ul>
