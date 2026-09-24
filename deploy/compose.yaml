@@ -1,4 +1,4 @@
-name: cashbook
+name: cashbook-v2
 services:
   database:
     image: postgres:17-alpine
@@ -58,5 +58,10 @@ secrets:
     file: ./secrets/aws_credentials
 volumes:
   database_v2:
+    name: cashbook_database_v2
   caddy_data:
+    external: true
+    name: cashbook_caddy_data
   caddy_config:
+    external: true
+    name: cashbook_caddy_config

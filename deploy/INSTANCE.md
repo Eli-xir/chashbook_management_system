@@ -7,6 +7,7 @@
 - S3: cash-book-management-backups, ap-southeast-1 (Singapore).
 - Media: attatchments/images/ and attatchments/voice_notes/ (existing spelling).
 - Backups: pg_dump/; new schema backups begin cashbook-v2-.
+- Compose project: cashbook-v2; legacy containers remain separate and stopped after cutover.
 - PostgreSQL volume: cashbook_database_v2; legacy volume preserved.
 - Initial administrator: Sohail Malik, alias admin. Password stored privately in /home/ubuntu/cashbook-admin-v2.txt. Change it through the application.
 - Legacy recovery files: /opt/cashbook/legacy-20260924 (root only), including database.dump and former configuration. Former application images retain :legacy-20260924 tags.

@@ -8,7 +8,7 @@ Copy `.env.example` to `.env` (mode 600). Install the restricted AWS credential 
 
 The backend initializes a fresh schema and Sohail Malik using ADMIN_PASSWORD only when no administrator exists. Later environment changes do not reset that password. Production uses `cashbook_database_v2`; the previous `cashbook_database` volume is retained separately. Never run `docker compose down -v` on production.
 
-For a new server, build both images, then run `docker compose up -d --wait`. Keep ports 80/443 open for Caddy certificate issuance/renewal. A public IP or a domain can be used.
+For a new server, create the external `cashbook_caddy_data` and `cashbook_caddy_config` volumes first. Build both images, then run `docker compose up -d --wait`. Keep ports 80/443 open for Caddy certificate issuance/renewal. A public IP or a domain can be used.
 
 ## Storage and backups
 
