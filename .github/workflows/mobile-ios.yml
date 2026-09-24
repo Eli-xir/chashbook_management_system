@@ -31,6 +31,7 @@ jobs:
       - name: Sync Capacitor assets and pods
         working-directory: mobile
         run: |
+          npm ci
           npx cap sync ios
           pod --version || sudo gem install cocoapods
       - name: Build unsigned archive

@@ -30,7 +30,9 @@ jobs:
           cache-dependency-path: mobile/package-lock.json
       - name: Sync Capacitor assets
         working-directory: mobile
-        run: npx cap sync android
+        run: |
+          npm ci
+          npx cap sync android
       - name: Build debug APK (installable) and unsigned release APK
         working-directory: mobile/android
         run: |
