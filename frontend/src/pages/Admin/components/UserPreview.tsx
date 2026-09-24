@@ -10,7 +10,7 @@ import { ReportActions } from '../../Ledger/ReportActions';
 import { money } from '../../Ledger/ledgerModel';
 
 type Screen = 'home' | 'category' | 'heads' | 'images' | 'voice' | 'review';
-const formatAmount = (value: number) => `${money(value)} PKR`;
+const formatAmount = (value: number) => money(value);
 const ignoreChange = (_value: boolean) => {};
 
 export function UserPreview({ user, heads, assigned, pending, onClose, preview = true, adminCredit = false, onSubmitted,
@@ -156,7 +156,7 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
         {success && <p role="status">{adminCredit ? 'Credit applied successfully.' : 'Transaction sent successfully.'}</p>}
         <article className="user-card-panel balance-card flex-col gap-sm">
           <h2>{adminCredit ? 'User’s total credits' : 'Remaining balance'}</h2>
-          <p className="balance-value"><span>{money(adminCredit ? overview.totalReceived : overview.balance)}</span><small>PKR</small></p>
+          <p className="balance-value"><span>{money(adminCredit ? overview.totalReceived : overview.balance)}</span></p>
         </article>
         <form className="flex-col gap-md" onSubmit={(event) => {
           event.preventDefault();
@@ -165,7 +165,7 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
           <label className="user-card-panel field amount-card">
             <span>Enter amount (PKR)</span>
             <input type="number" inputMode="decimal" min="0" max="999999999999.99" step="0.01" required value={amount}
-              onChange={(event) => setAmount(event.target.value)} placeholder="0.00" aria-label="Enter amount in PKR" />
+              onChange={(event) => setAmount(event.target.value)} placeholder="0" aria-label="Enter amount in PKR" />
           </label>
           <button className="btn btn--primary user-next" disabled={!amountValid || !user.is_active}>Next</button>
         </form>

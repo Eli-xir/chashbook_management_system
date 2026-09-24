@@ -2,11 +2,12 @@ import type { AppSession, Attachment, Category, CreateUserInput, CashbookData, S
 
 type State = CashbookData & { categories: Category[]; transactionTypes: Category[]; headRevision: number };
 let headRevision = 0;
+const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`/api${path}`, { ...options, credentials: 'same-origin',
+    response = await fetch(`${apiBase}${path}`, { ...options, credentials: 'same-origin',
       headers: { 'X-Cashbook': '1', ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...options.headers } });
   } catch { throw new Error('Could not reach the backend. Check your connection and that uvicorn is running.'); }
   const body = await response.json().catch(() => null);

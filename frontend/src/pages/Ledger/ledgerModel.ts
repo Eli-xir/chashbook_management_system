@@ -1,6 +1,6 @@
 import type { FiltersState, Head, Transaction, TransactionRevision } from '../Admin/types';
 
-export const money = (amount: number) => amount.toLocaleString(undefined, { maximumFractionDigits: 2 });
+export const money = (amount: number) => `PKR ${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 export const roundMoney = (amount: number) => Math.round((amount + Number.EPSILON) * 100) / 100;
 export const direction = (entry: Transaction) => entry.createdBy === entry.userId ? 'debit' : 'credit';
 export function accountTotals(entries: Transaction[]) {
