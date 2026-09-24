@@ -90,7 +90,7 @@ export function UsersTab(props: UsersTabProps) {
         onCreateUser={async (input) => { const user = await props.onCreateUser(input); onSelect(user.user_id); setMessage('User created.'); }}
         onSaveProfile={async (id, profile) => { await props.onSaveProfile(id, profile); setMessage('Account saved.'); }}
         onChangePassword={props.onChangePassword ? async (id, password) => {
-          await props.onChangePassword!(id, password); setMessage('Password change applied (simulated).');
+          await props.onChangePassword!(id, password); setMessage('Password changed.');
         } : undefined} />}
     </div>
   );

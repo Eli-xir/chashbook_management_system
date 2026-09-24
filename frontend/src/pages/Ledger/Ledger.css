@@ -14,3 +14,8 @@
 .ledger-version { border-top: 1px solid var(--color-line); padding-block: 12px; }
 .ledger-version summary { cursor: pointer; padding-bottom: 8px; }
 .ledger-attachment-disabled { pointer-events: none; opacity: .5; }
+.dialog-panel.report-preview { position: fixed; inset: 0; margin: 0; width: 100%; max-width: none; height: 100dvh; max-height: none; border: 0; border-radius: 0; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); overflow: hidden; }
+.report-preview > div { height: 100%; min-height: 0; }
+.report-preview iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: white; }
+.report-preview select { padding: 8px; min-height: 44px; color: var(--color-text); background: var(--color-ink); border: 1px solid var(--color-line); }
+.report-preview .btn { min-height: 44px; }

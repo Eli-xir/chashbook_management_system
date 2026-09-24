@@ -3,7 +3,7 @@ import type { AdminUser, FiltersState, Head, Transaction } from '../Admin/types'
 import { cashbookApi } from '../../data/cashbookApi';
 import { direction, headBranchIds, headPath, ledgerReport, money } from './ledgerModel';
 import type { LedgerOrder } from './ledgerModel';
-import { exportLedger } from './ledgerExport';
+import { ReportActions } from './ReportActions';
 import type { ReportDocument } from './ledgerExport';
 import { TransactionCard } from './TransactionCard';
 import { UserPreview } from '../Admin/components/UserPreview';
@@ -28,7 +28,6 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange }: {
   const [creditBusy, setCreditBusy] = useState(false);
   const [confirmCreditClose, setConfirmCreditClose] = useState(false);
   const [error, setError] = useState('');
-  const [exporting, setExporting] = useState(false);
   const [reload, setReload] = useState(0);
   const [showInactive, setShowInactive] = useState(false);
   useEffect(() => { onDirtyChange(selected !== null || creditDirty); return () => onDirtyChange(false); }, [selected, creditDirty, onDirtyChange]);
@@ -37,7 +36,7 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange }: {
     if (creditDirty) setConfirmCreditClose(true);
     else setCrediting(false);
   }
-  const creditUser = data?.users.find((user) => user.user_id === creditUserId && user.is_active && user.user_id !== 'admin-1');
+  const creditUser = data?.users.find((user) => user.user_id === creditUserId && user.is_active && user.role !== 'admin');
   useEffect(() => {
     let ignore = false;
     cashbookApi.ledger().then((result) => { if (!ignore) { setData(result); setError(''); } })
@@ -88,13 +87,8 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange }: {
     }
     return rows;
   }
-  async function exportReport(format: 'pdf' | 'excel' | 'print') {
-    setExporting(true); setError('');
-    try {
-      const document: ReportDocument = { title, subtitle, columns, pages: Array.from({ length: pageCount }, (_, index) => pageRows(index).map((row) => row.cells)) };
-      await exportLedger(document, format);
-    } catch (error) { setError(error instanceof Error ? error.message : 'Could not export ledger.'); }
-    finally { setExporting(false); }
+  function exportReport(): ReportDocument {
+    return { title, subtitle, columns, pages: Array.from({ length: pageCount }, (_, index) => pageRows(index).map((row) => row.cells)) };
   }
   const invalidDates = !!filters.dateFrom && !!filters.dateTo && filters.dateFrom > filters.dateTo;
   return <div className="ledger-view flex-col gap-md">
@@ -110,13 +104,13 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange }: {
       <label className="field"><span>Rows per page</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }}>
         {[10, 20, 50, 100].map((size) => <option key={size}>{size}</option>)}
       </select></label>
-      {(['pdf', 'excel', 'print'] as const).map((format) => <button className="btn" key={format} disabled={!data || exporting || invalidDates} onClick={() => void exportReport(format)}>{format === 'pdf' ? 'PDF' : format === 'excel' ? 'Excel' : 'Print'}</button>)}
+      <ReportActions disabled={!data || invalidDates} getReport={exportReport} />
     </div>
     {error && <p role="alert" className="text-error">{error} <button className="btn" onClick={() => setReload((value) => value + 1)}>Reload</button></p>}
     {invalidDates ? <p role="alert">Choose an end date on or after the start date.</p> : !data ? <p>Loading ledger…</p> : <>
       <dl className="ledger-totals">
         {Object.entries({ [receivedLabel]: report.totalReceived, 'Total Bill Payment': report.totalBillPayment, 'Remaining Payable Balance': report.remainingPayable }).map(([label, value]) => <div key={label}
-          title={label === 'Remaining Payable Balance' ? 'Bills minus received, including carry-forward. Positive means payable to the user.' : undefined}>
+          >
           <dt>{label}</dt><dd>{money(value)}</dd></div>)}
       </dl>
       <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{columns.map((label) => <th key={label}
@@ -133,7 +127,7 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange }: {
         <span>Page {currentPage + 1} / {pageCount} · {report.rows.length} entries</span>
         <button className="btn" disabled={currentPage + 1 === pageCount} onClick={() => setPage(currentPage + 1)}>Next</button>
       </div>
-      <details open={showInactive} onToggle={(event) => setShowInactive(event.currentTarget.open)}><summary>Deactivated entries</summary>
+      <details className="disclosure" open={showInactive} onToggle={(event) => setShowInactive(event.currentTarget.open)}><summary>Deactivated entries</summary>
         {data.transactions.filter((entry) => !entry.active && (filters.userScope === 'all' || entry.userId === filters.userScope) && (!branch || branch.has(entry.headId))).map((entry) =>
           <button className="btn" key={entry.id} onClick={() => setSelected(entry)}>{new Date(entry.createdAt).toLocaleString()} · {userName(entry.userId)} · {money(entry.amount)}</button>)}
       </details>
@@ -146,11 +140,11 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange }: {
         adminCredit onClose={closeCredit} onDirtyChange={setCreditDirty} onBusyChange={setCreditBusy}
         onSubmitted={async () => { await refresh(); setCrediting(false); }} /> : <div className="flex-col gap-md">
         <p>Choose the user receiving this credit.</p>
-        {data.users.filter((user) => user.is_active && user.user_id !== 'admin-1').map((user) =>
+        {data.users.filter((user) => user.is_active && user.role !== 'admin').map((user) =>
           <button className="user-choice-card" key={user.user_id} onClick={() => setCreditUserId(user.user_id)}>
             <span className="user-card-label">{user.user_name}</span><span className="user-card-arrow" aria-hidden="true">›</span>
           </button>)}
-        {!data.users.some((user) => user.is_active && user.user_id !== 'admin-1') && <p className="text-muted">Create an active user first.</p>}
+        {!data.users.some((user) => user.is_active && user.role !== 'admin') && <p className="text-muted">Create an active user first.</p>}
         <button className="btn" onClick={closeCredit}>Cancel</button>
       </div>}
     </Dialog>}

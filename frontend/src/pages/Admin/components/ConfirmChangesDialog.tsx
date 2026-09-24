@@ -14,7 +14,7 @@ export function ConfirmChangesDialog({ originalHeads, changes, isSubmitting, err
         </ol>
         <h3 className="section-label">Resulting head tree</h3>
         <ul className="heads-tree">
-          {buildHeadTree(applyHeadChanges(originalHeads, changes)).map((node) => <HeadTreeNode key={node.head_id} node={node} />)}
+          {buildHeadTree(applyHeadChanges(originalHeads, changes, true)).map((node) => <HeadTreeNode key={node.head_id} node={node} />)}
         </ul>
         {error && <p role="alert" className="text-error">{error}</p>}
         <div className="flex-row justify-end gap-sm">

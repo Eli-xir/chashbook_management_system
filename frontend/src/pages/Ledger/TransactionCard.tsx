@@ -52,16 +52,17 @@ export function TransactionCard({ entry, admin = false, heads = [], users = [], 
     {editing && admin ? <form className="flex-col gap-md" onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <fieldset className="field flex-col gap-md" disabled={locked}>
         {!current && <label className="field"><span>User</span><select required value={userId} onChange={(event) => setUserId(event.target.value)}>
-          <option value="">Choose user</option>{users.filter((user) => user.is_active && user.user_id !== 'admin-1').map((user) => <option key={user.user_id} value={user.user_id}>{user.user_name}</option>)}
+          <option value="">Choose user</option>{users.filter((user) => user.is_active && user.role !== 'admin').map((user) => <option key={user.user_id} value={user.user_id}>{user.user_name}</option>)}
         </select></label>}
-        <label className="field"><span>Amount</span><input type="number" min="0" step="any" required value={Number.isNaN(input.amount) ? '' : input.amount}
+        <label className="field"><span>Amount</span><input type="number" min="0" max="999999999999.99" step="0.01" required value={Number.isNaN(input.amount) ? '' : input.amount}
           onChange={(event) => setInput({ ...input, amount: event.target.valueAsNumber })} /></label>
-        <label className="field"><span>Head / subhead</span><select required value={input.headId} onChange={(event) => setInput({ ...input, headId: Number(event.target.value) })}>
+        <label className="field"><span>Head</span><select required value={input.headId} onChange={(event) => setInput({ ...input, headId: Number(event.target.value) })}>
           <option value="0" disabled>Choose a head</option>
           {!heads.some((head) => head.head_id === input.headId && head.is_active && head.is_transactionable) && input.headId !== 0 && <option value={input.headId} disabled>Choose an active transactionable head</option>}
           {heads.filter((head) => head.is_active && head.is_transactionable).map((head) => <option key={head.head_id} value={head.head_id}>{headPath(heads, head.head_id)}</option>)}
         </select></label>
         <label className="field"><span>Category</span><select value={input.categoryId} onChange={(event) => setInput({ ...input, categoryId: Number(event.target.value) })}>
+          {!categories.some((item) => item.id === input.categoryId) && <option value={input.categoryId} disabled>Choose an available category</option>}
           {categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select></label>
         <p className="hint text-muted">Transaction type: General</p>

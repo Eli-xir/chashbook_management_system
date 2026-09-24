@@ -4,6 +4,7 @@ import {cashbookApi} from './data/cashbookApi'
 import type {AppSession} from './pages/Admin/types'
 import logo from './assets/logo.jpeg'
 import './Login.css'
+import {PasswordInput} from './PasswordInput'
 
 function Login({ onSignedIn }: { onSignedIn: (session: AppSession) => Promise<void> }) {
     const navigate = useNavigate();
@@ -81,8 +82,7 @@ function Login({ onSignedIn }: { onSignedIn: (session: AppSession) => Promise<vo
                     </div>
                     <div className="field">
                         <label htmlFor="password">Password</label>
-                        <input
-                            type="password"
+                        <PasswordInput
                             id="password"
                             name="password"
                             autoComplete="current-password"

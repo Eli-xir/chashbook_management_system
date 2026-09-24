@@ -5,10 +5,12 @@ import { cashbookApi } from '../../../data/cashbookApi';
 import { AttachmentInput } from './AttachmentInput';
 import { Dialog } from './Dialog';
 import { TransactionCard } from '../../Ledger/TransactionCard';
-import { creditDocument, exportLedger } from '../../Ledger/ledgerExport';
+import { creditDocument } from '../../Ledger/ledgerExport';
+import { ReportActions } from '../../Ledger/ReportActions';
+import { money } from '../../Ledger/ledgerModel';
 
 type Screen = 'home' | 'category' | 'heads' | 'images' | 'voice' | 'review';
-const formatAmount = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 20 });
+const formatAmount = (value: number) => `${money(value)} PKR`;
 const ignoreChange = (_value: boolean) => {};
 
 export function UserPreview({ user, heads, assigned, pending, onClose, preview = true, adminCredit = false, onSubmitted,
@@ -20,11 +22,11 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
   onDirtyChange?: (dirty: boolean) => void;
   onBusyChange?: (busy: boolean) => void;
 }) {
-  const workflowPanel = useRef<HTMLElement>(null);
-  const ledgerPanel = useRef<HTMLElement>(null);
+  const [ledgerOpen, showLedger] = useState(false);
+  const swipeStart = useRef<{ x: number; y: number; id: number } | null>(null);
+  const swiped = useRef(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [openedCredit, setOpenedCredit] = useState<Transaction | null>(null);
-  const [exporting, setExporting] = useState(false);
   const [overview, setOverview] = useState<UserOverview | null>(null);
   const [screen, setScreen] = useState<Screen>('home');
   const [amount, setAmount] = useState('');
@@ -36,6 +38,8 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [reload, setReload] = useState(0);
+  const [refreshing, setRefreshing] = useState(true);
+  const previewOnly = preview && !adminCredit;
   const visible = adminCredit ? heads.filter((head) => head.is_active) : permittedHeads(heads, assigned);
   const headId = path.at(-1);
   const selectedHead = visible.find((head) => head.head_id === headId);
@@ -61,9 +65,11 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
   useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
   useEffect(() => {
     let ignore = false;
+    setRefreshing(true);
     cashbookApi.userOverview(user.user_id).then((data) => {
       if (!ignore) { setOverview(data); setError(''); }
-    }).catch((error) => { if (!ignore) setError(error instanceof Error ? error.message : 'Could not load your balance.'); });
+    }).catch((error) => { if (!ignore) setError(error instanceof Error ? error.message : 'Could not load your balance.'); })
+      .finally(() => { if (!ignore) setRefreshing(false); });
     return () => { ignore = true; };
   }, [user.user_id, reload]);
 
@@ -75,7 +81,7 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
       : screen === 'images' ? 'heads' : screen === 'voice' ? 'images' : 'voice');
   }
   async function submit() {
-    if (!valid || pending || !user.is_active || locked) return;
+    if (previewOnly || !valid || pending || !user.is_active || locked) return;
     setBusy(true); setError('');
     try {
       const input = { amount: Number(amount), categoryId: categoryId!, headId: headId!, attachments };
@@ -90,33 +96,56 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
   function updateAttachments(kind: Attachment['kind'], items: Attachment[]) {
     setAttachments((current) => [...current.filter((item) => item.kind !== kind), ...items]);
   }
-  async function exportCredits(format: 'pdf' | 'excel' | 'print') {
-    if (!overview) return;
-    setExporting(true); setError('');
-    try { await exportLedger(creditDocument(overview, user.user_name), format); }
-    catch (error) { setError(error instanceof Error ? error.message : 'Could not export credits.'); }
-    finally { setExporting(false); }
-  }
 
   return <div className="user-preview flex-col gap-md">
     <header className="preview-toolbar flex-row items-center justify-between gap-sm">
       <span className="hint text-muted">{adminCredit ? `Credit · ${user.user_name}` : preview ? `Preview · ${user.user_name}` : 'Cashbook'}</span>
+      <div className="flex-row items-center gap-sm">
+      <button className="btn" disabled={locked || refreshing} onClick={() => setReload((value) => value + 1)}>
+        {refreshing ? 'Refreshing…' : 'Refresh'}
+      </button>
       <button className={`btn${preview ? ' preview-close' : ''}`} disabled={locked}
         onClick={() => !preview && dirty ? setConfirmLogout(true) : onClose()}
         aria-label={adminCredit ? 'Close credit workflow' : preview ? 'Close user preview' : 'Logout'} title={preview ? 'Back to admin ledger' : 'Logout'}>
         {preview ? '×' : 'Logout'}
       </button>
+      </div>
     </header>
-    {pending && <p role="status" className="hint">Preview includes unapplied permissions. Apply them before submitting.</p>}
+    {previewOnly && <p role="status" className="hint">Preview only. Uploads and transaction submission are disabled.</p>}
+    {pending && <p role="status" className="hint">Preview includes unapplied permissions.</p>}
     {!user.is_active && <p role="status">This account is deactivated and cannot transact.</p>}
     {error && <p role="alert" className="text-error">{error}</p>}
     {!overview ? <>
       <p role="status">{error ? 'Balance unavailable.' : 'Loading balance…'}</p>
-      {error && <button className="btn" onClick={() => setReload((value) => value + 1)}>Retry</button>}
-    </> : <div className={adminCredit ? '' : 'user-swipe'}>
-      <section ref={workflowPanel} className="user-pane user-workspace flex-col gap-md" aria-label="User screen" aria-busy={locked}>
+      {error && <button className="btn" disabled={refreshing} onClick={() => setReload((value) => value + 1)}>Retry</button>}
+    </> : <div className={adminCredit ? '' : `user-swipe${ledgerOpen ? ' user-swipe--ledger' : ''}`}
+      onPointerDown={(event) => {
+        swiped.current = false;
+        swipeStart.current = null;
+        if (adminCredit || !event.isPrimary || event.pointerType === 'mouse' ||
+          (event.target as HTMLElement).closest('input, textarea, select, audio')) return;
+        swipeStart.current = { x: event.clientX, y: event.clientY, id: event.pointerId };
+      }}
+      onPointerMove={(event) => {
+        const start = swipeStart.current;
+        if (!start || start.id !== event.pointerId) return;
+        const dx = event.clientX - start.x, dy = event.clientY - start.y;
+        if (Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx)) swipeStart.current = null;
+        else if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+          showLedger(dx > 0);
+          swiped.current = true;
+          swipeStart.current = null;
+        }
+      }}
+      onPointerUp={() => { swipeStart.current = null; }}
+      onPointerCancel={() => { swipeStart.current = null; }}
+      onClickCapture={(event) => {
+        if (swiped.current) { event.preventDefault(); event.stopPropagation(); swiped.current = false; }
+      }}>
+      <section inert={!adminCredit && ledgerOpen} aria-hidden={!adminCredit && ledgerOpen}
+        className="user-pane user-workspace flex-col gap-md" aria-label="User screen" aria-busy={locked}>
       {!adminCredit && <div className="flex-row items-center justify-between gap-sm">
-        <button className="btn" onClick={() => ledgerPanel.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' })}>← Your ledger</button>
+        <button className="btn" onClick={() => showLedger(true)}>← Your ledger</button>
         {screen === 'home' && <span className="hint text-muted">Swipe right</span>}
       </div>}
       {screen !== 'home' && <header className="user-screen-header flex-row items-center gap-sm">
@@ -126,17 +155,17 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
       {screen === 'home' && <>
         {success && <p role="status">{adminCredit ? 'Credit applied successfully.' : 'Transaction sent successfully.'}</p>}
         <article className="user-card-panel balance-card flex-col gap-sm">
-          <h2>{adminCredit ? 'User’s total credits' : 'Total balance'}</h2>
-          <p className="balance-value">{formatAmount(overview.balance)}</p>
+          <h2>{adminCredit ? 'User’s total credits' : 'Remaining balance'}</h2>
+          <p className="balance-value"><span>{money(adminCredit ? overview.totalReceived : overview.balance)}</span><small>PKR</small></p>
         </article>
         <form className="flex-col gap-md" onSubmit={(event) => {
           event.preventDefault();
           if (amountValid && user.is_active) { setSuccess(false); go('category'); }
         }}>
           <label className="user-card-panel field amount-card">
-            <span>Enter amount</span>
-            <input type="number" inputMode="decimal" min="0" step="any" required value={amount}
-              onChange={(event) => setAmount(event.target.value)} placeholder="0.00" aria-label="Enter amount" />
+            <span>Enter amount (PKR)</span>
+            <input type="number" inputMode="decimal" min="0" max="999999999999.99" step="0.01" required value={amount}
+              onChange={(event) => setAmount(event.target.value)} placeholder="0.00" aria-label="Enter amount in PKR" />
           </label>
           <button className="btn btn--primary user-next" disabled={!amountValid || !user.is_active}>Next</button>
         </form>
@@ -168,7 +197,7 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
           <p className="hint text-muted">Optional</p>
           <AttachmentInput key={screen} kind={screen === 'images' ? 'image' : 'voice'}
             items={attachments.filter((item) => item.kind === (screen === 'images' ? 'image' : 'voice'))}
-            onChange={(items) => updateAttachments(screen === 'images' ? 'image' : 'voice', items)} onBusyChange={setAttachmentBusy} />
+            onChange={previewOnly ? undefined : (items) => updateAttachments(screen === 'images' ? 'image' : 'voice', items)} onBusyChange={setAttachmentBusy} />
         </div>
         <button className="btn btn--primary user-next" disabled={locked} onClick={() => go(screen === 'images' ? 'voice' : 'review')}>
           {screen === 'voice' ? 'Review transaction' : attachments.some((item) => item.kind === 'image') ? 'Next' : 'Skip'}
@@ -189,25 +218,24 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
             <h3>{kind === 'image' ? 'Images' : 'Voice notes'}</h3>
             <AttachmentInput kind={kind} items={attachments.filter((item) => item.kind === kind)} />
           </div>)}
-        <button className="btn btn--primary user-next" disabled={locked || !valid || pending || !user.is_active}
+        <button className="btn btn--primary user-next" disabled={previewOnly || locked || !valid || pending || !user.is_active}
           onClick={submit}>{busy ? 'Sending…' : adminCredit ? 'Send credit' : 'Send transaction'}</button>
       </>}
       </section>
-      {!adminCredit && <section ref={ledgerPanel} className="user-pane user-workspace flex-col gap-md" aria-label="Your credits ledger">
+      {!adminCredit && <section inert={!ledgerOpen} aria-hidden={!ledgerOpen}
+        className="user-pane user-pane--ledger user-workspace flex-col gap-md" aria-label="Your credits ledger">
         <header className="flex-row items-center justify-between gap-sm">
           <h2>Your ledger</h2>
-          <button className="btn" onClick={() => workflowPanel.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' })}>Transaction →</button>
+          <button className="btn" onClick={() => showLedger(false)}>Transaction →</button>
         </header>
         <div className="flex-row flex-wrap gap-sm">
-          {(['pdf', 'excel', 'print'] as const).map((format) => <button key={format} className="btn" disabled={exporting}
-            onClick={() => void exportCredits(format)}>{format === 'pdf' ? 'PDF' : format === 'excel' ? 'Excel' : 'Print'}</button>)}
+          <ReportActions getReport={() => creditDocument(overview, user.user_name)} />
         </div>
         <dl className="user-card-panel flex-col gap-md">
-          <div><dt>Total received by {user.user_name}</dt><dd className="credit-amount">{formatAmount(overview.totalReceived)}</dd></div>
-          <div><dt>Total Bill Payment</dt><dd>{formatAmount(overview.totalBillPayment)}</dd></div>
-          <div><dt>Remaining Payable Balance</dt><dd className="credit-amount">{formatAmount(overview.remainingPayable)}</dd></div>
+          <div><dt>Total received</dt><dd className="credit-amount">{formatAmount(overview.totalReceived)}</dd></div>
+          <div><dt>Total paid</dt><dd>{formatAmount(overview.totalBillPayment)}</dd></div>
+          <div><dt>Remaining balance</dt><dd className="credit-amount">{formatAmount(overview.balance)}</dd></div>
         </dl>
-        <p className="hint text-muted">{overview.remainingPayable > 0 ? 'This amount is payable to you.' : overview.remainingPayable < 0 ? 'Your received amount exceeds your bills; the difference remains with you.' : 'No remaining payable balance.'}</p>
         {!overview.credits.length && <p className="text-muted empty-state">No credits received yet.</p>}
         {overview.credits.map((credit) => <button key={credit.id} className="user-card-panel credit-card flex-col gap-sm" onClick={() => setOpenedCredit(credit)}>
           <div className="flex-row items-center justify-between gap-sm">

@@ -28,13 +28,27 @@ export function isDescendant(heads: Head[], ancestor: number, candidate: number)
 }
 
 // One projection drives the editor, review, and local save. Temporary IDs are negative.
-export function applyHeadChanges(heads: Head[], changes: StagedChange[]): Head[] {
+export function applyHeadChanges(heads: Head[], changes: StagedChange[], previewBackups = false): Head[] {
   let result = heads.map((head) => ({ ...head }));
+  let previewId = Math.min(0, ...heads.map((head) => head.head_id), ...changes.filter((c) => c.op === 'create').map((c) => c.temp_id)) - 1;
   for (const change of changes) {
+    if (change.op === 'backup' || (change.op === 'merge' && change.backup)) {
+      const source = change.op === 'backup' ? change.head_id : change.source_head_id;
+      if (!result.some((head) => head.head_id === source)) throw new Error('This head no longer exists.');
+      if (previewBackups) {
+        const branch = result.filter((head) => isDescendant(result, source, head.head_id));
+        const ids = new Map(branch.map((head) => [head.head_id, previewId--]));
+        result.push(...branch.map((head) => ({ ...head, head_id: ids.get(head.head_id)!,
+          parent_head_id: head.head_id === source ? null : ids.get(head.parent_head_id!)!,
+          head_name: `${head.head_name} · Backup (date added on apply)`, is_active: false })));
+      }
+    }
+    if (change.op === 'backup') continue;
     if (change.op === 'create' || change.op === 'edit') {
       const name = change.head_name.trim();
       const ownId = change.op === 'edit' ? change.head_id : undefined;
-      if (!name || name.length > 48) throw new Error('Head names must contain 1–48 characters.');
+      const limit = change.op === 'edit' ? 160 : 48;
+      if (!name || name.length > limit) throw new Error(`Head names must contain 1–${limit} characters.`);
       if (result.some((head) => head.head_id !== ownId && head.head_name === name)) {
         throw new Error('A head with that name already exists.');
       }
@@ -65,12 +79,16 @@ export function applyHeadChanges(heads: Head[], changes: StagedChange[]): Head[]
     if (change.op === 'delete') {
       const head = result.find((head) => head.head_id === change.head_id);
       if (!head) throw new Error('This head no longer exists.');
-      if (!['hard_delete', 'backup'].includes(change.transaction_handling)) {
-        throw new Error('Choose how to handle this head’s transactions.');
-      }
       // Delete this node only; preserve its children at the same parent level.
       result = result.filter((item) => item.head_id !== head.head_id);
       result.forEach((item) => { if (item.parent_head_id === head.head_id) item.parent_head_id = head.parent_head_id; });
+      continue;
+    }
+    if (change.op === 'active') {
+      if (!result.some((head) => head.head_id === change.head_id)) throw new Error('This head no longer exists.');
+      result.forEach((head) => {
+        if (head.head_id === change.head_id || (!change.is_active && isDescendant(result, change.head_id, head.head_id))) head.is_active = change.is_active;
+      });
       continue;
     }
     const source = change.op === 'move' ? change.head_id : change.source_head_id;
@@ -100,9 +118,11 @@ export function describeChanges(heads: Head[], changes: StagedChange[]): string[
     else if (change.op === 'edit') description = `Edit ${name(change.head_id)} → ${change.head_name} (name / image; ${change.is_transactionable ? 'transactionable' : 'non-transactionable'})`;
     else if (change.op === 'delete') {
       const head = current.find((head) => head.head_id === change.head_id);
-      description = `Delete ${name(change.head_id)}; ${change.transaction_handling === 'backup' ? 'request a backend backup of its transactions' : 'request hard deletion of all its transactions'}. Subheads move to ${name(head?.parent_head_id ?? null)}.`;
+      description = `Delete ${name(change.head_id)} and permanently delete its transactions. Subheads move to ${name(head?.parent_head_id ?? null)}.`;
     }
-    else if (change.op === 'merge') description = `Merge ${name(change.source_head_id)} into ${name(change.target_head_id)}`;
+    else if (change.op === 'active') description = `${change.is_active ? 'Reactivate' : 'Deactivate'} ${name(change.head_id)}${change.is_active ? '' : ' and its subheads'}`;
+    else if (change.op === 'backup') description = `Create a dated backup of ${name(change.head_id)} and its entire branch at the top level. Copied heads and transactions are deactivated.`;
+    else if (change.op === 'merge') description = `${change.backup ? 'Back up the source branch, then merge' : 'Merge'} ${name(change.source_head_id)} into ${name(change.target_head_id)}`;
     else {
       const from = current.find((h) => h.head_id === change.head_id)!.parent_head_id;
       description = `Move ${name(change.head_id)}: ${name(from)} → ${name(change.new_parent_id)}`;

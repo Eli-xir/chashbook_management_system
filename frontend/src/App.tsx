@@ -1,40 +1,68 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Routes, Route, useNavigate } from 'react-router-dom';
 import { Login } from './Login';
 import { AdminPage } from './pages/Admin/AdminPage';
-import { readAdminData } from './data/adminStore';
-import { ADMIN_ID, cashbookApi } from './data/cashbookApi';
+import { cashbookApi } from './data/cashbookApi';
+import type { AppSession, CashbookData } from './pages/Admin/types';
 import { UserPreview } from './pages/Admin/components/UserPreview';
 import { permittedHeads } from './pages/Admin/utils/permissions';
 
 export default function App() {
   const navigate = useNavigate();
-  const [data, setData] = useState(readAdminData);
-  const [session, setSession] = useState(cashbookApi.currentSession);
+  const [data, setData] = useState<CashbookData>({ heads: [], users: [], permissions: {}, transactions: [] });
+  const [session, setSession] = useState<AppSession | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setLoading(true); setError('');
+    void (async () => {
+      try {
+        const next = await cashbookApi.currentSession();
+        const saved = next ? await cashbookApi.refresh() : null;
+        if (active) { setSession(next); if (saved) setData(saved); }
+      } catch (error) { if (active) setError((error as Error).message); }
+      finally { if (active) setLoading(false); }
+    })();
+    return () => { active = false; };
+  }, [retry]);
+  useEffect(() => {
+    function expired() {
+      setSession(null); setData({ heads: [], users: [], permissions: {}, transactions: [] });
+      navigate('/login', { replace: true });
+    }
+    window.addEventListener('cashbook:session-expired', expired);
+    return () => window.removeEventListener('cashbook:session-expired', expired);
+  }, [navigate]);
   const user = data.users.find((item) => item.user_id === session?.userId && item.is_active);
   const home = !user ? '/login' : session?.role === 'admin' ? '/Admin' : '/User';
   async function logout() {
-    await cashbookApi.signOut(); setSession(null); navigate('/login', { replace: true });
+    try { await cashbookApi.signOut(); setSession(null); setData({ heads: [], users: [], permissions: {}, transactions: [] }); navigate('/login', { replace: true }); }
+    catch (error) { setError((error as Error).message); }
   }
+  if (loading) return <main className="user-page"><p>Loading cashbook…</p></main>;
+  if (error) return <main className="user-page"><p role="alert">{error}</p><button className="btn" onClick={() => setRetry((n) => n + 1)}>Reconnect</button></main>;
   return (
     <Routes>
       <Route path="/login" element={<Login onSignedIn={async (next) => {
         setData(await cashbookApi.refresh()); setSession(next);
       }} />} />
       <Route path="/Admin" element={
-        user && session?.role === 'admin' ? <AdminPage currentAdminUserId={ADMIN_ID} {...data}
-          retiredHeadIds={data.headDeletionRequests?.map((change) => change.head_id)}
+        user && session?.role === 'admin' ? <AdminPage currentAdminUserId={session.userId} {...data}
           onSubmitHeadChanges={async (changes) => {
             const saved = await cashbookApi.saveHeads(changes); setData(saved); return saved.heads;
           }}
           onSavePermissions={async (userId, ids) => {
-            const saved = await cashbookApi.savePermissions(userId, ids); setData(saved); return saved.permissions[userId];
+            const saved = await cashbookApi.savePermissions(userId, ids); setData(saved); return saved.permissions[userId] ?? [];
           }}
           onSaveProfile={async (userId, profile) => { setData(await cashbookApi.saveProfile(userId, profile)); }}
           onCreateUser={async (input) => {
             const saved = await cashbookApi.createUser(input); setData(saved.data); return saved.user;
           }}
           onChangePassword={async (userId, password) => { await cashbookApi.changePassword(userId, password); }}
+          onCreateCategory={async (name) => { setData(await cashbookApi.createCategory(name)); }}
+          onDeleteCategory={async (id) => { setData(await cashbookApi.deleteCategory(id)); }}
           onUserAction={async (userId, action) => { setData(await cashbookApi.userAction(userId, action)); }}
           onRefresh={async () => { setData(await cashbookApi.refresh()); }}
           onLogout={() => { void logout(); }} /> : <Navigate to={home} replace />

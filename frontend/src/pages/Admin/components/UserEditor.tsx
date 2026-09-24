@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import type { AdminUser, CreateUserInput, UserProfile } from '../types';
 import { userContacts, validateProfile } from '../utils/userProfile';
 import { Dialog } from './Dialog';
+import { PasswordInput } from '../../../PasswordInput';
 
 export function UserEditor({ user, mode, onSaveProfile, onChangePassword, onCreateUser, onClose }: {
   user: AdminUser; mode: 'profile' | 'password' | 'create'; onClose: () => void;
@@ -49,13 +50,17 @@ export function UserEditor({ user, mode, onSaveProfile, onChangePassword, onCrea
         <fieldset className="field flex-col gap-md" disabled={busy}>
           {(changingPassword || creating) && <>
             <label className="field">
+              <span>Name</span>
+              <input required maxLength={48} value={name} onChange={(event) => setName(event.target.value)} />
+            </label>
+            <label className="field">
               <span>New password</span>
-              <input type="password" autoComplete="new-password" required value={password}
+              <PasswordInput autoComplete="new-password" required value={password}
                 onChange={(event) => setPassword(event.target.value)} />
             </label>
             <label className="field">
               <span>Confirm new password</span>
-              <input type="password" autoComplete="new-password" required value={confirmation}
+              <PasswordInput autoComplete="new-password" required value={confirmation}
                 onChange={(event) => setConfirmation(event.target.value)} />
             </label>
             {changingPassword && !onChangePassword && <p role="status" className="text-muted">
@@ -63,10 +68,6 @@ export function UserEditor({ user, mode, onSaveProfile, onChangePassword, onCrea
             </p>}
           </>}
           {!changingPassword && <>
-            <label className="field">
-              <span>Name</span>
-              <input required maxLength={48} value={name} onChange={(event) => setName(event.target.value)} />
-            </label>
             <h3 className="section-label">Contact numbers</h3>
             {contacts.map((contact, index) => (
               <div key={contact.id} className="contact-editor flex-row items-center gap-sm">

@@ -17,6 +17,7 @@ export interface HeadNode extends Head {
 }
 
 export interface AdminUser {
+  role?: 'admin' | 'user';
   user_id: string;
   user_name: string;
   contact_no?: string;
@@ -42,6 +43,7 @@ export type MergeChange = {
   op: 'merge';
   source_head_id: number;
   target_head_id: number;
+  backup?: boolean;
 };
 export type CreateChange = {
   op: 'create';
@@ -62,12 +64,13 @@ export type EditHeadChange = {
 export type DeleteHeadChange = {
   op: 'delete';
   head_id: number;
-  transaction_handling: 'hard_delete' | 'backup';
 };
 
-export type StagedChange = MoveChange | MergeChange | CreateChange | EditHeadChange | DeleteHeadChange;
+export type ActiveHeadChange = { op: 'active'; head_id: number; is_active: boolean; };
+export type BackupHeadChange = { op: 'backup'; head_id: number; };
+export type StagedChange = MoveChange | MergeChange | CreateChange | EditHeadChange | DeleteHeadChange | ActiveHeadChange | BackupHeadChange;
 export type Permissions = Record<string, number[]>;
-export interface AdminData { heads: Head[]; users: AdminUser[]; permissions: Permissions; }
+export interface AdminData { heads: Head[]; users: AdminUser[]; permissions: Permissions; categories?: Category[]; }
 export interface UserProfile { user_name: string; contacts: string[]; }
 export interface CreateUserInput extends UserProfile { password: string; }
 export interface Attachment { id: string; kind: 'image' | 'voice'; name: string; url: string; }
@@ -85,9 +88,8 @@ export interface Transaction extends TransactionInput {
 export interface AppSession { userId: string; role: 'admin' | 'user'; }
 export interface AccountTotals { totalReceived: number; totalBillPayment: number; remainingPayable: number; }
 export interface UserOverview extends AccountTotals { balance: number; credits: Transaction[]; categories: Category[]; }
-export interface MockData extends AdminData {
+export interface CashbookData extends AdminData {
   transactions: Transaction[];
-  headDeletionRequests?: DeleteHeadChange[];
 }
 
 export type SidebarTab = 'filters' | 'heads' | 'users';

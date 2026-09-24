@@ -13,7 +13,6 @@ import { Ledger } from '../Ledger/Ledger';
 import './AdminPage.css';
 
 interface AdminPageProps extends AdminData {
-  retiredHeadIds?: number[];
   currentAdminUserId: string;
   onLogout: () => void;
   onRefresh: () => Promise<void>;
@@ -22,6 +21,8 @@ interface AdminPageProps extends AdminData {
   onSaveProfile: (userId: string, profile: UserProfile) => Promise<void>;
   onCreateUser: (input: CreateUserInput) => Promise<AdminUser>;
   onChangePassword?: (userId: string, password: string) => Promise<void>;
+  onCreateCategory: (name: string) => Promise<void>;
+  onDeleteCategory: (id: number) => Promise<void>;
   onUserAction?: (userId: string, action: UserAction) => Promise<void>;
 }
 
@@ -42,6 +43,8 @@ export function AdminPage(props: AdminPageProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [confirmRefresh, setConfirmRefresh] = useState(false);
   const [notice, setNotice] = useState('');
+  const [categoryName, setCategoryName] = useState('');
+  const [savingCategory, setSavingCategory] = useState(false);
   const permissionEditor = usePermissionChanges(permissions);
   const selectableUsers = users.filter((user) => user.user_id !== currentAdminUserId);
   const selectedUser = selectableUsers.find((user) => user.user_id === selectedUserId);
@@ -112,20 +115,42 @@ export function AdminPage(props: AdminPageProps) {
             </label>
             {selectedUser && (
               <div className="flex-row flex-wrap gap-sm">
-                <button className="btn" aria-pressed={preview} onClick={() => { setPreview(true); showLedger(); }}>User preview</button>
+                <button className="btn" aria-pressed={preview} onClick={() => navigatePreview(() => {
+                  setPreview(!preview); if (!preview) showLedger();
+                })}>User preview</button>
                 <button className="btn" aria-pressed={permissionMode && activeTab === 'heads'}
-                  onClick={() => { setPermissionMode(true); setActiveTab('heads'); }}>Give permissions</button>
+                  onClick={() => { setPermissionMode(!(permissionMode && activeTab === 'heads')); setActiveTab('heads'); }}>Give permissions</button>
               </div>
             )}
           </div>
           {notice && <p role="status" className="hint refresh-notice">{notice}</p>}
           <section id="panel-filters" aria-label="Filters" hidden={activeTab !== 'filters'}>
             <FiltersTab users={selectableUsers} filters={filters} onChange={setFilters} />
+            <details className="disclosure"><summary>Categories</summary>
+              {props.categories?.map((category) => <div key={category.id} className="flex-row items-center justify-between gap-sm">
+                <span>{category.name}</span>
+                <button className="btn" disabled={savingCategory} onClick={async () => {
+                  setSavingCategory(true); setNotice('');
+                  try { await props.onDeleteCategory(category.id); setNotice('Category removed. Existing transactions are preserved.'); }
+                  catch (error) { setNotice((error as Error).message); }
+                  finally { setSavingCategory(false); }
+                }}>Remove</button>
+              </div>)}
+              <form className="flex-col gap-sm" onSubmit={async (event) => {
+                event.preventDefault(); setSavingCategory(true); setNotice('');
+                try { await props.onCreateCategory(categoryName); setCategoryName(''); setNotice('Category added.'); }
+                catch (error) { setNotice((error as Error).message); }
+                finally { setSavingCategory(false); }
+              }}>
+                <label className="field"><span>New category</span><input required maxLength={48} value={categoryName}
+                  disabled={savingCategory} onChange={(event) => setCategoryName(event.target.value)} /></label>
+                <button className="btn" disabled={savingCategory}>{savingCategory ? 'Saving…' : 'Add category'}</button>
+              </form>
+            </details>
           </section>
           <section id="panel-heads" aria-label="Heads" hidden={activeTab !== 'heads'}>
             {permissionMode && (
               <div className="flex-col gap-md">
-                <button className="btn" onClick={() => setPermissionMode(false)}>← Manage heads</button>
                 {selectedUser ? (
                   <PermissionsEditor key={selectedUserId + ':' + revision} user={selectedUser} heads={heads}
                     editor={permissionEditor} onSave={props.onSavePermissions} />
@@ -133,7 +158,7 @@ export function AdminPage(props: AdminPageProps) {
               </div>
             )}
             <div hidden={permissionMode}>
-              <HeadsTab key={revision} heads={heads} reservedIds={[...Object.values(permissions).flat(), ...(props.retiredHeadIds ?? [])]}
+              <HeadsTab key={revision} heads={heads} reservedIds={Object.values(permissions).flat()}
                 filterHeadId={filters.headId} onFilterHead={(headId) => navigatePreview(() => {
                   setFilters((previous) => ({ ...previous, headId })); setPreview(false); showLedger();
                 })}

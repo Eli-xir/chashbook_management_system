@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import type { Head, StagedChange } from '../types';
+import type { Head, MergeChange, StagedChange } from '../types';
 import { applyHeadChanges, buildHeadTree } from '../utils/headTree';
 import { useStagedHeadChanges } from '../hooks/useStagedHeadChanges';
 import { HeadTreeNode } from './HeadTreeNode';
 import { ConfirmChangesDialog } from './ConfirmChangesDialog';
 import { PendingHeadBlob } from './PendingHeadBlob';
 import { HeadEditor } from './HeadEditor';
+import { Dialog } from './Dialog';
 import './HeadsTab.css';
 
 export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, filterHeadId, onFilterHead }: {
@@ -17,6 +18,8 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, f
 }) {
   const staged = useStagedHeadChanges(heads);
   const [mergeMode, setMergeMode] = useState(false);
+  const [pendingMerge, setPendingMerge] = useState<MergeChange | null>(null);
+  const [backupBeforeMerge, setBackupBeforeMerge] = useState(true);
   const [reviewing, setReviewing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [name, setName] = useState('New head');
@@ -25,7 +28,7 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, f
   const [editing, setEditing] = useState<Head | null>(null);
   const [pickingFilter, setPickingFilter] = useState(false);
   const displayed = applyHeadChanges(staged.heads, staged.changes);
-  const dirty = staged.changes.length > 0 || editing !== null || name !== 'New head';
+  const dirty = staged.changes.length > 0 || editing !== null || pendingMerge !== null || name !== 'New head';
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
 
   function stage(change: StagedChange) {
@@ -54,6 +57,11 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, f
         ? { op: 'merge', source_head_id: id, target_head_id: target! }
         : { op: 'move', head_id: id, new_parent_id: target };
     if (change.op === 'move' && displayed.find((h) => h.head_id === id)?.parent_head_id === target) return;
+    if (change.op === 'merge') {
+      try { applyHeadChanges(displayed, [change]); setPendingMerge(change); setBackupBeforeMerge(true); setError(''); }
+      catch (error) { setError((error as Error).message); }
+      return;
+    }
     if (stage(change) && source === 'new') setName('New head');
   }
 
@@ -65,7 +73,7 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, f
       staged.clear(savedHeads);
       setReviewing(false);
       setSelected(null);
-    } catch { setError('Could not save changes. Your edits are still here; please try again.'); }
+    } catch (error) { setError(error instanceof Error ? error.message : 'Could not save changes. Your edits are still here.'); }
     finally { setSubmitting(false); }
   }
 
@@ -126,6 +134,18 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, f
       {reviewing && <ConfirmChangesDialog originalHeads={staged.heads} changes={staged.changes} error={error}
         isSubmitting={submitting} onCancel={() => setReviewing(false)} onConfirm={apply} />}
       {editing && <HeadEditor head={editing} onSave={stage} onClose={() => setEditing(null)} />}
+      {pendingMerge && <Dialog title="Merge heads" onClose={() => setPendingMerge(null)}>
+        <p>Merge “{displayed.find((head) => head.head_id === pendingMerge.source_head_id)?.head_name}” into “{displayed.find((head) => head.head_id === pendingMerge.target_head_id)?.head_name}”. The source head will be removed.</p>
+        <label className="flex-row items-center gap-sm"><input type="checkbox" checked={backupBeforeMerge}
+          onChange={(event) => setBackupBeforeMerge(event.target.checked)} />Create a backup before merging</label>
+        <p className="hint text-muted">Copies the source head, its subheads and transaction history to a dated, deactivated branch at the top level.</p>
+        <div className="flex-row justify-end gap-sm">
+          <button className="btn" onClick={() => setPendingMerge(null)}>Cancel</button>
+          <button className="btn btn--primary" onClick={() => {
+            if (stage({ ...pendingMerge, backup: backupBeforeMerge })) setPendingMerge(null);
+          }}>Stage merge</button>
+        </div>
+      </Dialog>}
     </div>
   );
 }
