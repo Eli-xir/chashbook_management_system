@@ -1,0 +1,66 @@
+name: Mobile iOS build
+
+# Builds the Capacitor iOS app on a free GitHub macOS runner (public repo).
+# Without signing credentials this produces an UNSIGNED .ipa — installable
+# only by re-signing (e.g. with AltStore/Sideloadly using a personal Apple ID,
+# 7-day validity). A real TestFlight/App Store install requires a paid Apple
+# Developer Program account; see mobile/README.md.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [mobile-apps]
+    paths: ['mobile/**', '.github/workflows/mobile-ios.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Sync Capacitor assets and pods
+        working-directory: mobile
+        run: |
+          npx cap sync ios
+          pod --version || sudo gem install cocoapods
+      - name: Build unsigned archive
+        working-directory: mobile/ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath build/App.xcarchive archive CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY=""
+      - name: Package unsigned IPA
+        working-directory: mobile/ios/App/build/App.xcarchive/Products/Applications
+        run: |
+          mkdir Payload
+          cp -R App.app Payload/
+          zip -qry "$GITHUB_WORKSPACE/cashbook-ios-unsigned.ipa" Payload
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cashbook-ios-unsigned
+          path: cashbook-ios-unsigned.ipa
+          if-no-files-found: error
+      - name: Signing requirements
+        run: |
+          cat >> "$GITHUB_WORKSPACE/README-signing.txt" <<'EOF'
+          This IPA is UNSIGNED. It cannot be installed as-is on an iPhone.
+          - TestFlight / App Store: requires a paid Apple Developer Program
+            membership ($99/yr), a distribution certificate + provisioning
+            profile, and App Store Connect upload (fastlane or Xcode).
+          - Free Apple ID sideload: sign this IPA with AltStore/Sideloadly on
+            Windows; valid for 7 days per signing, max 3 sideloaded apps.
+          EOF
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cashbook-ios-signing-notes
+          path: README-signing.txt

@@ -1,0 +1,45 @@
+name: Mobile Android APK
+
+# Separate from the backend deploy pipeline (cashbook.yml): this never
+# touches the Lightsail server or production database.
+on:
+  workflow_dispatch:
+  push:
+    branches: [mobile-apps]
+    paths: ['mobile/**', '.github/workflows/mobile-android.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Sync Capacitor assets
+        working-directory: mobile
+        run: npx cap sync android
+      - name: Build debug APK (installable) and unsigned release APK
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug assembleRelease --no-daemon
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cashbook-android-apk
+          path: |
+            mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
