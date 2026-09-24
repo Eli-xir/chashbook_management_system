@@ -9,13 +9,16 @@ import { TransactionCard } from './TransactionCard';
 import { UserPreview } from '../Admin/components/UserPreview';
 import { Dialog } from '../Admin/components/Dialog';
 import './Ledger.css';
+import { LedgerFilters } from './LedgerFilters';
+import { UserPicker } from '../Admin/components/UserPicker';
 
 type LedgerData = Awaited<ReturnType<typeof cashbookApi.ledger>>;
-export function Ledger({ filters, revision, heads, users, onDirtyChange }: {
+export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilterChange, company = false, onChanged }: {
+  onChanged: () => Promise<void>; company?: boolean; onFilterChange: (filters: FiltersState) => void;
   filters: FiltersState; revision: number; heads: Head[]; users: AdminUser[]; onDirtyChange: (dirty: boolean) => void;
 }) {
   const [data, setData] = useState<LedgerData | null>(null);
-  const [order, setOrder] = useState<LedgerOrder>('chronological');
+  const [order, setOrder] = useState<LedgerOrder>('by-time');
   const [pagination, setPagination] = useState({ scope: '', page: 0 });
   const scope = JSON.stringify(filters);
   const page = pagination.scope === scope ? pagination.page : 0;
@@ -43,24 +46,25 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange }: {
       .catch((error) => { if (!ignore) setError(error instanceof Error ? error.message : 'Could not load ledger.'); });
     return () => { ignore = true; };
   }, [revision, reload, heads, users]);
-  async function refresh() { setData(await cashbookApi.ledger()); }
+  async function refresh() { setData(await cashbookApi.ledger()); await onChanged(); }
   const reportHeads = data?.heads ?? heads;
-  const report = ledgerReport(data?.transactions ?? [], filters, order, reportHeads);
+  const entryDirection = (entry: Transaction) => direction(entry, company);
+  const report = ledgerReport(data?.transactions ?? [], filters, order, reportHeads, company);
   const branch = headBranchIds(reportHeads, filters.headId);
   const pageCount = Math.max(1, Math.ceil(report.rows.length / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
   const userName = (id: string) => data?.users.find((user) => user.user_id === id)?.user_name ?? 'Unavailable account';
-  const title = filters.userScope === 'all' ? 'All users' : userName(filters.userScope);
+  const title = company ? 'Company Statement' : filters.userScope === 'all' ? 'Users Statement' : userName(filters.userScope);
   const receivedLabel = `Total received by ${filters.userScope === 'all' ? 'users' : userName(filters.userScope)}`;
   const branchLabel = filters.headId == null ? '' : `${headPath(reportHeads, filters.headId)} · Includes subheads`;
   const dateLabel = filters.dateFrom && filters.dateTo ? `${filters.dateFrom} to ${filters.dateTo}`
     : filters.dateFrom ? `From ${filters.dateFrom}` : filters.dateTo ? `Through ${filters.dateTo}` : '';
-  const subtitle = [branchLabel, dateLabel].filter(Boolean).join(' · ');
-  const columns = ['Date/time', 'User', 'Entered by', 'Head', 'Category', 'Credit', 'Debit', 'Balance'];
+  const subtitle = [branchLabel, dateLabel, company && filters.userScope !== 'all' ? userName(filters.userScope) : '', filters.description ? `Description: ${filters.description}` : ''].filter(Boolean).join(' · ');
+  const columns = ['Date/time', 'User', 'Entered by', 'Head', 'Description', 'Credit', 'Debit', 'Balance'];
   const entryCells = (entry: Transaction, balance: number): (string | number)[] => [
     new Date(entry.createdAt).toLocaleString(), userName(entry.userId), userName(entry.createdBy),
-    entry.headPath ?? headPath(data?.heads ?? [], entry.headId), entry.categoryName ?? data?.categories.find((item) => item.id === entry.categoryId)?.name ?? '',
-    direction(entry) === 'credit' ? entry.amount : '', direction(entry) === 'debit' ? entry.amount : '', balance,
+    entry.headPath ?? headPath(data?.heads ?? [], entry.headId), entry.description ?? '',
+    entryDirection(entry) === 'credit' ? entry.amount : '', entryDirection(entry) === 'debit' ? entry.amount : '', balance,
   ];
   const totalCells = (label: string, balance: number, credit: number | string = '', debit: number | string = ''): (string | number)[] => [label, '', '', '', '', credit, debit, balance];
   function pageRows(index: number) {
@@ -68,12 +72,12 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange }: {
     const total = (label: string, balance: number, credit: string | number = '', debit: string | number = '') => rows.push({ cells: totalCells(label, balance, credit, debit) });
     total(index === 0 ? 'Balance brought forward' : 'Page brought forward', start ? report.rows[start - 1].balance : report.opening);
     report.rows.slice(start, start + pageSize).forEach(({ entry, balance }, offset) => {
-      const position = start + offset, type = direction(entry);
-      if (order !== 'chronological' && (offset === 0 || direction(report.rows[position - 1].entry) !== type)) {
-        total(`${type === 'credit' ? 'Credits' : 'Debits'}${offset === 0 && start && direction(report.rows[position - 1].entry) === type ? ' (continued)' : ''}`, balance - (type === 'credit' ? entry.amount : -entry.amount));
+      const position = start + offset, type = entryDirection(entry);
+      if (order !== 'by-time' && (offset === 0 || entryDirection(report.rows[position - 1].entry) !== type)) {
+        total(`${type === 'credit' ? 'Credits' : 'Debits'}${offset === 0 && start && entryDirection(report.rows[position - 1].entry) === type ? ' (continued)' : ''}`, balance - (type === 'credit' ? entry.amount : -entry.amount));
       }
       rows.push({ cells: entryCells(entry, balance), entry });
-      if (order !== 'chronological' && (!report.rows[position + 1] || direction(report.rows[position + 1].entry) !== type)) {
+      if (order !== 'by-time' && (!report.rows[position + 1] || entryDirection(report.rows[position + 1].entry) !== type)) {
         total(`${type === 'credit' ? 'Credits' : 'Debits'} subtotal`, balance, type === 'credit' ? report.credit : '', type === 'debit' ? report.debit : '');
       }
     });
@@ -81,25 +85,26 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange }: {
     total(index === pageCount - 1 ? 'Totals / closing balance' : 'Page carried forward', ending,
       index === pageCount - 1 ? report.credit : '', index === pageCount - 1 ? report.debit : '');
     if (index === pageCount - 1) {
-      total(receivedLabel, report.totalReceived);
-      total('Total Bill Payment', report.totalBillPayment);
-      total('Remaining Payable Balance', report.remainingPayable);
+      Object.entries(summary).forEach(([label, value]) => total(label, value));
     }
     return rows;
   }
   function exportReport(): ReportDocument {
     return { title, subtitle, columns, pages: Array.from({ length: pageCount }, (_, index) => pageRows(index).map((row) => row.cells)) };
   }
+  const summary = company ? { Credits: report.totalBillPayment, Debits: report.totalReceived, Balance: report.remainingPayable }
+    : { [receivedLabel]: report.totalReceived, 'Total paid': report.totalBillPayment, 'Remaining balance': -report.remainingPayable };
   const invalidDates = !!filters.dateFrom && !!filters.dateTo && filters.dateFrom > filters.dateTo;
   return <div className="ledger-view flex-col gap-md">
     <div className="flex-row flex-wrap items-center justify-between gap-sm"><h1>{title}</h1>
       <button className="btn btn--primary" disabled={!data} onClick={() => {
         setCreditUserId(filters.userScope === 'all' ? '' : filters.userScope); setCreditDirty(false); setCrediting(true);
       }}>Credit a user</button></div>
-    {subtitle && <p className="hint text-muted">{subtitle}</p>}
+    {(subtitle || filters.description || filters.userScope !== 'all') && <div className="active-filters flex-row flex-wrap gap-sm"><span>{[subtitle, !company && filters.userScope !== 'all' ? userName(filters.userScope) : ''].filter(Boolean).join(' · ')}</span><button className="btn" onClick={() => onFilterChange({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' })}>Clear filters</button></div>}
     <div className="ledger-toolbar flex-row flex-wrap gap-sm">
+      <label className="field"><span>Entries</span><select value={filters.direction} onChange={(event) => onFilterChange({ ...filters, direction: event.target.value as FiltersState['direction'] })}><option value="both">Credits & debits</option><option value="credit">Credits</option><option value="debit">Debits</option></select></label>
       <label className="field"><span>Arrangement</span><select value={order} onChange={(event) => { setOrder(event.target.value as LedgerOrder); setPage(0); }}>
-        <option value="chronological">Chronological</option><option value="credit-first">Credits, then debits</option><option value="debit-first">Debits, then credits</option>
+        <option value="by-time">Chronological</option><option value="credit-first">Credits, then debits</option><option value="debit-first">Debits, then credits</option>
       </select></label>
       <label className="field"><span>Rows per page</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }}>
         {[10, 20, 50, 100].map((size) => <option key={size}>{size}</option>)}
@@ -109,12 +114,12 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange }: {
     {error && <p role="alert" className="text-error">{error} <button className="btn" onClick={() => setReload((value) => value + 1)}>Reload</button></p>}
     {invalidDates ? <p role="alert">Choose an end date on or after the start date.</p> : !data ? <p>Loading ledger…</p> : <>
       <dl className="ledger-totals">
-        {Object.entries({ [receivedLabel]: report.totalReceived, 'Total Bill Payment': report.totalBillPayment, 'Remaining Payable Balance': report.remainingPayable }).map(([label, value]) => <div key={label}
+        {Object.entries(summary).map(([label, value]) => <div key={label}
           >
           <dt>{label}</dt><dd>{money(value)}</dd></div>)}
       </dl>
       <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{columns.map((label) => <th key={label}
-        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{label}</th>)}</tr></thead><tbody>
+        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{['Date/time', 'User', 'Head', 'Description'].includes(label) ? <LedgerFilters column={label} filters={filters} heads={reportHeads} users={data.users} onChange={onFilterChange} /> : label}</th>)}</tr></thead><tbody>
         {pageRows(currentPage).map(({ cells, entry: rowEntry }, index) => {
           return <tr key={rowEntry?.id ?? index} className={rowEntry ? 'ledger-entry' : 'ledger-total'} onClick={() => { if (rowEntry) setSelected(rowEntry); }}>
             {cells.map((value, column) => <td key={column}>{column === 0 && rowEntry ? <button className="ledger-row-link" onClick={() => setSelected(rowEntry)}>{value}</button> : typeof value === 'number' ? money(value) : value}</td>)}
@@ -133,17 +138,14 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange }: {
       </details>
     </>}
     {selected && data && <TransactionCard key={selected.id} entry={selected}
-      admin heads={data.heads} users={data.users} categories={data.categories}
+      admin company={company} heads={data.heads} users={data.users}
       onClose={() => { setSelected(null); setReload((value) => value + 1); }} onChanged={refresh} />}
     {crediting && data && <Dialog title="Credit a user" onClose={closeCredit} busy={creditBusy}>
       {creditUser ? <UserPreview key={creditUser.user_id} user={creditUser} heads={data.heads} assigned={[]} pending={false}
         adminCredit onClose={closeCredit} onDirtyChange={setCreditDirty} onBusyChange={setCreditBusy}
         onSubmitted={async () => { await refresh(); setCrediting(false); }} /> : <div className="flex-col gap-md">
         <p>Choose the user receiving this credit.</p>
-        {data.users.filter((user) => user.is_active && user.role !== 'admin').map((user) =>
-          <button className="user-choice-card" key={user.user_id} onClick={() => setCreditUserId(user.user_id)}>
-            <span className="user-card-label">{user.user_name}</span><span className="user-card-arrow" aria-hidden="true">›</span>
-          </button>)}
+        <UserPicker users={data.users.filter((u) => u.is_active)} value={creditUserId} onChange={setCreditUserId} />
         {!data.users.some((user) => user.is_active && user.role !== 'admin') && <p className="text-muted">Create an active user first.</p>}
         <button className="btn" onClick={closeCredit}>Cancel</button>
       </div>}

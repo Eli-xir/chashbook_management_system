@@ -1,8 +1,8 @@
 import type { FiltersState, Head, Transaction, TransactionRevision } from '../Admin/types';
 
-export const money = (amount: number) => `PKR ${amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+export const money = (amount: number) => `PKR ${(amount === 0 ? 0 : amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 export const roundMoney = (amount: number) => Math.round((amount + Number.EPSILON) * 100) / 100;
-export const direction = (entry: Transaction) => entry.createdBy === entry.userId ? 'debit' : 'credit';
+export const direction = (entry: Transaction, company = false) => (entry.createdBy === entry.userId) !== company ? 'debit' : 'credit';
 export function accountTotals(entries: Transaction[]) {
   let totalReceived = 0, totalBillPayment = 0;
   for (const entry of entries) {
@@ -24,12 +24,12 @@ export function headPath(heads: Head[], id: number) {
 export function historyOf(entry: Transaction): TransactionRevision[] {
   return entry.versions?.length ? entry.versions : [{
     versionId: `${entry.id}-initial`, recordedAt: entry.createdAt, editorId: entry.createdBy,
-    action: 'Created', amount: entry.amount, headId: entry.headId, categoryId: entry.categoryId,
+    action: 'Created', amount: entry.amount, headId: entry.headId, description: entry.description,
     transactionTypeId: entry.transactionTypeId, attachments: entry.attachments, active: entry.active,
-    headPath: entry.headPath, categoryName: entry.categoryName,
+    headPath: entry.headPath,
   }];
 }
-export type LedgerOrder = 'chronological' | 'credit-first' | 'debit-first';
+export type LedgerOrder = 'by-time' | 'credit-first' | 'debit-first';
 export function headBranchIds(heads: Head[], headId: number | null | undefined): Set<number> | null {
   if (headId == null) return null;
   const children = new Map<number, number[]>();
@@ -44,26 +44,27 @@ export function headBranchIds(heads: Head[], headId: number | null | undefined):
   }
   return ids;
 }
-export function ledgerReport(entries: Transaction[], filters: FiltersState, order: LedgerOrder, heads: Head[] = []) {
+export function ledgerReport(entries: Transaction[], filters: FiltersState, order: LedgerOrder, heads: Head[] = [], company = false) {
+  const entryDirection = (entry: Transaction) => direction(entry, company);
   const day = (value: string) => {
     const d = new Date(value);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
-  const signed = (entry: Transaction) => direction(entry) === 'credit' ? entry.amount : -entry.amount;
+  const signed = (entry: Transaction) => entryDirection(entry) === 'credit' ? entry.amount : -entry.amount;
   const branch = headBranchIds(heads, filters.headId);
   const account = entries.filter((entry) => entry.active && (filters.userScope === 'all' || entry.userId === filters.userScope)
-    && (!branch || branch.has(entry.headId)));
-  const selected = account.filter((entry) => filters.direction === 'both' || direction(entry) === filters.direction);
+    && (!branch || branch.has(entry.headId)) && (!filters.description || (entry.description ?? '').toLowerCase().includes(filters.description.toLowerCase())));
+  const selected = account.filter((entry) => filters.direction === 'both' || entryDirection(entry) === filters.direction);
   const opening = selected.filter((entry) => filters.dateFrom && day(entry.createdAt) < filters.dateFrom).reduce((sum, entry) => roundMoney(sum + signed(entry)), 0);
   const period = selected.filter((entry) => (!filters.dateFrom || day(entry.createdAt) >= filters.dateFrom) && (!filters.dateTo || day(entry.createdAt) <= filters.dateTo));
   period.sort((a, b) => {
-    if (order !== 'chronological' && direction(a) !== direction(b)) return direction(a) === (order === 'credit-first' ? 'credit' : 'debit') ? -1 : 1;
+    if (order !== 'by-time' && entryDirection(a) !== entryDirection(b)) return entryDirection(a) === (order === 'credit-first' ? 'credit' : 'debit') ? -1 : 1;
     return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
   });
   let balance = opening;
   const rows = period.map((entry) => ({ entry, balance: balance = roundMoney(balance + signed(entry)) }));
-  const credit = period.filter((entry) => direction(entry) === 'credit').reduce((sum, entry) => roundMoney(sum + entry.amount), 0);
-  const debit = period.filter((entry) => direction(entry) === 'debit').reduce((sum, entry) => roundMoney(sum + entry.amount), 0);
+  const credit = period.filter((entry) => entryDirection(entry) === 'credit').reduce((sum, entry) => roundMoney(sum + entry.amount), 0);
+  const debit = period.filter((entry) => entryDirection(entry) === 'debit').reduce((sum, entry) => roundMoney(sum + entry.amount), 0);
   const totals = accountTotals(account.filter((entry) => !filters.dateTo || day(entry.createdAt) <= filters.dateTo));
   return { rows, opening, credit, debit, closing: balance, ...totals };
 }
