@@ -5,13 +5,13 @@
       "Sid": "PrivateCashbookAttachments",
       "Effect": "Allow",
       "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
-      "Resource": ["arn:aws:s3:::REPLACE_MEDIA_BUCKET/images/*", "arn:aws:s3:::REPLACE_MEDIA_BUCKET/voice/*"]
+      "Resource": ["arn:aws:s3:::REPLACE_MEDIA_BUCKET/attatchments/images/*", "arn:aws:s3:::REPLACE_MEDIA_BUCKET/attatchments/voice_notes/*"]
     },
     {
       "Sid": "AppendBackups",
       "Effect": "Allow",
       "Action": ["s3:PutObject", "s3:AbortMultipartUpload"],
-      "Resource": "arn:aws:s3:::REPLACE_BACKUP_BUCKET/backups/*"
+      "Resource": "arn:aws:s3:::REPLACE_BACKUP_BUCKET/pg_dump/*"
     }
   ]
 }

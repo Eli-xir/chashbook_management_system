@@ -48,3 +48,7 @@ Profile, permissions, heads, category and account actions return a fresh admin s
 Errors use HTTP 400/403/404/409/422 with `detail`; expired authentication uses 401. The adapter turns them into existing form errors and sends expired sessions back to login. No automatic retries of transaction writes are performed.
 
 State is deliberately small-scale: full admin data per read and one short PostgreSQL transaction per mutation. A database write lock serializes mutations to keep permission checks, submissions and head operations consistent; state readers share a read lock so a deletion cannot interrupt their multi-query response. No server ledger/report variants: filtering, pagination and export continue using the same client report model.
+
+## Production storage
+
+Docker sets DATABASE_URL and COOKIE_SECURE=true. When CASHBOOK_S3_BUCKET is configured, storage.py saves private S3 media and returns short-lived signed downloads after authorization. Otherwise local uploads continue to work. See ../deploy/README.md for production configuration and backups.
