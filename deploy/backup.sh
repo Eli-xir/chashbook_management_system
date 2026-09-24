@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stop the single writer briefly so PostgreSQL and the JSON journals match.
+# S3 media is immutable; a transactionally consistent PostgreSQL dump is sufficient.
 set -Eeuo pipefail
 cd "$(dirname "$(realpath "$0")")"
 if [ "${CASHBOOK_LOCK_HELD:-0}" != 1 ]; then
@@ -8,19 +8,14 @@ if [ "${CASHBOOK_LOCK_HELD:-0}" != 1 ]; then
 fi
 umask 077
 backup_tmp=$(mktemp -d)
-resume_needed=0
-cleanup() {
-  if [ "$resume_needed" = 1 ]; then docker compose start backend; fi
-  rm -rf -- "$backup_tmp"
-}
-trap cleanup EXIT
-resume_needed=1
-docker compose stop backend
-docker compose exec -T database pg_dump -U cashbook -d cashbook -Fc > "$backup_tmp/database.dump"
-docker compose run --rm --no-deps -T --user 0 --entrypoint tar backend czf - -C /state . > "$backup_tmp/state.tar.gz"
-docker compose start backend
-resume_needed=0
-backup_name="cashbook-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
-tar czf "$backup_tmp/$backup_name" -C "$backup_tmp" database.dump state.tar.gz
-docker compose run --rm --no-deps -T -v "$backup_tmp:/backup:ro" --user 0 backend python -m app.backup_upload "/backup/$backup_name"
-echo "Uploaded $backup_name. Check the exit status/log for scheduled backups."
+trap 'rm -rf -- "$backup_tmp"' EXIT
+backup_name="cashbook-v2-$(date -u +%Y%m%dT%H%M%SZ).dump"
+docker compose exec -T database pg_dump -U cashbook -d cashbook -Fc > "$backup_tmp/$backup_name"
+docker compose run --rm --no-deps -T --user 0 -v "$backup_tmp:/backup:ro" backend python -c '
+import os, sys
+from storage import s3
+name = sys.argv[1]
+prefix = os.getenv("CASHBOOK_BACKUP_PREFIX", "pg_dump").strip("/")
+s3().upload_file("/backup/" + name, os.environ["CASHBOOK_BACKUP_BUCKET"], prefix + "/" + name)
+' "$backup_name"
+echo "Uploaded $backup_name"

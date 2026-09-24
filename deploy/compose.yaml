@@ -6,53 +6,46 @@ services:
     environment:
       POSTGRES_DB: cashbook
       POSTGRES_USER: cashbook
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a strong database password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set database password}
     volumes:
-      - database:/var/lib/postgresql/data
-      - ../database/db_init.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - database_v2:/var/lib/postgresql/data
     healthcheck:
       test: [CMD-SHELL, "pg_isready -U cashbook -d cashbook"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 12
+      retries: 20
     logging: &logging
       driver: json-file
       options: {max-size: 10m, max-file: '3'}
   backend:
+    image: cashbook-backend:latest
     build: {context: .., dockerfile: backend/Dockerfile}
     restart: unless-stopped
     environment:
-      CASHBOOK_ENV: production
-      CASHBOOK_STATE_DIR: /state
-      CASHBOOK_DB_DSN: postgresql://cashbook:${POSTGRES_PASSWORD}@database:5432/cashbook
-      CASHBOOK_STORAGE_BACKEND: s3
-      CASHBOOK_S3_BUCKET: ${CASHBOOK_S3_BUCKET:?Set private media bucket}
-      CASHBOOK_S3_PREFIX: ${CASHBOOK_S3_PREFIX:-}
-      CASHBOOK_BACKUP_PREFIX: ${CASHBOOK_BACKUP_PREFIX:-backups}
-      CASHBOOK_AWS_REGION: ${CASHBOOK_AWS_REGION:?Set AWS region}
-      CASHBOOK_BACKUP_BUCKET: ${CASHBOOK_BACKUP_BUCKET:?Set private backup bucket}
-      CASHBOOK_SMS_PROVIDER: ${CASHBOOK_SMS_PROVIDER:-disabled}
-      CASHBOOK_CORS_ORIGINS: ${CASHBOOK_CORS_ORIGINS:-https://${CASHBOOK_DOMAIN}}
-      CASHBOOK_COOKIE_SAMESITE: lax
+      DATABASE_URL: postgresql://cashbook:${POSTGRES_PASSWORD}@database:5432/cashbook
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set initial admin password}
+      COOKIE_SECURE: 'true'
+      CASHBOOK_S3_BUCKET: ${CASHBOOK_S3_BUCKET:?Set media bucket}
+      CASHBOOK_S3_PREFIX: ${CASHBOOK_S3_PREFIX:-attatchments}
+      CASHBOOK_BACKUP_PREFIX: ${CASHBOOK_BACKUP_PREFIX:-pg_dump}
+      CASHBOOK_AWS_REGION: ${CASHBOOK_AWS_REGION:?Set region}
+      CASHBOOK_BACKUP_BUCKET: ${CASHBOOK_BACKUP_BUCKET:?Set backup bucket}
       AWS_SHARED_CREDENTIALS_FILE: /run/secrets/aws_credentials
-    secrets:
-      - source: aws_credentials
-        target: aws_credentials
-    volumes:
-      - state:/state
+    secrets: [aws_credentials]
     depends_on:
       database: {condition: service_healthy}
     healthcheck:
-      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
-      interval: 30s
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/session', timeout=3)"]
+      interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 12
     logging: *logging
   web:
+    image: cashbook-web:latest
     build: {context: .., dockerfile: frontend/Dockerfile}
     restart: unless-stopped
     environment:
-      CASHBOOK_DOMAIN: ${CASHBOOK_DOMAIN:?Set your domain}
+      CASHBOOK_DOMAIN: ${CASHBOOK_DOMAIN:?Set domain or static IP}
     ports: ['80:80', '443:443']
     volumes:
       - caddy_data:/data
@@ -64,7 +57,6 @@ secrets:
   aws_credentials:
     file: ./secrets/aws_credentials
 volumes:
-  database:
-  state:
+  database_v2:
   caddy_data:
   caddy_config:

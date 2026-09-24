@@ -7,11 +7,12 @@ from uuid import UUID
 
 import psycopg
 from fastapi import Depends, FastAPI, File, Form, Request, Response, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 
 from db import UPLOADS, connect, initialize, password_hash, password_matches
 from models import Change, Login
 from service import apply_change, attachment, overview, require, state
+import storage
 
 COOKIE = 'cashbook_session'
 DUMMY_HASH = password_hash('no-account')
@@ -166,13 +167,14 @@ def upload(db: DB, actor: Actor, file: Annotated[UploadFile, File()], kind: Anno
     row = db.execute('''INSERT INTO attachments(attachment_type_id,extension_id,attachment_url,original_name,content_type,uploaded_by)
         VALUES (%s,%s,'',%s,%s,%s) RETURNING *''', (type_id, extension['extension_id'], name, MEDIA_TYPES[ext], actor['user_id'])).fetchone()
     filename = f"{row['attachment_id']}.{ext}"
-    destination = UPLOADS / filename
+    key = None
     try:
-        destination.write_bytes(content)
-        db.execute('UPDATE attachments SET attachment_url=%s WHERE attachment_id=%s', (filename, row['attachment_id']))
+        key = storage.save(content, filename, kind, MEDIA_TYPES[ext])
+        db.execute('UPDATE attachments SET attachment_url=%s WHERE attachment_id=%s', (key, row['attachment_id']))
         db.commit()
     except Exception:
-        destination.unlink(missing_ok=True)
+        if key:
+            storage.remove(key)
         raise
     return attachment(row)
 
@@ -191,6 +193,6 @@ def download_attachment(attachment_id: int, db: DB, actor: Actor):
             AND NOT EXISTS(SELECT 1 FROM heads h WHERE h.attachment_id=a.attachment_id) LIMIT 1''',
             (attachment_id, actor['user_id'])*3).fetchone()
         require(allowed, 'Attachment not found.', 404)
-    file = UPLOADS / row['attachment_url']
-    require(file.is_file(), 'Attachment file is missing.', 404)
-    return FileResponse(file, media_type=row['content_type'], filename=row['original_name'], content_disposition_type='inline')
+    if not storage.BUCKET:
+        require((UPLOADS / row['attachment_url']).is_file(), 'Attachment file is missing.', 404)
+    return storage.response(row)

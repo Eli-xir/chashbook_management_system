@@ -20,7 +20,7 @@
     request_body {
         max_size 12MB
     }
-    handle_path /api/* {
+    handle /api/* {
         reverse_proxy backend:8000
     }
     handle {

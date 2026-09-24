@@ -1,46 +1,21 @@
-# Database
+# PostgreSQL
 
-`db_init.sql` initializes a fresh, empty PostgreSQL database atomically. It does not drop existing tables or migrate an older schema. The SVG is an older reference diagram.
+From this folder, `docker compose -p cashbook-local up -d` starts PostgreSQL 17 on `127.0.0.1:5433`, database/user `cashbook`. This local-only setup uses `cashbook_local` as the database password. If overriding `POSTGRES_PASSWORD` before first initialization, also update `backend/.env`'s DATABASE_URL.
 
-```powershell
-psql -h localhost -U postgres -d YOUR_NEW_DATABASE -v ON_ERROR_STOP=1 -f database/db_init.sql
-```
+The named volume is `cashbook_local_v2`; stopping the container preserves it. Backend startup applies `db_init.sql` once to an empty database and seeds Sohail Malik with `ADMIN_PASSWORD` from `backend/.env`. It refuses an unversioned older users schema rather than dropping or guessing at existing data. Repeated startup does not reset users or passwords.
 
-## Creating a transaction
+The latest provided schema is retained with these necessary additions:
 
-Each version belongs to a transaction through `Transaction_versions.transaction_id`. `Transactions.current_version_id` selects its effective version. A composite foreign key ensures the selected version belongs to that same transaction.
+- Generated identity keys for integer IDs and PostgreSQL UUID defaults for accounts/sessions.
+- `numeric(18,2)` amounts in entered currency units, rather than assuming the unconfirmed integer minor-unit convention. API limit is 999,999,999,999.99 per transaction.
+- Version snapshots include head, category, active status, editor, action, display path and category name. Previous snapshots and attachment associations are immutable, so editing or merging preserves the requested trail.
+- Transaction creation time is independent from version creation time.
+- Deleted/merged heads become hidden tombstones. Exact permission rows survive and never transfer to another head. Live-name uniqueness excludes these retired heads.
+- Upload metadata records original name, MIME, uploader and submitted status; composite extension/type FK prevents mismatched media classification.
+- Head backups are ordinary deactivated heads and transactions, with copied version history and retained immutable attachment references. Backup and merge commit together when requested. Existing permissions remain unchanged.
+- Categories have an active flag so removal preserves transaction history. Head names allow 160 characters for dated backup suffixes.
+- A head revision detects stale staged tree edits. Startup applies the version 2 migration for category removal and longer head names without resetting data. Any legacy ZIP archive table is retained, but its old API and UI are removed.
 
-Use explicit BEGIN/COMMIT: insert the transaction first, then its initial version, then commit. The current-version foreign key is INITIALLY DEFERRED, so the pointer is checked at commit without needing SET CONSTRAINTS. A missing version or a version belonging to another transaction cannot commit. The version's ownership foreign key is initially immediate, so this insertion order matters. Autocommit between the two inserts will fail.
+Deleting a head deletes only transactions currently on that head, not its children's transactions. Child nodes are promoted. Merging repoints current transactions and records new versions, preserving historical head references. Shared and orphaned upload files are retained; they are not automatically removed with transactions.
 
-## Correcting a transaction
-
-In one database transaction, lock the Transactions row using SELECT ... FOR UPDATE, insert the new version, and update current_version_id. Keep previous versions for history. Read current values with a direct join; there is no linked version chain.
-
-Current versions cannot be deleted independently while referenced. Backend authorization must still prevent independent historical-version edits/deletion and enforce admin-only corrections. Serialize competing corrections using the row lock.
-
-## Deactivation and deletion
-
-Transactions start active. Admin-only backend actions may deactivate, reactivate, or permanently delete a transaction:
-
-```sql
-UPDATE Transactions SET is_active = false WHERE transaction_id = 1;
-UPDATE Transactions SET is_active = true WHERE transaction_id = 1;
-DELETE FROM Transactions WHERE transaction_id = 1;
-```
-
-Deactivation preserves every version. Reports and totals must explicitly filter `Transactions.is_active = true`; the flag does not filter queries automatically. Admin history views can include inactive transactions.
-
-Deleting a transaction cascades to all its versions, including its current version. It does not delete its user, head, payment medium, image/voice metadata, or stored files. Attachment cleanup is a separate backend responsibility and must account for shared references. Permanent deletion removes history; use deactivation when you need to retain it.
-
-These constraints define data behavior, not application roles. The backend must restrict these actions to admins. This initialization file remains for fresh databases, not an existing-database migration.
-
-## Unchanged choices
-
-- Integer IDs must be supplied explicitly; automatic generation has not been added.
-- Zero amounts are allowed; negative amounts are rejected.
-- Head names are globally unique. The backend must prevent multi-head cycles.
-- Parent permissions include descendants; inactive ancestors block new entries.
-- Users submit entries using assigned heads. Admins manage transactions and corrections; no amendment queue or vendors.
-- Backdated transaction dates have not been added.
-
-The schema and guides are the only changes. No project environment or application code is included.
+For full recovery, preserve the PostgreSQL volume (or a PostgreSQL dump) and `backend/uploads` together. In-app head copies do not replace a database backup. Select a copied head and open Deactivated entries to inspect its copied transactions. The old `schema_overview/` diagrams are historical, not the current schema.

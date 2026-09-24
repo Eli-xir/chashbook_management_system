@@ -1,5 +1,5 @@
 [Unit]
-Description=Cashbook PostgreSQL and application state backup to private S3
+Description=Cashbook PostgreSQL backup to private S3
 Requires=docker.service
 After=docker.service network-online.target
 

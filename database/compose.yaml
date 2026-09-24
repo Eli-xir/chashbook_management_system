@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: cashbook
+      POSTGRES_USER: cashbook
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cashbook_local}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - cashbook_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cashbook -d cashbook"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+volumes:
+  cashbook_data:
+    name: cashbook_local_v2
