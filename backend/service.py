@@ -336,8 +336,8 @@ def head_changes(db, actor, change):
             db.execute('UPDATE heads SET is_active=%s WHERE head_id=ANY(%s)', (item.is_active, list(ids)))
         elif item.op == 'delete':
             db.execute('DELETE FROM transactions WHERE head_id=%s', (source,))
-            db.execute('UPDATE heads SET parent_head_id=%s WHERE parent_head_id=%s', (head['parent_head_id'], source))
             db.execute('UPDATE heads SET is_deleted=true,is_active=false,parent_head_id=NULL WHERE head_id=%s', (source,))
+            db.execute('UPDATE heads SET parent_head_id=%s WHERE parent_head_id=%s', (head['parent_head_id'], source))
         else:
             target = resolve(item.target_head_id if item.op == 'merge' else item.new_parent_id)
             cursor = target
@@ -352,8 +352,8 @@ def head_changes(db, actor, change):
                 for entry in db.execute('SELECT * FROM transactions WHERE head_id=%s', (source,)).fetchall():
                     entry['head_id'] = target
                     revise(db, entry, actor['user_id'], 'Head merged')
-                db.execute('UPDATE heads SET parent_head_id=%s WHERE parent_head_id=%s', (target, source))
                 db.execute('UPDATE heads SET is_deleted=true,is_active=false,parent_head_id=NULL WHERE head_id=%s', (source,))
+                db.execute('UPDATE heads SET parent_head_id=%s WHERE parent_head_id=%s', (target, source))
     # Explicit rules stay attached to heads; inherited access follows the current tree.
     db.execute('UPDATE head_revision SET revision=revision+1')
     return state(db, actor)

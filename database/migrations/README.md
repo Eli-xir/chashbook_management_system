@@ -18,6 +18,8 @@ Company statements reverse the user-facing credit/debit direction without creati
 
 ## Production rollout
 
-This change has not been deployed or applied to production. Deploy backend and frontend together; an old frontend still sends category fields and is incompatible with the new request model. Take the existing database backup before rollout. The changed schema baseline intentionally triggers the current release script's manual schema review guard. Apply this migration in a transaction (or allow the new backend initialization to apply it), then update the reviewed server schema baseline as part of the coordinated rollout.
+GitHub deployment builds images first, stops backend writes, and uploads a complete PostgreSQL dump to the configured S3 backup prefix. A failed backup aborts deployment and restarts the previous backend. Only after backup success does a one-off new backend apply pending numbered migrations, in order, inside a transaction. A failed migration rolls back and restores the previous application. The new app starts after migration commits.
 
-Do not roll back to an old application image after new category-free transactions have been created: the old backend expects category IDs. Keep the version 3 database and fix forward, or restore the pre-rollout backup together with the previous application version.
+Add subsequent migrations as `005_name.sql`, etc., ending with an insert of their version into `schema_version`. Update the fresh schema too. Applied migrations are not rerun; never edit a migration already deployed. Infrastructure changes remain guarded separately. If an application rollout fails after migration commits, keep the new schema and fix forward, or deliberately restore the backup with the matching old app; no automatic database reset or incompatible app rollback is performed.
+
+Version 4 scopes head-name uniqueness to siblings, including roots. This rollout includes versions 3 and 4.

@@ -27,11 +27,21 @@ export function isDescendant(heads: Head[], ancestor: number, candidate: number)
   return false;
 }
 
+function assertSiblingNames(heads: Head[]) {
+  const names = new Map<number | null, Set<string>>();
+  for (const head of heads) {
+    const siblings = names.get(head.parent_head_id) ?? new Set<string>();
+    if (siblings.has(head.head_name)) throw new Error('A head with that name already exists under this parent.');
+    siblings.add(head.head_name); names.set(head.parent_head_id, siblings);
+  }
+}
+
 // One projection drives the editor, review, and local save. Temporary IDs are negative.
 export function applyHeadChanges(heads: Head[], changes: StagedChange[], previewBackups = false): Head[] {
   let result = heads.map((head) => ({ ...head }));
   let previewId = Math.min(0, ...heads.map((head) => head.head_id), ...changes.filter((c) => c.op === 'create').map((c) => c.temp_id)) - 1;
   for (const change of changes) {
+    assertSiblingNames(result);
     if (change.op === 'backup' || (change.op === 'merge' && change.backup)) {
       const source = change.op === 'backup' ? change.head_id : change.source_head_id;
       if (!result.some((head) => head.head_id === source)) throw new Error('This head no longer exists.');
@@ -47,10 +57,11 @@ export function applyHeadChanges(heads: Head[], changes: StagedChange[], preview
     if (change.op === 'create' || change.op === 'edit') {
       const name = change.head_name.trim();
       const ownId = change.op === 'edit' ? change.head_id : undefined;
+      const parentId = change.op === 'create' ? change.parent_head_id : result.find((head) => head.head_id === ownId)?.parent_head_id;
       const limit = change.op === 'edit' ? 160 : 48;
       if (!name || name.length > limit) throw new Error(`Head names must contain 1–${limit} characters.`);
-      if (result.some((head) => head.head_id !== ownId && head.head_name === name)) {
-        throw new Error('A head with that name already exists.');
+      if (result.some((head) => head.head_id !== ownId && head.parent_head_id === parentId && head.head_name === name)) {
+        throw new Error('A head with that name already exists under this parent.');
       }
     }
     if (change.op === 'edit') {
@@ -106,6 +117,7 @@ export function applyHeadChanges(heads: Head[], changes: StagedChange[], preview
       result.forEach((h) => { if (h.parent_head_id === source) h.parent_head_id = target; });
     }
   }
+  assertSiblingNames(result);
   return result;
 }
 

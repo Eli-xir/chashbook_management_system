@@ -41,6 +41,7 @@ async def same_origin_mutations(request: Request, call_next):
 @app.exception_handler(psycopg.IntegrityError)
 async def constraint_error(request, error):
     messages = {'unique_active_username': 'An active user already has that name.',
+                'unique_live_sibling_head_name': 'A head with that name already exists under this parent.',
                 'unique_live_head_name': 'A head with that name already exists.',
                 'category_groups_category_group_name_key': 'That category already exists.'}
     return JSONResponse({'detail': messages.get(error.diag.constraint_name, 'This change conflicts with existing records. Refresh and try again.')}, status_code=409)

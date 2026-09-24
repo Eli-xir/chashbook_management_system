@@ -1,4 +1,4 @@
--- Schema version 3; applied once by backend startup.
+-- Schema version 4; applied once by backend startup.
 CREATE TABLE user_roles (user_role_id integer PRIMARY KEY, user_role_name text UNIQUE NOT NULL);
 INSERT INTO user_roles VALUES (1, 'admin'), (2, 'user');
 CREATE TABLE users (
@@ -115,3 +115,10 @@ ALTER TABLE transactions ALTER COLUMN category_group_id DROP NOT NULL;
 ALTER TABLE transaction_versions ALTER COLUMN category_group_id DROP NOT NULL;
 ALTER TABLE transaction_versions ALTER COLUMN category_name SET DEFAULT '';
 INSERT INTO schema_version VALUES (3);
+
+-- Allow the same name under different parents; roots are siblings too.
+DROP INDEX IF EXISTS unique_live_head_name;
+ALTER TABLE heads DROP CONSTRAINT IF EXISTS heads_head_name_key;
+CREATE UNIQUE INDEX unique_live_sibling_head_name
+    ON heads(parent_head_id, head_name) NULLS NOT DISTINCT WHERE NOT is_deleted;
+INSERT INTO schema_version VALUES (4);
