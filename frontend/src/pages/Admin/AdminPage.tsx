@@ -7,7 +7,7 @@ import { UserPreview } from './components/UserPreview';
 import { UserPicker } from './components/UserPicker';
 import { Dialog } from './components/Dialog';
 import { usePermissionChanges } from './hooks/usePermissionChanges';
-import { permissionDiff } from './utils/permissions';
+import { permissionDiff, permittedHeads } from './utils/permissions';
 import { Ledger } from '../Ledger/Ledger';
 import { accountTotals, money } from '../Ledger/ledgerModel';
 import logo from '../../assets/logo.jpeg';
@@ -49,9 +49,15 @@ export function AdminPage(props: AdminPageProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [confirmRefresh, setConfirmRefresh] = useState(false);
   const [notice, setNotice] = useState('');
+  const [headPermission, setHeadPermission] = useState<{ head: Head; allow: boolean } | null>(null);
+  const [permissionUsers, setPermissionUsers] = useState<string[]>([]);
   const editor = usePermissionChanges(permissions, heads);
   const selectableUsers = users.filter((u) => u.user_id !== currentAdminUserId && u.role !== 'admin');
   const selectedUser = selectableUsers.find((u) => u.user_id === selectedUserId);
+  const permissionCandidates = headPermission ? selectableUsers.filter((user) => {
+    const hasAccess = permittedHeads(heads, editor.ids(user.user_id)).some((head) => head.head_id === headPermission.head.head_id);
+    return hasAccess !== headPermission.allow;
+  }) : [];
   const preview = page === 'heads' && headMode === 'preview' && !!selectedUser;
   const dirty = headDirty || userDirty || editor.dirty || transactionDirty || ledgerDirty;
   const totals = accountTotals(props.transactions);
@@ -110,11 +116,12 @@ export function AdminPage(props: AdminPageProps) {
             }} permissionIds={headMode === 'permissions' && selectedUser ? editor.ids(selectedUserId) : undefined} reservedIds={Object.values(permissions).flat().map(Math.abs)} onSubmitChanges={props.onSubmitHeadChanges} onDirtyChange={setHeadDirty}
             onHeadAction={(head, action) => {
               if (head.head_id < 0) { setNotice('Apply this new head first.'); return; }
-              if (!selectedUser) { setNotice('Choose a user above to change permissions.'); return; }
-              editor.stageBranch(selectedUserId, head.head_id, action === 'give');
-              setHeadMode('permissions'); setNotice('');
+              setHeadPermission({ head, allow: action === 'give' });
+              setPermissionUsers([]); setNotice('');
             }} /></div>
           {selectedUser && headMode === 'permissions' && <PermissionChanges key={`${selectedUserId}:${revision}`} user={selectedUser} heads={heads} editor={editor} onSave={props.onSavePermissions} />}
+          {headMode === 'manage' && selectableUsers.filter((user) => editor.get(user.user_id).history.length > 1).map((user) =>
+            <PermissionChanges key={`${user.user_id}:${revision}`} user={user} heads={heads} editor={editor} onSave={props.onSavePermissions} />)}
         </div>
         <div hidden={page !== 'users'}><UsersTab key={revision} currentAdminUserId={currentAdminUserId} users={users} selectedUserId={selectedUserId}
           onSelect={(id) => navigate(() => { setSelectedUserId(id); if (!id) setHeadMode('manage'); })} onViewLedger={(id) => statement(id)} onCreateUser={props.onCreateUser} onSaveProfile={props.onSaveProfile}
@@ -129,6 +136,18 @@ export function AdminPage(props: AdminPageProps) {
         : (page === 'company' || page === 'statement') && <Ledger key={`${revision}:${page}`} company={page === 'company'} filters={filters} onFilterChange={setFilters} revision={revision} heads={heads} users={users} onDirtyChange={setLedgerDirty}
           onChanged={props.onRefresh} />}
     </div>
+    {headPermission && <Dialog title={`${headPermission.allow ? 'Give permission' : 'Revoke permission'} · ${headPermission.head.head_name}`} onClose={() => setHeadPermission(null)}>
+      <p>Select users. This change includes all subheads.</p>
+      <UserPicker users={permissionCandidates} selectedIds={permissionUsers} onChange={(id) => setPermissionUsers((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id])} />
+      {!permissionCandidates.length && <p className="text-muted">{headPermission.allow ? 'All users already have access to this head.' : 'No users have access to this head.'}</p>}
+      <div className="flex-row justify-end gap-sm">
+        <button className="btn" onClick={() => setHeadPermission(null)}>Cancel</button>
+        <button className="btn btn--primary" disabled={!permissionUsers.length} onClick={() => {
+          permissionCandidates.filter((user) => permissionUsers.includes(user.user_id)).forEach((user) => editor.stageBranch(user.user_id, headPermission.head.head_id, headPermission.allow));
+          setHeadPermission(null); setPermissionUsers([]);
+        }}>Stage changes{permissionUsers.length ? ` (${permissionUsers.length})` : ''}</button>
+      </div>
+    </Dialog>}
     {confirmRefresh && <Dialog title="Discard drafts and refresh?" onClose={() => setConfirmRefresh(false)} busy={refreshing}>
       <p>Refresh will discard unapplied edits and reload saved data.</p>
       <div className="flex-row justify-end gap-sm"><button className="btn" disabled={refreshing} onClick={() => setConfirmRefresh(false)}>Keep editing</button><button className="btn btn--primary" disabled={refreshing} onClick={refresh}>Refresh</button></div>
