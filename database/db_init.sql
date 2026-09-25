@@ -1,4 +1,4 @@
--- Schema version 4; applied once by backend startup.
+-- Schema version 5; applied once by backend startup.
 CREATE TABLE user_roles (user_role_id integer PRIMARY KEY, user_role_name text UNIQUE NOT NULL);
 INSERT INTO user_roles VALUES (1, 'admin'), (2, 'user');
 CREATE TABLE users (
@@ -122,3 +122,14 @@ ALTER TABLE heads DROP CONSTRAINT IF EXISTS heads_head_name_key;
 CREATE UNIQUE INDEX unique_live_sibling_head_name
     ON heads(parent_head_id, head_name) NULLS NOT DISTINCT WHERE NOT is_deleted;
 INSERT INTO schema_version VALUES (4);
+
+CREATE TABLE credit_users (
+    credit_user_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_name varchar(48) NOT NULL CHECK (length(trim(user_name)) > 0),
+    description text NOT NULL DEFAULT '',
+    contacts text[] NOT NULL DEFAULT '{}',
+    is_active boolean NOT NULL DEFAULT true,
+    is_pinned boolean NOT NULL DEFAULT false
+);
+ALTER TABLE transactions ADD COLUMN credit_user_id uuid REFERENCES credit_users;
+INSERT INTO schema_version VALUES (5);
