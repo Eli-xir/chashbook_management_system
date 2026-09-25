@@ -107,14 +107,23 @@ class UserChange(Model):
     password: Password | None = None
 
 
+class CreditUserChange(Model):
+    op: Literal['creditUser']
+    action: Literal['create', 'edit', 'pin', 'deactivate', 'reactivate', 'delete']
+    creditUserId: UUID | None = None
+    profile: Profile | None = None
+    pinned: bool | None = None
+
+
 class TransactionChange(Model):
     op: Literal['transaction']
     action: Literal['submit', 'credit', 'edit', 'deactivate', 'reactivate', 'delete']
     userId: UUID | None = None
+    creditUserId: UUID | None = None
     id: int | None = None
     expectedVersion: int | None = None
     input: TransactionInput | None = None
 
 
 
-Change = Annotated[HeadsChange | PermissionsChange | UserChange | TransactionChange, Field(discriminator='op')]
+Change = Annotated[HeadsChange | PermissionsChange | UserChange | CreditUserChange | TransactionChange, Field(discriminator='op')]

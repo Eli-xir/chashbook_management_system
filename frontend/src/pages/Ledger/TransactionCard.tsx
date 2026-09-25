@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import type { AdminUser, Head, Transaction, TransactionInput } from '../Admin/types';
+import type { AdminUser, CreditUser, Head, Transaction, TransactionInput } from '../Admin/types';
 import { Dialog } from '../Admin/components/Dialog';
 import { AttachmentInput } from '../Admin/components/AttachmentInput';
 import { cashbookApi } from '../../data/cashbookApi';
 import { direction, headPath, historyOf, money } from './ledgerModel';
 import './Ledger.css';
 
-export function TransactionCard({ entry, admin = false, company = false, heads = [], users = [], initialUserId = '', onClose, onChanged }: {
-  entry?: Transaction; admin?: boolean; company?: boolean; heads?: Head[]; users?: AdminUser[];
+export function TransactionCard({ entry, admin = false, company = false, heads = [], users = [], creditUsers = [], initialUserId = '', onClose, onChanged }: {
+  entry?: Transaction; admin?: boolean; company?: boolean; heads?: Head[]; users?: AdminUser[]; creditUsers?: CreditUser[];
   initialUserId?: string; onClose: () => void; onChanged?: () => Promise<void>;
 }) {
   const [current, setCurrent] = useState(entry);
@@ -25,6 +25,9 @@ export function TransactionCard({ entry, admin = false, company = false, heads =
   const [deleting, setDeleting] = useState(false);
   const locked = busy || imageBusy || voiceBusy;
   const userName = (id: string) => users.find((user) => user.user_id === id)?.user_name ?? 'Unavailable account';
+  const entryUserName = (item: Transaction) => item.creditUserId
+    ? creditUsers.find((user) => user.credit_user_id === item.creditUserId)?.user_name ?? 'Unavailable external user'
+    : company && users.some((user) => user.user_id === item.userId && user.role === 'admin') ? 'Source not recorded' : userName(item.userId);
   const path = (id: number, saved?: string) => saved ?? headPath(heads, id);
   async function save() {
     setBusy(true); setError('');
@@ -77,7 +80,7 @@ export function TransactionCard({ entry, admin = false, company = false, heads =
     </form> : current && <>
       <dl className="review-details">
         <dt>Date/time</dt><dd>{new Date(current.createdAt).toLocaleString()}</dd>
-        {admin && <><dt>User</dt><dd>{userName(current.userId)}</dd><dt>Entered by</dt><dd>{userName(current.createdBy)}</dd></>}
+        {admin && <><dt>User</dt><dd>{entryUserName(current)}</dd><dt>Entered by</dt><dd>{userName(current.createdBy)}</dd></>}
         <dt>Head</dt><dd>{path(current.headId, current.headPath)}</dd>
         <dt>Description</dt><dd>{current.description || '—'}</dd>
         <dt>Type</dt><dd>General</dd>

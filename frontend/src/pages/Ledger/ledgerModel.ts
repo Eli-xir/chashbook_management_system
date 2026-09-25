@@ -3,6 +3,9 @@ import type { FiltersState, Head, Transaction, TransactionRevision } from '../Ad
 export const money = (amount: number) => `PKR ${(amount === 0 ? 0 : amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 export const roundMoney = (amount: number) => Math.round((amount + Number.EPSILON) * 100) / 100;
 export const direction = (entry: Transaction, company = false) => (entry.createdBy === entry.userId) !== company ? 'debit' : 'credit';
+export const creditUserScope = (id: string) => `credit:${id}`;
+export const matchesUserScope = (entry: Transaction, scope: string) => scope === 'all' ||
+  (scope.startsWith('credit:') ? entry.creditUserId === scope.slice(7) : entry.userId === scope && !entry.creditUserId);
 export function accountTotals(entries: Transaction[]) {
   let totalReceived = 0, totalBillPayment = 0;
   for (const entry of entries) {
@@ -52,7 +55,7 @@ export function ledgerReport(entries: Transaction[], filters: FiltersState, orde
   };
   const signed = (entry: Transaction) => entryDirection(entry) === 'credit' ? entry.amount : -entry.amount;
   const branch = headBranchIds(heads, filters.headId);
-  const account = entries.filter((entry) => entry.active && (filters.userScope === 'all' || entry.userId === filters.userScope)
+  const account = entries.filter((entry) => entry.active && matchesUserScope(entry, filters.userScope)
     && (!branch || branch.has(entry.headId)) && (!filters.description || (entry.description ?? '').toLowerCase().includes(filters.description.toLowerCase())));
   const selected = account.filter((entry) => filters.direction === 'both' || entryDirection(entry) === filters.direction);
   const opening = selected.filter((entry) => filters.dateFrom && day(entry.createdAt) < filters.dateFrom).reduce((sum, entry) => roundMoney(sum + signed(entry)), 0);

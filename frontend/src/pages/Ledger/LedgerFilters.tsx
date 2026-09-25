@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import type { AdminUser, FiltersState, Head } from '../Admin/types';
+import type { AdminUser, CreditUser, FiltersState, Head } from '../Admin/types';
 import { UserPicker } from '../Admin/components/UserPicker';
 import { Dialog } from '../Admin/components/Dialog';
+import { creditUserScope } from './ledgerModel';
 
-export function LedgerFilters({ column, filters, heads, users, onChange }: {
-  column: string; filters: FiltersState; heads: Head[]; users: AdminUser[]; onChange: (filters: FiltersState) => void;
+export function LedgerFilters({ column, filters, heads, users, creditUsers = [], onChange }: {
+  column: string; filters: FiltersState; heads: Head[]; users: AdminUser[]; creditUsers?: CreditUser[]; onChange: (filters: FiltersState) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -41,7 +42,11 @@ export function LedgerFilters({ column, filters, heads, users, onChange }: {
         <div className="filter-choices">{heads.filter((h) => h.parent_head_id === (filters.headId ?? null) && `${h.head_name} ${h.head_description ?? ''}`.toLowerCase().includes(search.toLowerCase())).map((h) =>
           <button className="btn" key={h.head_id} onClick={() => { update({ headId: h.head_id }); setOpen(false); }}>{h.head_name}{h.head_description && <small>{h.head_description}</small>}</button>)}
         {!heads.some((h) => h.parent_head_id === filters.headId) && selected && <p>No subheads.</p>}</div>
-      </div> : column === 'User' ? <UserPicker users={users} value={filters.userScope} all onChange={(userScope) => { update({ userScope }); setOpen(false); }} />
+      </div> : column === 'User' ? <UserPicker users={[...users, ...creditUsers.map((item) => ({
+        user_id: creditUserScope(item.credit_user_id), user_name: item.user_name,
+        description: item.description ? `External user · ${item.description}` : 'External user',
+        contacts: item.contacts, is_active: true,
+      }))]} value={filters.userScope} all onChange={(userScope) => { update({ userScope }); setOpen(false); }} />
         : column === 'Description' ? <label className="field"><span>Search descriptions</span><input type="search" value={filters.description ?? ''} onChange={(e) => update({ description: e.target.value })} /></label>
         : <div className="flex-col gap-md">
           <div className="date-presets" role="group" aria-label="Quick date ranges">{ranges.map(({ label, dateFrom, dateTo }) =>

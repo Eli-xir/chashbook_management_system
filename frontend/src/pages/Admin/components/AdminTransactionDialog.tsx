@@ -4,15 +4,15 @@ import { Dialog } from './Dialog';
 import { UserPicker } from './UserPicker';
 import { UserPreview } from './UserPreview';
 
-export function AdminTransactionDialog({ title, users, heads, self, initialUserId = '', onClose, onSubmitted }: {
-  title: string; users: AdminUser[]; heads: Head[]; self?: AdminUser; initialUserId?: string;
+export function AdminTransactionDialog({ title, users, heads, initialUserId = '', onClose, onSubmitted }: {
+  title: string; users: AdminUser[]; heads: Head[]; initialUserId?: string;
   onClose: () => void; onSubmitted: () => Promise<void>;
 }) {
   const [userId, setUserId] = useState(initialUserId);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [discard, setDiscard] = useState(false);
-  const user = self ?? users.find((item) => item.user_id === userId && item.is_active && item.role !== 'admin');
+  const user = users.find((item) => item.user_id === userId && item.is_active && item.role !== 'admin');
   function close() { if (!busy) { if (dirty) setDiscard(true); else onClose(); } }
   return <Dialog title={title} onClose={close} busy={busy}>
     {user ? <UserPreview user={user} heads={heads} assigned={[]} pending={false} adminCredit transactionLabel={title}

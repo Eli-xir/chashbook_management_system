@@ -161,6 +161,10 @@ textarea { min-height: 90px; resize: vertical; }
 .home-card { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 22px; aspect-ratio: 1; font: inherit; font-weight: 600; text-align: center; cursor: pointer; transition: transform .18s, border-color .18s; }
 .home-card:hover { transform: translateY(-4px); border-color: var(--card-ink); }
 .home-card:focus-visible { outline: 2px solid var(--card-ink); outline-offset: 5px; }
+.home-card-title { overflow-wrap: anywhere; }
+.home-card-description, .home-card-detail { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
+.home-card-description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.home-card-detail { display: block; white-space: nowrap; opacity: .75; }
 .home-card--blue { --card-bg: #233f51; --card-ink: #b6ddf2; }
 .home-card--gold { --card-bg: #4b4124; --card-ink: #f0d78d; }
 .home-card--green { --card-bg: #25463d; --card-ink: #b2e3cc; }

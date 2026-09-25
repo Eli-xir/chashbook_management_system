@@ -25,8 +25,8 @@ export function HeadEditor({ head, onSave, onClose }: {
         else setError('Check the name: it must be unique and contain 1–160 characters.');
       }}>
         {deleting ? <>
-          <p>Delete this head only. Its subheads will move up one level.</p>
-          <p>Its transactions will be permanently deleted when you apply changes. Create a backup first if you want to keep a copy.</p>
+          <p>Applying this change permanently deletes this head, all its subheads, and their transactions.</p>
+          <p>Create a backup first if you want to keep a copy.</p>
         </> : <>
         <label className="field">
           <span>Name</span>

@@ -90,9 +90,8 @@ export function applyHeadChanges(heads: Head[], changes: StagedChange[], preview
     if (change.op === 'delete') {
       const head = result.find((head) => head.head_id === change.head_id);
       if (!head) throw new Error('This head no longer exists.');
-      // Delete this node only; preserve its children at the same parent level.
-      result = result.filter((item) => item.head_id !== head.head_id);
-      result.forEach((item) => { if (item.parent_head_id === head.head_id) item.parent_head_id = head.parent_head_id; });
+      const branch = new Set(result.filter((item) => isDescendant(result, head.head_id, item.head_id)).map((item) => item.head_id));
+      result = result.filter((item) => !branch.has(item.head_id));
       continue;
     }
     if (change.op === 'active') {
@@ -128,10 +127,7 @@ export function describeChanges(heads: Head[], changes: StagedChange[]): string[
     let description: string;
     if (change.op === 'create') description = `Add “${change.head_name}” under ${name(change.parent_head_id)} (${change.is_transactionable === false ? 'non-transactionable' : 'transactionable'})`;
     else if (change.op === 'edit') description = `Edit ${name(change.head_id)} → ${change.head_name} (name / image; ${change.is_transactionable ? 'transactionable' : 'non-transactionable'})`;
-    else if (change.op === 'delete') {
-      const head = current.find((head) => head.head_id === change.head_id);
-      description = `Delete ${name(change.head_id)} and permanently delete its transactions. Subheads move to ${name(head?.parent_head_id ?? null)}.`;
-    }
+    else if (change.op === 'delete') description = `Delete ${name(change.head_id)} and all its subheads and transactions.`;
     else if (change.op === 'active') description = `${change.is_active ? 'Reactivate' : 'Deactivate'} ${name(change.head_id)}${change.is_active ? '' : ' and its subheads'}`;
     else if (change.op === 'backup') description = `Create a dated backup of ${name(change.head_id)} and its entire branch at the top level. Copied heads and transactions are deactivated.`;
     else if (change.op === 'merge') description = `${change.backup ? 'Back up the source branch, then merge' : 'Merge'} ${name(change.source_head_id)} into ${name(change.target_head_id)}`;

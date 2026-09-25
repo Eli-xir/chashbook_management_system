@@ -25,6 +25,14 @@ export interface AdminUser {
   contacts?: string[];
   is_active: boolean;
 }
+export interface CreditUser {
+  credit_user_id: string;
+  user_name: string;
+  description: string;
+  contacts: string[];
+  is_active: boolean;
+  is_pinned: boolean;
+}
 
 export interface FiltersState {
   headId?: number | null;
@@ -85,7 +93,7 @@ export interface TransactionRevision extends TransactionInput {
   headPath?: string;
 }
 export interface Transaction extends TransactionInput {
-  id: string; userId: string; createdBy: string; active: boolean; createdAt: string;
+  id: string; userId: string; createdBy: string; creditUserId?: string | null; active: boolean; createdAt: string;
   versions?: TransactionRevision[];
   headPath?: string;
 }
@@ -94,6 +102,7 @@ export interface AccountTotals { totalReceived: number; totalBillPayment: number
 export interface UserOverview extends AccountTotals { balance: number; credits: Transaction[]; }
 export interface CashbookData extends AdminData {
   transactions: Transaction[];
+  creditUsers: CreditUser[];
 }
 
 export type UserAction = 'deactivate' | 'reactivate' | 'delete';

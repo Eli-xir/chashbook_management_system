@@ -7,6 +7,9 @@ import { UserPreview } from './components/UserPreview';
 import { UserPicker } from './components/UserPicker';
 import { Dialog } from './components/Dialog';
 import { AdminTransactionDialog } from './components/AdminTransactionDialog';
+import { AdminCreditFlow } from './components/AdminCreditFlow';
+import { CreditUserCards } from './components/CreditUserCards';
+import { HomeCard } from './components/HomeCard';
 import { usePermissionChanges } from './hooks/usePermissionChanges';
 import { permissionDiff, permittedHeads } from './utils/permissions';
 import { Ledger } from '../Ledger/Ledger';
@@ -32,7 +35,7 @@ const cards = [
   { id: 'heads', title: 'Heads Management', icon: 'M3 6h6l2 2h10v12H3zM3 6V4h6l2 2M8 12h8M8 16h5', tone: 'purple' },
 ] as const;
 type HeadMode = 'manage' | 'preview' | 'permissions';
-type Page = 'home' | typeof cards[number]['id'];
+type Page = 'home' | 'credit' | typeof cards[number]['id'];
 export function AdminPage(props: AdminPageProps) {
   const { users, heads, permissions, currentAdminUserId } = props;
   const [page, setPage] = useState<Page>('home');
@@ -50,7 +53,8 @@ export function AdminPage(props: AdminPageProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [confirmRefresh, setConfirmRefresh] = useState(false);
   const [notice, setNotice] = useState('');
-  const [homeTransaction, setHomeTransaction] = useState<'credit' | 'debit' | null>(null);
+  const [homeTransaction, setHomeTransaction] = useState<'debit' | null>(null);
+  const [creditShortcut, setCreditShortcut] = useState<{ id: string; mode: 'transaction' | 'edit' } | null>(null);
   const [headPermission, setHeadPermission] = useState<{ head: Head; allow: boolean } | null>(null);
   const [permissionUsers, setPermissionUsers] = useState<string[]>([]);
   const editor = usePermissionChanges(permissions, heads);
@@ -87,7 +91,7 @@ export function AdminPage(props: AdminPageProps) {
     <header className="admin-header">
       <button className="brand-home" onClick={() => navigate(() => { setPage('home'); setHeadMode('manage'); })}><img src={logo} alt="" /><span>Sohail Malik Architects<small>Cashbook</small></span></button>
       <div className="flex-row flex-wrap gap-sm">
-        {page !== 'home' && <button className="btn" onClick={() => navigate(() => { setPage('home'); setHeadMode('manage'); })}>← Home</button>}
+        {page !== 'home' && page !== 'credit' && <button className="btn" onClick={() => navigate(() => { setPage('home'); setHeadMode('manage'); })}>← Home</button>}
         <button className="btn" disabled={refreshing || transactionBusy} onClick={() => dirty ? setConfirmRefresh(true) : void refresh()}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>
         <button className="btn" onClick={() => navigate(props.onLogout)}>Logout</button>
       </div>
@@ -96,17 +100,25 @@ export function AdminPage(props: AdminPageProps) {
     <section className="admin-home" hidden={page !== 'home'}>
       <h1>Overview</h1>
       <dl className="home-totals">{Object.entries({ Credits: totals.totalBillPayment, Debits: totals.totalReceived, Balance: totals.remainingPayable }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{money(value)}</dd></div>)}</dl>
-      <nav className="home-cards" aria-label="Cashbook sections">{cards.map((card) => <button key={card.id} className={`home-card home-card--${card.tone}`} onClick={() => navigate(() => { setHeadMode('manage'); setHeadsFromUsers(false); setPage(card.id); })}>
-        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={card.icon} /></svg><span>{card.title}</span>
-      </button>)}</nav>
+      <nav className="home-cards" aria-label="Cashbook sections">{cards.map((card) => <HomeCard key={card.id} title={card.title} tone={card.tone} onClick={() => navigate(() => {
+        setHeadMode('manage'); setHeadsFromUsers(false);
+        if (card.id === 'statement') setFilters((current) => current.userScope.startsWith('credit:') ? { ...current, userScope: 'all' } : current);
+        setPage(card.id);
+      })} icon={<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={card.icon} /></svg>} />)}</nav>
       <nav className="home-cards" aria-label="New transactions">
         {([['credit', 'Admin credit', 'green'], ['debit', 'User debit', 'gold']] as const).map(([action, label, tone]) =>
-          <button key={action} className={`home-card home-card--${tone}`} onClick={() => setHomeTransaction(action)}>
+          <HomeCard key={action} title={label} tone={tone} onClick={() => action === 'credit'
+            ? navigate(() => { setCreditShortcut(null); setPage('credit'); }) : setHomeTransaction('debit')} icon={
             <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d={action === 'credit' ? 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5' : 'M12 15V3m-5 5 5-5 5 5M4 16v5h16v-5'} />
-            </svg><span>{label}</span>
-          </button>)}
+            </svg>} />)}
       </nav>
+      {props.creditUsers.some((user) => user.is_active && user.is_pinned) && <section className="pinned-credit-users flex-col gap-md">
+        <h2>Pinned external users</h2>
+        <CreditUserCards users={props.creditUsers.filter((user) => user.is_active && user.is_pinned)} onChanged={props.onRefresh}
+          onOpen={(user) => navigate(() => { setCreditShortcut({ id: user.credit_user_id, mode: 'transaction' }); setPage('credit'); })}
+          onEdit={(user) => navigate(() => { setCreditShortcut({ id: user.credit_user_id, mode: 'edit' }); setPage('credit'); })} />
+      </section>}
     </section>
     <div className="admin-content">
       <section className="admin-controls flex-col gap-md" hidden={page !== 'users' && page !== 'heads'}>
@@ -145,9 +157,13 @@ export function AdminPage(props: AdminPageProps) {
         onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} onClose={closeHeadView} /></section>
         : (page === 'company' || page === 'statement') && <Ledger key={`${revision}:${page}`} company={page === 'company'} filters={filters} onFilterChange={setFilters} revision={revision} heads={heads} users={users} onDirtyChange={setLedgerDirty}
           onChanged={props.onRefresh} />}
+      {page === 'credit' && users.find((user) => user.user_id === currentAdminUserId) &&
+        <AdminCreditFlow key={creditShortcut ? `${creditShortcut.mode}:${creditShortcut.id}` : 'menu'} admin={users.find((user) => user.user_id === currentAdminUserId)!}
+          initialCreditUserId={creditShortcut?.mode === 'transaction' ? creditShortcut.id : ''}
+          initialEditCreditUserId={creditShortcut?.mode === 'edit' ? creditShortcut.id : ''} creditUsers={props.creditUsers} heads={heads}
+          onClose={() => setPage('home')} onRefresh={props.onRefresh} onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} />}
     </div>
-    {homeTransaction && <AdminTransactionDialog title={homeTransaction === 'credit' ? 'Admin credit' : 'User debit'} users={users} heads={heads}
-      self={homeTransaction === 'credit' ? users.find((user) => user.user_id === currentAdminUserId) : undefined}
+    {homeTransaction === 'debit' && <AdminTransactionDialog title="User debit" users={users} heads={heads}
       onClose={() => setHomeTransaction(null)} onSubmitted={props.onRefresh} />}
     {headPermission && <Dialog title={`${headPermission.allow ? 'Give permission' : 'Revoke permission'} · ${headPermission.head.head_name}`} onClose={() => setHeadPermission(null)}>
       <p>Select users. This change includes all subheads.</p>

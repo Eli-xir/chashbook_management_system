@@ -1,8 +1,8 @@
-import type { AdminUser, UserProfile } from '../types.ts';
+import type { AdminUser, CreditUser, UserProfile } from '../types.ts';
 
-export const userContacts = (user: AdminUser) => user.contacts ?? (user.contact_no ? [user.contact_no] : []);
+export const userContacts = (user: AdminUser | CreditUser) => user.contacts ?? ('contact_no' in user && user.contact_no ? [user.contact_no] : []);
 
-export function matchesUser(user: AdminUser, search: string) {
+export function matchesUser(user: AdminUser | CreditUser, search: string) {
   const text = `${user.user_name} ${user.description ?? ''} ${userContacts(user).join(' ')}`.toLocaleLowerCase();
   return search.trim().toLocaleLowerCase().split(/\s+/).every((word) => text.includes(word));
 }

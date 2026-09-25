@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AdminUser, FiltersState, Head, Transaction } from '../Admin/types';
 import { cashbookApi } from '../../data/cashbookApi';
-import { direction, headBranchIds, headPath, ledgerReport, money } from './ledgerModel';
+import { direction, headBranchIds, headPath, ledgerReport, matchesUserScope, money } from './ledgerModel';
 import type { LedgerOrder } from './ledgerModel';
 import { ReportActions } from './ReportActions';
 import type { ReportDocument } from './ledgerExport';
@@ -56,7 +56,13 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
   const branch = headBranchIds(reportHeads, filters.headId);
   const pageCount = Math.max(1, Math.ceil(report.rows.length / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
-  const userName = (id: string) => data?.users.find((user) => user.user_id === id)?.user_name ?? 'Unavailable account';
+  const userName = (id: string) => id.startsWith('credit:')
+    ? data?.creditUsers.find((user) => user.credit_user_id === id.slice(7))?.user_name ?? 'Unavailable external user'
+    : data?.users.find((user) => user.user_id === id)?.user_name ?? 'Unavailable account';
+  const entryUserName = (entry: Transaction) => entry.creditUserId
+    ? data?.creditUsers.find((user) => user.credit_user_id === entry.creditUserId)?.user_name ?? 'Unavailable external user'
+    : company && (data?.users ?? users).some((user) => user.user_id === entry.userId && user.role === 'admin')
+      ? 'Source not recorded' : userName(entry.userId);
   const title = company ? 'Company Statement' : filters.userScope === 'all' ? 'Users Statement' : userName(filters.userScope);
   const receivedLabel = `Total received by ${filters.userScope === 'all' ? 'users' : userName(filters.userScope)}`;
   const branchLabel = filters.headId == null ? '' : `${headPath(reportHeads, filters.headId)} · Includes subheads`;
@@ -65,7 +71,7 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
   const subtitle = [branchLabel, dateLabel, company && filters.userScope !== 'all' ? userName(filters.userScope) : '', filters.description ? `Description: ${filters.description}` : ''].filter(Boolean).join(' · ');
   const columns = ['Date/time', 'User', 'Entered by', 'Head', 'Description', 'Credit', 'Debit', 'Balance'];
   const entryCells = (entry: Transaction, balance: number): (string | number)[] => [
-    new Date(entry.createdAt).toLocaleString(), userName(entry.userId), userName(entry.createdBy),
+    new Date(entry.createdAt).toLocaleString(), entryUserName(entry), userName(entry.createdBy),
     entry.headPath ?? headPath(data?.heads ?? [], entry.headId), entry.description ?? '',
     entryDirection(entry) === 'credit' ? entry.amount : '', entryDirection(entry) === 'debit' ? entry.amount : '', balance,
   ];
@@ -123,7 +129,7 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
           <dt>{label}</dt><dd>{money(value)}</dd></div>)}
       </dl>
       <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{columns.map((label) => <th key={label}
-        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{['Date/time', 'User', 'Head', 'Description'].includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} users={data.users} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
+        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{['Date/time', 'User', 'Head', 'Description'].includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} users={data.users} creditUsers={company ? data.creditUsers : []} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
         {pageRows(currentPage).map(({ cells, entry: rowEntry }, index) => {
           return <tr key={rowEntry ? `transaction:${rowEntry.id}` : `total:${index}`} className={rowEntry ? 'ledger-entry' : 'ledger-total'} onClick={() => { if (rowEntry) setSelected(rowEntry); }}>
             {cells.map((value, column) => <td key={column}>{column === 0 && rowEntry ? <button className="ledger-row-link" onClick={() => setSelected(rowEntry)}>{value}</button> : typeof value === 'number' ? money(value) : value}</td>)}
@@ -137,12 +143,12 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
         <button className="btn" disabled={currentPage + 1 === pageCount} onClick={() => setPage(currentPage + 1)}>Next</button>
       </div>
       <details className="disclosure" open={showInactive} onToggle={(event) => setShowInactive(event.currentTarget.open)}><summary>Deactivated entries</summary>
-        {transactions.filter((entry) => !entry.active && (filters.userScope === 'all' || entry.userId === filters.userScope) && (!branch || branch.has(entry.headId))).map((entry) =>
-          <button className="btn" key={entry.id} onClick={() => setSelected(entry)}>{new Date(entry.createdAt).toLocaleString()} · {userName(entry.userId)} · {money(entry.amount)}</button>)}
+        {transactions.filter((entry) => !entry.active && matchesUserScope(entry, filters.userScope) && (!branch || branch.has(entry.headId))).map((entry) =>
+          <button className="btn" key={entry.id} onClick={() => setSelected(entry)}>{new Date(entry.createdAt).toLocaleString()} · {entryUserName(entry)} · {money(entry.amount)}</button>)}
       </details>
     </>}
     {selected && data && <TransactionCard key={selected.id} entry={selected}
-      admin company={company} heads={data.heads} users={data.users}
+      admin company={company} heads={data.heads} users={data.users} creditUsers={data.creditUsers}
       onClose={() => { setSelected(null); setReload((value) => value + 1); }} onChanged={refresh} />}
     {crediting && data && <AdminTransactionDialog title={company ? 'Debit users' : 'Credit a user'} users={data.users} heads={data.heads}
       initialUserId={creditUserId} onClose={() => setCrediting(false)} onSubmitted={refresh} />}

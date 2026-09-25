@@ -97,7 +97,7 @@ def ledger(db, user_id=None, credits_only=False):
         result.append({k: v for k, v in current.items() if k not in ('versionId', 'recordedAt', 'editorId', 'action')})
         result[-1].update(id=str(row['transaction_id']), userId=str(row['user_id']), createdBy=str(row['created_by_user_id']),
                           createdAt=row['created_at'].isoformat(), headId=row['head_id'], headPath=path(db, row['head_id']),
-                          active=row['is_active'])
+                          active=row['is_active'], creditUserId=str(row['credit_user_id']) if row['credit_user_id'] else None)
         if not credits_only:
             result[-1]['versions'] = history
     return result
@@ -147,6 +147,10 @@ def state(db, actor):
         allowed = {h['head_id'] for h in visible}
         visible = [{**h, 'parent_head_id': h['parent_head_id'] if h['parent_head_id'] in allowed else None} for h in visible]
     return {'heads': visible, 'users': profiles, 'permissions': permissions,
+            'creditUsers': [{'credit_user_id': str(row['credit_user_id']), 'user_name': row['user_name'],
+                             'description': row['description'], 'contacts': row['contacts'],
+                             'is_active': row['is_active'], 'is_pinned': row['is_pinned']}
+                            for row in db.execute('SELECT * FROM credit_users ORDER BY user_name,credit_user_id').fetchall()] if is_admin else [],
             'transactions': ledger(db) if is_admin else [],
             'transactionTypes': [{'id': 1, 'name': 'General'}],
             'headRevision': db.execute('SELECT revision FROM head_revision').fetchone()['revision']}
@@ -191,6 +195,38 @@ def user_change(db, actor, change, session_id):
                 db.execute('DELETE FROM sessions WHERE user_id=%s', (user['user_id'],))
     saved = state(db, actor)
     return {'data': saved, 'user': next(u for u in saved['users'] if u['user_id'] == str(user['user_id']))} if creating else saved
+
+
+def credit_user_change(db, actor, change):
+    admin(actor)
+    if change.action == 'create':
+        require(change.profile, 'Enter the external user details.')
+        profile = change.profile
+        db.execute('INSERT INTO credit_users(user_name,description,contacts) VALUES (%s,%s,%s)',
+                   (profile.user_name, profile.description, list(dict.fromkeys(profile.contacts))))
+    else:
+        user = db.execute('SELECT * FROM credit_users WHERE credit_user_id=%s FOR UPDATE', (change.creditUserId,)).fetchone()
+        require(user, 'This external user no longer exists.', 404)
+        if change.action == 'reactivate':
+            require(not user['is_active'], 'This external user is already active.')
+            db.execute('UPDATE credit_users SET is_active=true WHERE credit_user_id=%s', (change.creditUserId,))
+        else:
+            require(user['is_active'], 'This external user is deactivated.', 404)
+        if change.action == 'edit':
+            require(change.profile, 'Enter the external user details.')
+            profile = change.profile
+            db.execute('UPDATE credit_users SET user_name=%s,description=%s,contacts=%s WHERE credit_user_id=%s',
+                       (profile.user_name, profile.description, list(dict.fromkeys(profile.contacts)), change.creditUserId))
+        elif change.action == 'pin':
+            require(change.pinned is not None, 'Choose whether to pin this external user.')
+            db.execute('UPDATE credit_users SET is_pinned=%s WHERE credit_user_id=%s', (change.pinned, change.creditUserId))
+        elif change.action == 'deactivate':
+            db.execute('UPDATE credit_users SET is_active=false,is_pinned=false WHERE credit_user_id=%s', (change.creditUserId,))
+        elif change.action == 'delete':
+            linked = db.execute('SELECT 1 FROM transactions WHERE credit_user_id=%s LIMIT 1', (change.creditUserId,)).fetchone()
+            require(not linked, 'This external user has transactions. Deactivate it instead.')
+            db.execute('DELETE FROM credit_users WHERE credit_user_id=%s', (change.creditUserId,))
+    return state(db, actor)
 
 
 def validate_input(db, actor, value, user_id, submission=False):
@@ -238,12 +274,18 @@ def transaction_change(db, actor, change):
     if change.action in ('submit', 'credit'):
         user = account(db, change.userId)
         require(user['user_role_id'] != 1 or (not submitting and user['user_id'] == actor['user_id']),
-                'An administrator can only credit their own admin account.', 403)
+                'Admin credits must be entered by the administrator.', 403)
+        if user['user_role_id'] == 1:
+            require(change.creditUserId, 'Select an external user.')
+            require(db.execute('SELECT 1 FROM credit_users WHERE credit_user_id=%s AND is_active', (change.creditUserId,)).fetchone(),
+                    'This external user no longer exists.', 404)
+        else:
+            require(change.creditUserId is None, 'External users only apply to Admin credits.')
         require(user['is_active'], 'This account is deactivated.')
         ids = validate_input(db, actor, change.input, user['user_id'], submitting)
-        entry = db.execute('''INSERT INTO transactions(head_id,category_group_id,user_id,created_by_user_id,current_version_id)
-            VALUES (%s,%s,%s,%s,0) RETURNING *''', (change.input.headId, None, user['user_id'],
-            actor['user_id'])).fetchone()
+        entry = db.execute('''INSERT INTO transactions(head_id,category_group_id,user_id,created_by_user_id,credit_user_id,current_version_id)
+            VALUES (%s,%s,%s,%s,%s,0) RETURNING *''', (change.input.headId, None, user['user_id'],
+            actor['user_id'], change.creditUserId)).fetchone()
         revise(db, entry, actor['user_id'], 'Created', change.input, ids)
     else:
         entry = db.execute('SELECT * FROM transactions WHERE transaction_id=%s FOR UPDATE', (change.id,)).fetchone()
@@ -279,9 +321,10 @@ def backup_head(db, source, actor_id):
         pending.extend(h['head_id'] for h in tree if h['parent_head_id'] == old_id)
     for entry in db.execute('SELECT * FROM transactions WHERE head_id=ANY(%s) ORDER BY transaction_id', (list(copied),)).fetchall():
         new_id = db.execute('''INSERT INTO transactions
-            (head_id,category_group_id,user_id,created_by_user_id,current_version_id,is_active,created_at)
-            VALUES (%s,%s,%s,%s,0,false,%s) RETURNING transaction_id''',
-            (copied[entry['head_id']], entry['category_group_id'], entry['user_id'], entry['created_by_user_id'], entry['created_at'])).fetchone()['transaction_id']
+            (head_id,category_group_id,user_id,created_by_user_id,credit_user_id,current_version_id,is_active,created_at)
+            VALUES (%s,%s,%s,%s,%s,0,false,%s) RETURNING transaction_id''',
+            (copied[entry['head_id']], entry['category_group_id'], entry['user_id'], entry['created_by_user_id'],
+             entry['credit_user_id'], entry['created_at'])).fetchone()['transaction_id']
         versions = db.execute('SELECT * FROM transaction_versions WHERE transaction_id=%s ORDER BY version_id', (entry['transaction_id'],)).fetchall()
         for version in versions:
             current = version['version_id'] == entry['current_version_id']
@@ -323,7 +366,6 @@ def head_changes(db, actor, change):
                 (item.head_name, resolve(item.parent_head_id), item.is_transactionable, item.head_description)).fetchone()['head_id']
             continue
         source = resolve(item.source_head_id if item.op == 'merge' else item.head_id)
-        head = db.execute('SELECT * FROM heads WHERE head_id=%s', (source,)).fetchone()
         if item.op == 'backup':
             backup_head(db, source, actor['user_id'])
         elif item.op == 'edit':
@@ -346,9 +388,15 @@ def head_changes(db, actor, change):
                     ids = expanded
             db.execute('UPDATE heads SET is_active=%s WHERE head_id=ANY(%s)', (item.is_active, list(ids)))
         elif item.op == 'delete':
-            db.execute('DELETE FROM transactions WHERE head_id=%s', (source,))
-            db.execute('UPDATE heads SET is_deleted=true,is_active=false,parent_head_id=NULL WHERE head_id=%s', (source,))
-            db.execute('UPDATE heads SET parent_head_id=%s WHERE parent_head_id=%s', (head['parent_head_id'], source))
+            ids = {source}
+            tree = heads(db)
+            while True:
+                expanded = ids | {h['head_id'] for h in tree if h['parent_head_id'] in ids}
+                if expanded == ids:
+                    break
+                ids = expanded
+            db.execute('DELETE FROM transactions WHERE head_id=ANY(%s)', (list(ids),))
+            db.execute('UPDATE heads SET is_deleted=true,is_active=false WHERE head_id=ANY(%s)', (list(ids),))
         else:
             target = resolve(item.target_head_id if item.op == 'merge' else item.new_parent_id)
             cursor = target
@@ -376,6 +424,8 @@ def apply_change(db, actor, change, session_id):
     admin(actor)
     if change.op == 'user':
         return user_change(db, actor, change, session_id)
+    if change.op == 'creditUser':
+        return credit_user_change(db, actor, change)
     if change.op == 'heads':
         return head_changes(db, actor, change)
     if change.op == 'permissions':

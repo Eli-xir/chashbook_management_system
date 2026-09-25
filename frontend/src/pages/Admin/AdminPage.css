@@ -34,5 +34,29 @@
  .home-totals dt { font-size: .8rem; }
 }
 .admin-preview { max-width: 650px; margin: 24px auto 0; }
+.admin-credit-page { width: min(100%, 960px); margin: 0 auto; padding-block: 12px 36px; }
+.admin-credit-page > header h1 { margin: 0; }
+.admin-credit-page > .user-preview { width: min(100%, 620px); margin: auto; }
+.admin-credit-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; width: min(100%, 500px); }
+.credit-user-list { width: min(100%, 500px); }
+.admin-credit-form { width: min(100%, 600px); margin: auto; }
+.pinned-credit-users { margin-top: 32px; }
+.pinned-credit-users h2 { margin: 0; }
+.credit-user-card { padding: 12px; gap: 8px; cursor: default; }
+.credit-user-card--selected { border-color: #efd16d; box-shadow: 0 0 18px #efd16d44; }
+.home-card-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 0; padding: 0; border: 0; color: inherit; background: none; font: inherit; cursor: pointer; }
+.home-card-main:focus-visible { outline: 2px solid var(--card-ink); outline-offset: 3px; border-radius: 8px; }
+.home-card-main svg { flex-shrink: 0; width: 36px; height: 36px; }
+.credit-user-card .home-card-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.credit-user-card .home-card-description { font-size: .82rem; }
+.credit-user-card .home-card-detail { font-size: .75rem; }
+.credit-user-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100%; }
+.credit-user-action { min-width: 0; padding: 5px 2px; font-size: .75rem; }
+.credit-user-reactivate { width: 100%; }
+.credit-user-action[aria-pressed="true"] { border-color: #efd16d; color: #fff2b2; background: #665623; box-shadow: 0 0 14px #efd16d99; }
+.credit-user-action--danger[aria-pressed="true"] { border-color: #e89a9a; color: #ffe2e2; background: #673838; box-shadow: 0 0 14px #ef9c9c99; }
+.credit-user-delete { width: 100%; font-size: .85rem; }
+.credit-success { padding: 12px 16px; border: 1px solid #4c9b72; border-radius: 12px; background: #193927; color: #baf1cb; }
+@media (max-width: 480px) { .admin-credit-cards { gap: 10px; } .credit-user-card { padding: 9px; gap: 4px; } .home-card-main { gap: 3px; } .home-card-main svg { width: 26px; height: 26px; } .credit-user-card .home-card-description { -webkit-line-clamp: 1; line-clamp: 1; } .credit-user-card .home-card-detail { display: none; } .credit-user-actions { gap: 3px; } .credit-user-action { font-size: .67rem; } }
 .head-mode-switch { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px; border: 1px solid var(--color-line); border-radius: 16px; background: var(--color-surface); }
 .head-mode-switch .btn { flex: 1; min-height: 44px; border-radius: 10px; }

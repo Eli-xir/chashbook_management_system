@@ -9,7 +9,7 @@ import { permittedHeads } from './pages/Admin/utils/permissions';
 
 export default function App() {
   const navigate = useNavigate();
-  const [data, setData] = useState<CashbookData>({ heads: [], users: [], permissions: {}, transactions: [] });
+  const [data, setData] = useState<CashbookData>({ heads: [], users: [], creditUsers: [], permissions: {}, transactions: [] });
   const [session, setSession] = useState<AppSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -29,7 +29,7 @@ export default function App() {
   }, [retry]);
   useEffect(() => {
     function expired() {
-      setSession(null); setData({ heads: [], users: [], permissions: {}, transactions: [] });
+      setSession(null); setData({ heads: [], users: [], creditUsers: [], permissions: {}, transactions: [] });
       navigate('/login', { replace: true });
     }
     window.addEventListener('cashbook:session-expired', expired);
@@ -38,7 +38,7 @@ export default function App() {
   const user = data.users.find((item) => item.user_id === session?.userId && item.is_active);
   const home = !user ? '/login' : session?.role === 'admin' ? '/Admin' : '/User';
   async function logout() {
-    try { await cashbookApi.signOut(); setSession(null); setData({ heads: [], users: [], permissions: {}, transactions: [] }); navigate('/login', { replace: true }); }
+    try { await cashbookApi.signOut(); setSession(null); setData({ heads: [], users: [], creditUsers: [], permissions: {}, transactions: [] }); navigate('/login', { replace: true }); }
     catch (error) { setError((error as Error).message); }
   }
   if (loading) return <main className="user-page"><p>Loading cashbook…</p></main>;
