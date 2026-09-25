@@ -30,7 +30,8 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
   const [openedCredit, setOpenedCredit] = useState<Transaction | null>(null);
   const [overview, setOverview] = useState<UserOverview | null>(null);
   const [screen, setScreen] = useState<Screen>('home');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(preview && !adminCredit ? '1000' : '');
+  const [search, setSearch] = useState('');
   const [description, setDescription] = useState('');
   const [path, setPath] = useState<number[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -50,12 +51,13 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
     : head.parent_head_id === headId).sort((a, b) => a.head_name.localeCompare(b.head_name));
   const amountValid = amount.trim() !== '' && Number.isSafeInteger(Number(amount)) && Number(amount) > 0 && Number(amount) <= 999999999999;
   const valid = amountValid && !!selectedHead?.is_transactionable;
-  const dirty = amount !== '' || description !== '' || attachments.length > 0 || screen !== 'home';
+  const dirty = !previewOnly && (amount !== '' || description !== '' || attachments.length > 0 || screen !== 'home');
   const locked = busy || attachmentBusy;
   const title = screen === 'heads'
     ? selectedHead?.head_name ?? (headId === undefined ? 'Choose a head' : 'Head unavailable')
     : screen === 'images' ? 'Images' : screen === 'voice' ? 'Voice notes' : screen === 'description' ? 'Description' : 'Review transaction';
-  const choices = children.map((head) => ({ id: head.head_id, name: head.head_name, image: head.image_url }));
+  const choices = children.filter((head) => `${head.head_name} ${head.head_description ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()))
+    .map((head) => ({ id: head.head_id, name: head.head_name, image: head.image_url }));
 
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => { onBusyChange(locked); }, [locked, onBusyChange]);
@@ -71,10 +73,10 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
     return () => { ignore = true; };
   }, [user.user_id, reload]);
 
-  function go(next: Screen) { setError(''); setScreen(next); }
+  function go(next: Screen) { setSearch(''); setError(''); setScreen(next); }
   function back() {
     if (locked) return;
-    if (screen === 'heads' && path.length) { setPath((current) => current.slice(0, -1)); setError(''); }
+    if (screen === 'heads' && path.length) { setPath((current) => current.slice(0, -1)); setSearch(''); setError(''); }
     else go(screen === 'heads' ? 'home'
       : screen === 'images' ? 'heads' : screen === 'voice' ? 'images' : screen === 'description' ? 'voice' : 'description');
   }
@@ -176,9 +178,12 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
         {screen === 'heads' && selectedHead?.is_transactionable &&
           <button className="btn btn--primary user-next" disabled={!user.is_active || !amountValid}
             onClick={() => go('images')}>Make a new transaction</button>}
+        {children.length > 0 && <input type="search" name="workflow-head-search" autoComplete="off"
+          aria-label="Search heads" placeholder="Search heads…" value={search} onChange={(event) => setSearch(event.target.value)} />}
+        {children.length > 0 && choices.length === 0 && <p className="text-muted">No matching heads.</p>}
         <div className="user-card-list">
           {choices.map((item, index) => <button key={item.id} className={`home-card home-card--${['blue', 'gold', 'green', 'purple'][index % 4]}`} onClick={() => {
-            setPath((current) => [...current, item.id]); setError('');
+            setPath((current) => [...current, item.id]); setSearch(''); setError('');
           }}>
             <span className="user-card-art" aria-hidden="true">
               {item.image ? <img src={item.image} alt="" /> :
