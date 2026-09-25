@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Head, MergeChange, StagedChange } from '../types';
-import { applyHeadChanges, buildHeadTree } from '../utils/headTree';
+import { applyHeadChanges, buildHeadTree, isDescendant } from '../utils/headTree';
 import { useStagedHeadChanges } from '../hooks/useStagedHeadChanges';
 import { HeadTreeNode } from './HeadTreeNode';
 import { ConfirmChangesDialog } from './ConfirmChangesDialog';
@@ -33,6 +33,10 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, o
   const assigned = permissionIds ? new Set(permittedHeads(displayed, permissionIds).map((h) => h.head_id)) : undefined;
   const matches = new Set(displayed.filter((h) => `${h.head_name} ${h.head_description ?? ''}`.toLowerCase().includes(search.toLowerCase())).map((h) => h.head_id));
   for (const id of [...matches]) {
+    // Keep each matching branch usable, including descendants that do not match the text.
+    for (const child of displayed) {
+      if (isDescendant(displayed, id, child.head_id)) matches.add(child.head_id);
+    }
     let head = displayed.find((h) => h.head_id === id);
     const seen = new Set<number>();
     while (head?.parent_head_id != null && !seen.has(head.parent_head_id)) {
