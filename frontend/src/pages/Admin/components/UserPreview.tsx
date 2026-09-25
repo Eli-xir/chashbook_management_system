@@ -9,7 +9,7 @@ import { creditDocument } from '../../Ledger/ledgerExport';
 import { ReportActions } from '../../Ledger/ReportActions';
 import { money } from '../../Ledger/ledgerModel';
 
-type Screen = 'home' | 'heads' | 'images' | 'voice' | 'review';
+type Screen = 'home' | 'heads' | 'images' | 'voice' | 'description' | 'review';
 const formatAmount = (value: number) => money(value);
 const ignoreChange = (_value: boolean) => {};
 
@@ -32,7 +32,6 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
   const [screen, setScreen] = useState<Screen>('home');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [search, setSearch] = useState('');
   const [path, setPath] = useState<number[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
@@ -49,14 +48,14 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
   const children = visible.filter((head) => headId === undefined
     ? head.parent_head_id === null || !visibleIds.has(head.parent_head_id)
     : head.parent_head_id === headId).sort((a, b) => a.head_name.localeCompare(b.head_name));
-  const amountValid = amount.trim() !== '' && Number.isFinite(Number(amount)) && Number(amount) > 0;
+  const amountValid = amount.trim() !== '' && Number.isSafeInteger(Number(amount)) && Number(amount) > 0 && Number(amount) <= 999999999999;
   const valid = amountValid && !!selectedHead?.is_transactionable;
   const dirty = amount !== '' || description !== '' || attachments.length > 0 || screen !== 'home';
   const locked = busy || attachmentBusy;
   const title = screen === 'heads'
     ? selectedHead?.head_name ?? (headId === undefined ? 'Choose a head' : 'Head unavailable')
-    : screen === 'images' ? 'Images' : screen === 'voice' ? 'Voice notes' : 'Review transaction';
-  const choices = children.filter((head) => `${head.head_name} ${head.head_description ?? ''}`.toLowerCase().includes(search.toLowerCase())).map((head) => ({ id: head.head_id, name: head.head_name, image: head.image_url }));
+    : screen === 'images' ? 'Images' : screen === 'voice' ? 'Voice notes' : screen === 'description' ? 'Description' : 'Review transaction';
+  const choices = children.map((head) => ({ id: head.head_id, name: head.head_name, image: head.image_url }));
 
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => { onBusyChange(locked); }, [locked, onBusyChange]);
@@ -72,12 +71,12 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
     return () => { ignore = true; };
   }, [user.user_id, reload]);
 
-  function go(next: Screen) { setSearch(''); setError(''); setScreen(next); }
+  function go(next: Screen) { setError(''); setScreen(next); }
   function back() {
     if (locked) return;
-    if (screen === 'heads' && path.length) { setPath((current) => current.slice(0, -1)); setSearch(''); setError(''); }
+    if (screen === 'heads' && path.length) { setPath((current) => current.slice(0, -1)); setError(''); }
     else go(screen === 'heads' ? 'home'
-      : screen === 'images' ? 'heads' : screen === 'voice' ? 'images' : 'voice');
+      : screen === 'images' ? 'heads' : screen === 'voice' ? 'images' : screen === 'description' ? 'voice' : 'description');
   }
   async function submit() {
     if (previewOnly || !valid || pending || !user.is_active || locked) return;
@@ -167,10 +166,9 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
         }}>
           <label className="user-card-panel field amount-card">
             <span>Enter amount (PKR)</span>
-            <input type="number" inputMode="decimal" min="0" max="999999999999.99" step="0.01" required value={amount}
-              onChange={(event) => setAmount(event.target.value)} placeholder="0" aria-label="Enter amount in PKR" />
+            <input type="text" inputMode="numeric" pattern="[0-9]+" maxLength={12} required value={amount}
+              onChange={(event) => { if (/^\d*$/.test(event.target.value)) setAmount(event.target.value); }} placeholder="0" aria-label="Enter amount in PKR" />
           </label>
-<label className="field"><span>Description (optional)</span><textarea maxLength={4000} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
           <button className="btn btn--primary user-next" disabled={!amountValid || !user.is_active}>Next</button>
         </form>
       </>}
@@ -178,19 +176,17 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
         {screen === 'heads' && selectedHead?.is_transactionable &&
           <button className="btn btn--primary user-next" disabled={!user.is_active || !amountValid}
             onClick={() => go('images')}>Make a new transaction</button>}
-        <input type="search" aria-label="Search heads" placeholder="Search heads" value={search} onChange={(event) => setSearch(event.target.value)} />
-        <div className="user-card-list flex-col gap-md">
-          {choices.map((item) => <button key={item.id} className="user-choice-card" onClick={() => {
-            setPath((current) => [...current, item.id]); setSearch(''); setError('');
+        <div className="user-card-list">
+          {choices.map((item, index) => <button key={item.id} className={`home-card home-card--${['blue', 'gold', 'green', 'purple'][index % 4]}`} onClick={() => {
+            setPath((current) => [...current, item.id]); setError('');
           }}>
             <span className="user-card-art" aria-hidden="true">
               {item.image ? <img src={item.image} alt="" /> :
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3Z" />
                 </svg>}
             </span>
             <span className="user-card-label">{item.name}</span>
-            <span className="user-card-arrow" aria-hidden="true">›</span>
           </button>)}
         </div>
         {screen === 'heads' && !children.length && !selectedHead?.is_transactionable &&
@@ -203,9 +199,13 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
             items={attachments.filter((item) => item.kind === (screen === 'images' ? 'image' : 'voice'))}
             onChange={previewOnly ? undefined : (items) => updateAttachments(screen === 'images' ? 'image' : 'voice', items)} onBusyChange={setAttachmentBusy} />
         </div>
-        <button className="btn btn--primary user-next" disabled={locked} onClick={() => go(screen === 'images' ? 'voice' : 'review')}>
-          {screen === 'voice' ? 'Review transaction' : attachments.some((item) => item.kind === 'image') ? 'Next' : 'Skip'}
+        <button className="btn btn--primary user-next" disabled={locked} onClick={() => go(screen === 'images' ? 'voice' : 'description')}>
+          {attachments.some((item) => item.kind === (screen === 'images' ? 'image' : 'voice')) ? 'Next' : 'Skip'}
         </button>
+      </>}
+      {screen === 'description' && <>
+        <div className="user-card-panel"><label className="field"><span>Description (optional)</span><textarea maxLength={4000} value={description} onChange={(event) => setDescription(event.target.value)} /></label></div>
+        <button className="btn btn--primary user-next" onClick={() => go('review')}>Review transaction</button>
       </>}
       {screen === 'review' && <>
         <div className="user-card-panel flex-col gap-md">

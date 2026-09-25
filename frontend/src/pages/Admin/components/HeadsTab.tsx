@@ -93,7 +93,7 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, o
 
   return (
     <div className="flex-col gap-md">
-      <input type="search" aria-label="Search heads" placeholder="Search heads…" title="Search head names and descriptions" value={search} onChange={(event) => setSearch(event.target.value)} />
+      <input type="search" name="head-search" autoComplete="off" aria-label="Search heads" placeholder="Search heads by name or description" title="Search head names and descriptions" value={search} onChange={(event) => setSearch(event.target.value)} />
       <div className="flex-row flex-wrap gap-sm">
         <button className="btn" aria-pressed={mergeMode} onClick={() => { setMergeMode(!mergeMode); setSelected(null); }}>
           Merge {mergeMode ? 'on' : 'off'}
@@ -131,12 +131,18 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, o
       {reviewing && <ConfirmChangesDialog originalHeads={staged.heads} changes={staged.changes} error={error}
         isSubmitting={submitting} onCancel={() => setReviewing(false)} onConfirm={apply} />}
       {menuHead && <Dialog title={menuHead.head_name} onClose={() => setMenuHead(null)}>
+        {error && <p role="alert" className="text-error">{error}</p>}
         <div className="head-context-menu">
           {(['give', 'revoke'] as const).map((action) => <button className="btn" key={action} onClick={() => { onHeadAction(menuHead, action); setMenuHead(null); }}>{action === 'give' ? 'Give permission' : 'Revoke permission'}</button>)}
           <button className="btn" onClick={() => {
             setNewChild({ parentId: menuHead.head_id, name: 'New Head' });
             setMenuHead(null); setSelected(null); setSearch(''); setMergeMode(false); setError('');
           }}>Add subhead</button>
+          {menuHead.parent_head_id !== null && <button className="btn" disabled={submitting} onClick={() => {
+            if (stage({ op: 'move', head_id: menuHead.head_id, new_parent_id: null })) {
+              setMenuHead(null); setSearch('');
+            }
+          }}>Move to top level</button>}
           <button className="btn" onClick={() => setMenuHead(null)}>Back</button>
         </div>
       </Dialog>}

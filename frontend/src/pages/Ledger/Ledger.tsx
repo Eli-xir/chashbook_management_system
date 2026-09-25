@@ -104,7 +104,7 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
     <div className="ledger-toolbar flex-row flex-wrap gap-sm">
       <label className="field"><span>Entries</span><select value={filters.direction} onChange={(event) => onFilterChange({ ...filters, direction: event.target.value as FiltersState['direction'] })}><option value="both">Credits & debits</option><option value="credit">Credits</option><option value="debit">Debits</option></select></label>
       <label className="field"><span>Arrangement</span><select value={order} onChange={(event) => { setOrder(event.target.value as LedgerOrder); setPage(0); }}>
-        <option value="by-time">By time</option><option value="credit-first">Credits, then debits</option><option value="debit-first">Debits, then credits</option>
+        <option value="by-time">Default</option><option value="credit-first">Credits, then debits</option><option value="debit-first">Debits, then credits</option>
       </select></label>
       <label className="field"><span>Rows per page</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }}>
         {[10, 20, 50, 100].map((size) => <option key={size}>{size}</option>)}
