@@ -10,6 +10,7 @@ interface UsersTabProps {
   users: AdminUser[];
   onSelect: (userId: string) => void;
   onViewLedger: (userId: string) => void;
+  onOpenHeadView: (userId: string, mode: 'permissions' | 'preview') => void;
   onAction: (userId: string, action: UserAction) => Promise<void>;
   onSaveProfile: (userId: string, profile: UserProfile) => Promise<void>;
   onCreateUser: (input: CreateUserInput) => Promise<AdminUser>;
@@ -64,14 +65,18 @@ export function UsersTab(props: UsersTabProps) {
                   </div>
                 </dl>
                 <div className="flex-row flex-wrap gap-sm">
-                  <button className="btn" disabled={busy} onClick={() => setEditing({ user, mode: 'profile' })}>Edit account</button>
-                  <button className="btn" disabled={busy} onClick={() => setEditing({ user, mode: 'password' })}>Change password</button>
+                  <button className="btn" disabled={busy} onClick={() => setEditing({ user, mode: 'profile' })}>Info</button>
+                  <button className="btn" disabled={busy} onClick={() => setEditing({ user, mode: 'password' })}>Password</button>
                   {!self && <>
-                    <button className="btn" onClick={() => onViewLedger(user.user_id)}>View ledger</button>
+                    <button className="btn" onClick={() => onViewLedger(user.user_id)}>Statement</button>
                     <button className="btn" disabled={busy} onClick={() => act(user, user.is_active ? 'deactivate' : 'reactivate')}>
                       {user.is_active ? 'Deactivate' : 'Reactivate'}
                     </button>
-                    <button className="btn btn--danger" disabled={busy} onClick={() => setDeleting(user.user_id)}>Delete user</button>
+                    {user.role !== 'admin' && <>
+                      <button className="btn" disabled={busy} onClick={() => props.onOpenHeadView(user.user_id, 'permissions')}>Permissions</button>
+                      <button className="btn" disabled={busy} onClick={() => props.onOpenHeadView(user.user_id, 'preview')}>Preview</button>
+                    </>}
+                    <button className="btn btn--danger" disabled={busy} onClick={() => setDeleting(user.user_id)}>Delete</button>
                   </>}
                 </div>
                 {deleting === user.user_id && (

@@ -38,6 +38,7 @@ export function AdminPage(props: AdminPageProps) {
   const [filters, setFilters] = useState<FiltersState>({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' });
   const [selectedUserId, setSelectedUserId] = useState('');
   const [headMode, setHeadMode] = useState<HeadMode>('manage');
+  const [headsFromUsers, setHeadsFromUsers] = useState(false);
   const [headDirty, setHeadDirty] = useState(false);
   const [userDirty, setUserDirty] = useState(false);
   const [ledgerDirty, setLedgerDirty] = useState(false);
@@ -59,6 +60,9 @@ export function AdminPage(props: AdminPageProps) {
     if (transactionBusy) { setNotice('Finish the recording or current operation first.'); return; }
     if (transactionDirty || ledgerDirty) setPendingNavigation(() => action);
     else action();
+  }
+  function closeHeadView() {
+    navigate(() => { setHeadMode('manage'); if (headsFromUsers) setPage('users'); });
   }
   function statement(userScope: string, headId = filters.headId, company = false) {
     navigate(() => { setFilters((f) => ({ ...f, userScope, headId })); setPage(company ? 'company' : 'statement'); setHeadMode('manage'); });
@@ -84,22 +88,22 @@ export function AdminPage(props: AdminPageProps) {
     <section className="admin-home" hidden={page !== 'home'}>
       <h1>Overview</h1>
       <dl className="home-totals">{Object.entries({ Credits: totals.totalBillPayment, Debits: totals.totalReceived, Balance: totals.remainingPayable }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{money(value)}</dd></div>)}</dl>
-      <nav className="home-cards" aria-label="Cashbook sections">{cards.map((card) => <button key={card.id} className={`home-card home-card--${card.tone}`} onClick={() => navigate(() => { setHeadMode('manage'); setPage(card.id); })}>
+      <nav className="home-cards" aria-label="Cashbook sections">{cards.map((card) => <button key={card.id} className={`home-card home-card--${card.tone}`} onClick={() => navigate(() => { setHeadMode('manage'); setHeadsFromUsers(false); setPage(card.id); })}>
         <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={card.icon} /></svg><span>{card.title}</span>
       </button>)}</nav>
     </section>
     <div className="admin-content">
       <section className="admin-controls flex-col gap-md" hidden={page !== 'users' && page !== 'heads'}>
-        <h1>{page === 'heads' ? 'Heads Management' : 'Users'}</h1>
-        {page === 'heads' && <UserPicker users={selectableUsers} value={selectedUserId} onChange={(id) => navigate(() => { setSelectedUserId(id); if (!id) setHeadMode('manage'); })} />}
-        {(page === 'heads' || selectedUser) && <div className="head-mode-switch" role="group" aria-label="Head view">
-          {([['manage', 'Manage Heads'], ['preview', 'User Preview'], ['permissions', 'Show Permissions']] as const).map(([mode, label]) =>
+        <h1>{page === 'heads' ? headsFromUsers ? selectedUser?.user_name : 'Heads Management' : 'Users'}</h1>
+        {page === 'heads' && !headsFromUsers && <UserPicker users={selectableUsers} value={selectedUserId} onChange={(id) => navigate(() => { setSelectedUserId(id); if (!id) setHeadMode('manage'); })} />}
+        {page === 'heads' && <div className="head-mode-switch" role="group" aria-label="Head view">
+          {headsFromUsers && <button className="btn" onClick={closeHeadView}>← Back to users</button>}
+          {([['manage', 'Manage Heads'], ['preview', 'User Preview'], ['permissions', 'Show Permissions']] as const).filter(([mode]) => !headsFromUsers || mode !== 'manage').map(([mode, label]) =>
             <button key={mode} className="btn" aria-pressed={page === 'heads' && headMode === mode}
               disabled={mode !== 'manage' && !selectedUser}
-              onClick={() => navigate(() => { setPage('heads'); setHeadMode(headMode === mode ? 'manage' : mode); })}>{label}</button>)}
+              onClick={() => headMode === mode ? closeHeadView() : navigate(() => setHeadMode(mode))}>{label}</button>)}
         </div>}
         <div hidden={page !== 'heads' || preview}>
-          {selectedUser && headMode === 'permissions' && <PermissionChanges key={`${selectedUserId}:${revision}`} user={selectedUser} heads={heads} editor={editor} onSave={props.onSavePermissions} />}
           <div><HeadsTab key={revision} heads={heads} readOnly={headMode === 'permissions'} onPermissionChange={(head, allow) => {
               if (head.head_id < 0) { setNotice('Apply this new head first.'); return; }
               if (selectedUser) { editor.stageBranch(selectedUserId, head.head_id, allow); setNotice(''); }
@@ -110,16 +114,18 @@ export function AdminPage(props: AdminPageProps) {
               editor.stageBranch(selectedUserId, head.head_id, action === 'give');
               setHeadMode('permissions'); setNotice('');
             }} /></div>
+          {selectedUser && headMode === 'permissions' && <PermissionChanges key={`${selectedUserId}:${revision}`} user={selectedUser} heads={heads} editor={editor} onSave={props.onSavePermissions} />}
         </div>
         <div hidden={page !== 'users'}><UsersTab key={revision} currentAdminUserId={currentAdminUserId} users={users} selectedUserId={selectedUserId}
           onSelect={(id) => navigate(() => { setSelectedUserId(id); if (!id) setHeadMode('manage'); })} onViewLedger={(id) => statement(id)} onCreateUser={props.onCreateUser} onSaveProfile={props.onSaveProfile}
+          onOpenHeadView={(id, mode) => navigate(() => { setSelectedUserId(id); setHeadsFromUsers(true); setHeadMode(mode); setPage('heads'); })}
           onChangePassword={props.onChangePassword} onDirtyChange={setUserDirty} onAction={async (id, action) => {
             if (id === selectedUserId && transactionDirty) throw new Error('Finish or cancel this transaction draft first.');
             await props.onUserAction?.(id, action);
           }} /></div>
       </section>
       {preview && selectedUser ? <section className="admin-preview"><UserPreview key={`${selectedUserId}:${revision}`} user={selectedUser} onRefresh={props.onRefresh} heads={heads} assigned={editor.ids(selectedUserId)} pending={diff.granted.length + diff.revoked.length > 0}
-        onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} onClose={() => navigate(() => setHeadMode('manage'))} /></section>
+        onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} onClose={closeHeadView} /></section>
         : (page === 'company' || page === 'statement') && <Ledger key={`${revision}:${page}`} company={page === 'company'} filters={filters} onFilterChange={setFilters} revision={revision} heads={heads} users={users} onDirtyChange={setLedgerDirty}
           onChanged={props.onRefresh} />}
     </div>

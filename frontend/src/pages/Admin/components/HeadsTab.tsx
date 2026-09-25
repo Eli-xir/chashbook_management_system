@@ -96,6 +96,7 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, o
   const searchField = <input type="search" name="head-search" autoComplete="off" aria-label="Search heads" placeholder="Search heads by name or description" title="Search head names and descriptions" value={search} onChange={(event) => setSearch(event.target.value)} />;
   if (readOnly) return <div className="flex-col gap-md">
     {searchField}
+    <ul className="hint text-muted"><li>Double-tap a head to grant or revoke access to it and its subheads.</li></ul>
     <div className="heads-tree"><ul>{buildHeadTree(searchTree).map((node) =>
       <HeadTreeNode key={node.head_id} node={node} assigned={assigned}
         onTogglePermission={(head) => onPermissionChange?.(head, !assigned?.has(head.head_id))} />)}</ul></div>
