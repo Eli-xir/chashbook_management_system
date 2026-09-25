@@ -97,9 +97,6 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
     const ending = report.rows[Math.min(start + pageSize, report.rows.length) - 1]?.balance ?? report.opening;
     total(index === pageCount - 1 ? 'Totals / closing balance' : 'Page carried forward', ending,
       index === pageCount - 1 ? report.credit : '', index === pageCount - 1 ? report.debit : '');
-    if (index === pageCount - 1) {
-      Object.entries(summary).forEach(([label, value]) => total(label, value));
-    }
     return rows;
   }
   function exportReport(): ReportDocument {
