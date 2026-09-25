@@ -27,17 +27,15 @@ export function PermissionChanges({ user, heads, editor, onSave }: {
     finally { setBusy(false); }
   }
 
-  if (state.history.length === 1) return null;
-
   return (
     <div className="flex-col gap-md">
       <p>Permission changes for <strong>{user.user_name}</strong></p>
       <div className="flex-row gap-sm">
-        <button className="btn" disabled={!state.cursor} onClick={() => editor.undo(user.user_id)}>Undo</button>
-        <button className="btn" disabled={state.cursor === state.history.length - 1}
+        <button className="btn" disabled={busy || !state.cursor} onClick={() => editor.undo(user.user_id)}>Undo</button>
+        <button className="btn" disabled={busy || state.cursor === state.history.length - 1}
           onClick={() => editor.redo(user.user_id)}>Redo</button>
       </div>
-      <button className="btn btn--primary" disabled={!count} onClick={() => { setError(''); setReview(true); }}>
+      <button className="btn btn--primary" disabled={busy || !count} onClick={() => { setError(''); setReview(true); }}>
         Apply permissions{count ? ` (${count})` : ''}
       </button>
       {review && (

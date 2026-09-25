@@ -48,8 +48,6 @@ export function AdminPage(props: AdminPageProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [confirmRefresh, setConfirmRefresh] = useState(false);
   const [notice, setNotice] = useState('');
-  const [headAction, setHeadAction] = useState<{ head: Head; action: 'give' | 'revoke' } | null>(null);
-  const [actionUser, setActionUser] = useState('');
   const editor = usePermissionChanges(permissions, heads);
   const selectableUsers = users.filter((u) => u.user_id !== currentAdminUserId && u.role !== 'admin');
   const selectedUser = selectableUsers.find((u) => u.user_id === selectedUserId);
@@ -101,11 +99,16 @@ export function AdminPage(props: AdminPageProps) {
               onClick={() => navigate(() => { setPage('heads'); setHeadMode(headMode === mode ? 'manage' : mode); })}>{label}</button>)}
         </div>}
         <div hidden={page !== 'heads' || preview}>
-          {selectedUser && headMode === 'manage' && <PermissionChanges key={`${selectedUserId}:${revision}`} user={selectedUser} heads={heads} editor={editor} onSave={props.onSavePermissions} />}
-          <div><HeadsTab key={revision} heads={heads} readOnly={headMode === 'permissions'} permissionIds={headMode === 'permissions' && selectedUser ? editor.ids(selectedUserId) : undefined} reservedIds={Object.values(permissions).flat().map(Math.abs)} onSubmitChanges={props.onSubmitHeadChanges} onDirtyChange={setHeadDirty}
+          {selectedUser && headMode === 'permissions' && <PermissionChanges key={`${selectedUserId}:${revision}`} user={selectedUser} heads={heads} editor={editor} onSave={props.onSavePermissions} />}
+          <div><HeadsTab key={revision} heads={heads} readOnly={headMode === 'permissions'} onPermissionChange={(head, allow) => {
+              if (head.head_id < 0) { setNotice('Apply this new head first.'); return; }
+              if (selectedUser) { editor.stageBranch(selectedUserId, head.head_id, allow); setNotice(''); }
+            }} permissionIds={headMode === 'permissions' && selectedUser ? editor.ids(selectedUserId) : undefined} reservedIds={Object.values(permissions).flat().map(Math.abs)} onSubmitChanges={props.onSubmitHeadChanges} onDirtyChange={setHeadDirty}
             onHeadAction={(head, action) => {
               if (head.head_id < 0) { setNotice('Apply this new head first.'); return; }
-              setActionUser(selectedUserId); setHeadAction({ head, action }); setNotice('');
+              if (!selectedUser) { setNotice('Choose a user above to change permissions.'); return; }
+              editor.stageBranch(selectedUserId, head.head_id, action === 'give');
+              setHeadMode('permissions'); setNotice('');
             }} /></div>
         </div>
         <div hidden={page !== 'users'}><UsersTab key={revision} currentAdminUserId={currentAdminUserId} users={users} selectedUserId={selectedUserId}
@@ -120,17 +123,6 @@ export function AdminPage(props: AdminPageProps) {
         : (page === 'company' || page === 'statement') && <Ledger key={`${revision}:${page}`} company={page === 'company'} filters={filters} onFilterChange={setFilters} revision={revision} heads={heads} users={users} onDirtyChange={setLedgerDirty}
           onChanged={props.onRefresh} />}
     </div>
-    {headAction && <Dialog title={`${headAction.action === 'give' ? 'Give permission' : 'Revoke permission'} · ${headAction.head.head_name}`} onClose={() => setHeadAction(null)}>
-      <UserPicker users={selectableUsers} value={actionUser} onChange={setActionUser} />
-      <p className="hint">Includes subheads. Changes are saved when you apply permissions.</p>
-      <div className="flex-row justify-end gap-sm">
-        <button className="btn" onClick={() => setHeadAction(null)}>Back</button>
-        <button className="btn btn--primary" disabled={!actionUser} onClick={() => {
-          editor.stageBranch(actionUser, headAction.head.head_id, headAction.action === 'give');
-          setSelectedUserId(actionUser); setHeadAction(null);
-        }}>Stage permission change</button>
-      </div>
-    </Dialog>}
     {confirmRefresh && <Dialog title="Discard drafts and refresh?" onClose={() => setConfirmRefresh(false)} busy={refreshing}>
       <p>Refresh will discard unapplied edits and reload saved data.</p>
       <div className="flex-row justify-end gap-sm"><button className="btn" disabled={refreshing} onClick={() => setConfirmRefresh(false)}>Keep editing</button><button className="btn btn--primary" disabled={refreshing} onClick={refresh}>Refresh</button></div>

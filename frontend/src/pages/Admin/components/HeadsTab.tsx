@@ -10,11 +10,12 @@ import { HeadEditor } from './HeadEditor';
 import { Dialog } from './Dialog';
 import './HeadsTab.css';
 
-export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, onHeadAction, permissionIds, readOnly = false }: {
+export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, onHeadAction, permissionIds, readOnly = false, onPermissionChange }: {
   heads: Head[]; onSubmitChanges: (changes: StagedChange[]) => Promise<Head[]>;
   reservedIds: number[];
   permissionIds?: number[];
   readOnly?: boolean;
+  onPermissionChange?: (head: Head, allow: boolean) => void;
   onDirtyChange: (dirty: boolean) => void;
   onHeadAction: (head: Head, action: 'give' | 'revoke') => void;
 }) {
@@ -96,7 +97,8 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, o
   if (readOnly) return <div className="flex-col gap-md">
     {searchField}
     <div className="heads-tree"><ul>{buildHeadTree(searchTree).map((node) =>
-      <HeadTreeNode key={node.head_id} node={node} assigned={assigned} />)}</ul></div>
+      <HeadTreeNode key={node.head_id} node={node} assigned={assigned}
+        onTogglePermission={(head) => onPermissionChange?.(head, !assigned?.has(head.head_id))} />)}</ul></div>
   </div>;
 
   return (

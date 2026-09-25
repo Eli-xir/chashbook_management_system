@@ -13,9 +13,11 @@ interface TreeProps {
   onToggleTransactionable?: (head: Head) => void;
   assigned?: Set<number>;
   onContext?: (head: Head) => void;
+  onTogglePermission?: (head: Head) => void;
 }
 
-export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEdit, onToggleTransactionable, assigned, onContext, newChild }: TreeProps) {
+export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEdit, onToggleTransactionable, assigned, onContext, newChild, onTogglePermission }: TreeProps) {
+  const lastTap = useRef(0);
   const details = useRef<HTMLDetailsElement>(null);
   const addingHere = newChild?.parentId === node.head_id;
   useEffect(() => {
@@ -70,7 +72,15 @@ export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEd
             onDrop?.(event.dataTransfer.getData('text/plain'), node.head_id);
           }}>
           {node.image_url && <img className="head-icon" src={node.image_url} alt="" />}
-          {onSelect ? (
+          {onTogglePermission ? <button type="button" className="head-node-name" style={{ touchAction: 'manipulation' }}
+            aria-pressed={assigned?.has(node.head_id)} title="Double-tap to toggle branch access"
+            onClick={(event) => {
+              event.preventDefault();
+              const now = Date.now();
+              if (event.detail === 0 || now - lastTap.current < 400) {
+                lastTap.current = 0; onTogglePermission(node);
+              } else lastTap.current = now;
+            }}>{node.head_name}</button> : onSelect ? (
             <button type="button" className="head-node-name" aria-pressed={assigned ? assigned.has(node.head_id) : selected === node.head_id}
               onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); if (click.current) clearTimeout(click.current); onEdit?.(node); }}
               onKeyDown={(event) => { if (event.key === 'F2') { event.preventDefault(); onEdit?.(node); } }}
@@ -100,7 +110,7 @@ export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEd
             {node.children.map((child) => (
               <HeadTreeNode key={child.head_id} node={child} mergeMode={mergeMode}
                 selected={selected} onSelect={onSelect} onDrop={onDrop} onEdit={onEdit}
-                onToggleTransactionable={onToggleTransactionable} assigned={assigned} onContext={onContext} newChild={newChild} />
+                onToggleTransactionable={onToggleTransactionable} assigned={assigned} onContext={onContext} newChild={newChild} onTogglePermission={onTogglePermission} />
             ))}
             {addingHere && newChild && <NewHeadName {...newChild} />}
           </ul>
