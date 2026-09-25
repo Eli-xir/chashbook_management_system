@@ -2,6 +2,11 @@ import type { AdminUser, UserProfile } from '../types.ts';
 
 export const userContacts = (user: AdminUser) => user.contacts ?? (user.contact_no ? [user.contact_no] : []);
 
+export function matchesUser(user: AdminUser, search: string) {
+  const text = `${user.user_name} ${user.description ?? ''} ${userContacts(user).join(' ')}`.toLocaleLowerCase();
+  return search.trim().toLocaleLowerCase().split(/\s+/).every((word) => text.includes(word));
+}
+
 export function validateProfile(profile: UserProfile): UserProfile {
   const user_name = profile.user_name.trim();
   const contacts = profile.contacts.map((contact) => contact.trim()).filter(Boolean);

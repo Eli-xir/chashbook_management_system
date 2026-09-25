@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { AdminUser, CreateUserInput, UserAction, UserProfile } from '../types';
-import { userContacts } from '../utils/userProfile';
+import { matchesUser, userContacts } from '../utils/userProfile';
 import { UserEditor } from './UserEditor';
 import './UsersTab.css';
 
@@ -44,12 +44,13 @@ export function UsersTab(props: UsersTabProps) {
       <button className="btn btn--primary" onClick={() => setEditing({
         mode: 'create', user: { user_id: '', user_name: '', contacts: [], is_active: true },
       })}>+ Create user</button>
-      <input type="search" aria-label="Search users" placeholder="Search users by name or description" value={search} onChange={(event) => setSearch(event.target.value)} />
+      <input type="search" autoComplete="off" aria-label="Search users" placeholder="Search name, description or contact" value={search} onChange={(event) => setSearch(event.target.value)} />
+      {!users.some((user) => matchesUser(user, search)) && <p className="text-muted" role="status">No matching users.</p>}
       {[true, false].map((self) => (
         <section key={String(self)} className="flex-col gap-sm">
           <h3 className="section-label">{self ? 'Your account' : 'All users'}</h3>
           {!self && users.every((user) => user.user_id === currentAdminUserId) && <p className="text-muted">No other users yet.</p>}
-          {users.filter((user) => (user.user_id === currentAdminUserId) === self && (self || `${user.user_name} ${user.description ?? ''}`.toLowerCase().includes(search.toLowerCase()))).map((user) => (
+          {users.filter((user) => (user.user_id === currentAdminUserId) === self && matchesUser(user, search)).map((user) => (
             <details key={user.user_id} className={`user-card ${selectedUserId === user.user_id ? 'user-card--selected' : ''}`}
               open={self ? true : undefined} name={self ? undefined : 'users'}>
               <summary className="user-card-header" onClick={() => { if (!self) onSelect(user.user_id); }}>

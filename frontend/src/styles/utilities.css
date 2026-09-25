@@ -59,6 +59,9 @@ p { line-height: 1.5; }
 }
 .field input::placeholder { color: #77736e; }
 .field input:focus, .field select:focus { border-color: var(--color-gold); }
+.user-picker-results { max-height: 240px; overflow-y: auto; overscroll-behavior: contain; padding: 4px; }
+.user-picker-choice { display: flex; flex-direction: column; gap: 4px; text-align: left; min-height: 44px; justify-content: center; overflow-wrap: anywhere; border-radius: 10px; }
+.user-picker-choice[aria-pressed="true"], .date-presets .btn[aria-pressed="true"] { border-color: var(--color-gold); background: #c9a22718; color: var(--color-gold-soft); }
 .password-input { position: relative; display: block; width: 100%; }
 .password-input > input { padding-right: 48px; min-height: 44px; }
 .password-input > input::-ms-reveal { display: none; }
