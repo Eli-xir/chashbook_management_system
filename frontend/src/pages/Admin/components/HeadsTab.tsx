@@ -72,7 +72,7 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, o
     const change: StagedChange = mergeMode
         ? { op: 'merge', source_head_id: id, target_head_id: target! }
         : { op: 'move', head_id: id, new_parent_id: target };
-    if (change.op === 'move' && displayed.find((h) => h.head_id === id)?.parent_head_id === target) return;
+    if (change.op === 'move' && displayed.find((h) => h.head_id === id)?.parent_head_id === target) { setSelected(null); return; }
     if (change.op === 'merge') {
       try { applyHeadChanges(displayed, [change]); setPendingMerge(change); setBackupBeforeMerge(true); setError(''); }
       catch (error) { setError((error as Error).message); }
@@ -115,7 +115,13 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, o
       <button className="btn" disabled={newChild !== null || submitting} onClick={() => {
         setNewChild({ parentId: null, name: 'New Head' }); setSelected(null); setSearch(''); setMergeMode(false); setError('');
       }}>New head</button>
-      {mergeMode && <p className="hint text-muted">Merge mode: drop a head onto another to combine their branches.</p>}
+      <ul className="hint text-muted">
+        <li>Double-tap a head for actions. Hold a head, release, then tap its destination to {mergeMode ? 'merge' : 'move'} it. You can also drag and drop with a mouse.</li>
+      </ul>
+      {selected !== null && <div className="flex-row items-center gap-sm" role="status">
+        <span>{mergeMode ? 'Merge' : 'Move'} “{displayed.find((head) => head.head_id === selected)?.head_name}”: tap a destination.</span>
+        <button className="btn" onClick={() => setSelected(null)}>Cancel</button>
+      </div>}
       <div className="heads-tree">
         {displayed.length === 0 && !newChild && <p className="empty-state text-muted">No heads yet. Create your first head.</p>}
         <ul>
@@ -123,7 +129,7 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, o
             <HeadTreeNode key={node.head_id} node={node} mergeMode={mergeMode} assigned={assigned}
               newChild={newChild ? { ...newChild, onChange: (name) => setNewChild({ ...newChild, name }),
                 onCommit: finishNewChild, onCancel: () => { setNewChild(null); setError(''); } } : undefined}
-              selected={selected} onDrop={drop} onEdit={setEditing} onContext={setMenuHead}
+              selected={selected} onStartMove={(id) => { setSelected(id); setError(''); }} onDrop={drop} onEdit={setEditing} onContext={setMenuHead}
               onToggleTransactionable={(head) => stage({ op: 'edit', head_id: head.head_id,
                 head_name: head.head_name, image_url: head.image_url ?? null, is_transactionable: !head.is_transactionable })}
               onSelect={(id) => {

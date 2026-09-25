@@ -8,6 +8,7 @@ interface TreeProps {
   mergeMode?: boolean;
   selected?: number | null;
   onSelect?: (id: number) => void;
+  onStartMove?: (id: number) => void;
   onDrop?: (source: string, target: number | null) => void;
   onEdit?: (head: Head) => void;
   onToggleTransactionable?: (head: Head) => void;
@@ -16,7 +17,7 @@ interface TreeProps {
   onTogglePermission?: (head: Head) => void;
 }
 
-export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEdit, onToggleTransactionable, assigned, onContext, newChild, onTogglePermission }: TreeProps) {
+export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEdit, onToggleTransactionable, assigned, onContext, newChild, onTogglePermission, onStartMove }: TreeProps) {
   const lastTap = useRef(0);
   const details = useRef<HTMLDetailsElement>(null);
   const addingHere = newChild?.parentId === node.head_id;
@@ -26,11 +27,11 @@ export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEd
   }, [addingHere, newChild?.parentId]);
   const [dragOver, setDragOver] = useState(false);
   const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const click = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerType = useRef('mouse');
   const held = useRef(false);
   const start = useRef({ x: 0, y: 0 });
   const clearHold = () => { if (hold.current) clearTimeout(hold.current); hold.current = null; };
-  useEffect(() => () => { clearHold(); if (click.current) clearTimeout(click.current); }, []);
+  useEffect(() => () => clearHold(), []);
   return (
     <li className="head-node">
       <details ref={details} open>
@@ -39,18 +40,20 @@ export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEd
           assigned ? (assigned.has(node.head_id) ? 'permission-granted' : 'permission-unassigned') : '',
           dragOver ? 'head-node-row--drag-over' : '', !node.is_active ? 'head-node-row--inactive' : '',
         ].join(' ')}
-          onContextMenu={(event) => { if (onContext) { event.preventDefault(); clearHold(); onContext(node); } }}
+          onContextMenu={(event) => { if (onContext) { event.preventDefault(); if (pointerType.current === 'mouse') { clearHold(); onContext(node); } } }}
           onPointerDown={(event) => {
             held.current = false;
-            if (!onContext || (event.target as HTMLElement).closest('.head-actions')) return;
+            pointerType.current = event.pointerType;
+            if (!event.isPrimary || event.button !== 0 || !onStartMove || (event.target as HTMLElement).closest('.head-actions')) return;
             start.current = { x: event.clientX, y: event.clientY };
-            hold.current = setTimeout(() => { held.current = true; if (click.current) clearTimeout(click.current); onContext(node); }, 550);
+            hold.current = setTimeout(() => { held.current = true; lastTap.current = 0; onStartMove(node.head_id); }, 250);
           }}
           onPointerMove={(event) => { if (Math.hypot(event.clientX - start.current.x, event.clientY - start.current.y) > 10) clearHold(); }}
-          onPointerUp={clearHold} onPointerCancel={clearHold}
+          onPointerUp={clearHold} onPointerCancel={clearHold} onPointerLeave={clearHold}
           onClickCapture={(event) => { if (held.current) { event.preventDefault(); event.stopPropagation(); held.current = false; } }}
           draggable={!!onDrop}
           onDragStart={(event) => {
+            if (pointerType.current !== 'mouse') { event.preventDefault(); return; }
             clearHold();
             if (held.current) { event.preventDefault(); return; }
             event.stopPropagation();
@@ -81,11 +84,21 @@ export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEd
                 lastTap.current = 0; onTogglePermission(node);
               } else lastTap.current = now;
             }}>{node.head_name}</button> : onSelect ? (
-            <button type="button" className="head-node-name" aria-pressed={assigned ? assigned.has(node.head_id) : selected === node.head_id}
-              onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); if (click.current) clearTimeout(click.current); onEdit?.(node); }}
-              onKeyDown={(event) => { if (event.key === 'F2') { event.preventDefault(); onEdit?.(node); } }}
-              onClick={(event) => { event.preventDefault(); if (!onEdit) onSelect(node.head_id);
-                else if (event.detail < 2) click.current = setTimeout(() => onSelect(node.head_id), 250); }}>{node.head_name}</button>
+            <button type="button" className="head-node-name" aria-pressed={selected === node.head_id}
+              style={{ touchAction: 'manipulation', userSelect: 'none', WebkitTouchCallout: 'none' }}
+              title="Double-tap for actions. Hold to move or merge."
+              onKeyDown={(event) => {
+                if (event.key === 'F2') { event.preventDefault(); onEdit?.(node); }
+                if (event.key === 'Escape') { event.preventDefault(); if (selected != null) onSelect(selected); }
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                if (selected != null) { lastTap.current = 0; onSelect(node.head_id); return; }
+                const now = Date.now();
+                if (event.detail === 0 || now - lastTap.current < 400) {
+                  lastTap.current = 0; onContext?.(node);
+                } else lastTap.current = now;
+              }}>{node.head_name}</button>
           ) : <span className="head-node-name">{node.head_name}</span>}
           {node.head_description && <span className="head-description" title={node.head_description}>{node.head_description}</span>}
           {!node.is_transactionable && !onToggleTransactionable && <span className="head-node-badge">group</span>}
@@ -109,7 +122,7 @@ export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEd
           <ul className="head-node-children">
             {node.children.map((child) => (
               <HeadTreeNode key={child.head_id} node={child} mergeMode={mergeMode}
-                selected={selected} onSelect={onSelect} onDrop={onDrop} onEdit={onEdit}
+                selected={selected} onSelect={onSelect} onStartMove={onStartMove} onDrop={onDrop} onEdit={onEdit}
                 onToggleTransactionable={onToggleTransactionable} assigned={assigned} onContext={onContext} newChild={newChild} onTogglePermission={onTogglePermission} />
             ))}
             {addingHere && newChild && <NewHeadName {...newChild} />}
