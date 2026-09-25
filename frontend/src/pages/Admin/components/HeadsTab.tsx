@@ -37,11 +37,6 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, o
     for (const child of displayed) {
       if (isDescendant(displayed, id, child.head_id)) matches.add(child.head_id);
     }
-    let head = displayed.find((h) => h.head_id === id);
-    const seen = new Set<number>();
-    while (head?.parent_head_id != null && !seen.has(head.parent_head_id)) {
-      seen.add(head.parent_head_id); matches.add(head.parent_head_id); head = displayed.find((h) => h.head_id === head?.parent_head_id);
-    }
   }
   const searchTree = displayed.filter((h) => matches.has(h.head_id));
   const dirty = newChild !== null || staged.changes.length > 0 || editing !== null || pendingMerge !== null;
