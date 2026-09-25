@@ -13,7 +13,6 @@
 .home-totals > div:last-child dd { color: #e3ca79; }
 .home-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
 .admin-controls { max-width: 850px; margin: auto; width: 100%; }
-.admin-content--preview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; }
 .admin-preview { min-width: 0; }
 .user-picker { min-width: 0; }
 .user-picker select { width: 100%; text-overflow: ellipsis; }
@@ -27,7 +26,6 @@
 .mobile-only { display: none; }
 @media (max-width: 850px) {
  .home-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
- .admin-content--preview { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
  .admin-header { flex-wrap: wrap; margin-bottom: 24px; }
@@ -35,3 +33,6 @@
  .home-totals > div { padding: 12px 10px; border-radius: 14px; }
  .home-totals dt { font-size: .8rem; }
 }
+.admin-preview { max-width: 650px; margin: 24px auto 0; }
+.head-mode-switch { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px; border: 1px solid var(--color-line); border-radius: 16px; background: var(--color-surface); }
+.head-mode-switch .btn { flex: 1; min-height: 44px; border-radius: 10px; }

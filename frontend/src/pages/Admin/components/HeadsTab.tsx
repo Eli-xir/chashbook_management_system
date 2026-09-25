@@ -10,10 +10,11 @@ import { HeadEditor } from './HeadEditor';
 import { Dialog } from './Dialog';
 import './HeadsTab.css';
 
-export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, onHeadAction, permissionIds }: {
+export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, onHeadAction, permissionIds, readOnly = false }: {
   heads: Head[]; onSubmitChanges: (changes: StagedChange[]) => Promise<Head[]>;
   reservedIds: number[];
   permissionIds?: number[];
+  readOnly?: boolean;
   onDirtyChange: (dirty: boolean) => void;
   onHeadAction: (head: Head, action: 'give' | 'revoke') => void;
 }) {
@@ -91,9 +92,16 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, o
     finally { setSubmitting(false); }
   }
 
+  const searchField = <input type="search" name="head-search" autoComplete="off" aria-label="Search heads" placeholder="Search heads by name or description" title="Search head names and descriptions" value={search} onChange={(event) => setSearch(event.target.value)} />;
+  if (readOnly) return <div className="flex-col gap-md">
+    {searchField}
+    <div className="heads-tree"><ul>{buildHeadTree(searchTree).map((node) =>
+      <HeadTreeNode key={node.head_id} node={node} assigned={assigned} />)}</ul></div>
+  </div>;
+
   return (
     <div className="flex-col gap-md">
-      <input type="search" name="head-search" autoComplete="off" aria-label="Search heads" placeholder="Search heads by name or description" title="Search head names and descriptions" value={search} onChange={(event) => setSearch(event.target.value)} />
+      {searchField}
       <div className="flex-row flex-wrap gap-sm">
         <button className="btn" aria-pressed={mergeMode} onClick={() => { setMergeMode(!mergeMode); setSelected(null); }}>
           Merge {mergeMode ? 'on' : 'off'}

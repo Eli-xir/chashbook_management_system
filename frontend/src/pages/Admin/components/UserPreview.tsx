@@ -106,10 +106,10 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
       }}>
         {refreshing ? 'Refreshing…' : 'Refresh'}
       </button>
-      <button className={`btn${preview ? ' preview-close' : ''}`} disabled={locked}
+      <button className="btn" disabled={locked}
         onClick={() => !preview && dirty ? setConfirmLogout(true) : onClose()}
-        aria-label={adminCredit ? 'Close credit workflow' : preview ? 'Close user preview' : 'Logout'} title={preview ? 'Back to admin ledger' : 'Logout'}>
-        {preview ? '×' : 'Logout'}
+        aria-label={adminCredit ? 'Close credit workflow' : preview ? 'Close user preview' : 'Logout'} title={preview ? 'Exit preview' : 'Logout'}>
+        {preview ? 'Exit preview' : 'Logout'}
       </button>
       </div>
     </header>
