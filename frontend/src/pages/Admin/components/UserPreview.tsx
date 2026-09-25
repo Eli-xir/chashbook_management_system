@@ -156,7 +156,7 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
       </header>}
       {screen === 'home' && <>
         {success && <p role="status">{adminCredit ? 'Credit applied successfully.' : 'Transaction sent successfully.'}</p>}
-        <article className="user-card-panel balance-card flex-col gap-sm">
+        <article className="user-card-panel home-card--gold balance-card flex-col gap-sm">
           <h2>{adminCredit ? 'User’s total credits' : 'Remaining balance'}</h2>
           <p className="balance-value"><span>{money(adminCredit ? overview.totalReceived : overview.balance)}</span></p>
         </article>
@@ -164,7 +164,7 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
           event.preventDefault();
           if (amountValid && user.is_active) { setSuccess(false); go('heads'); }
         }}>
-          <label className="user-card-panel field amount-card">
+          <label className="user-card-panel home-card--blue field amount-card">
             <span>Enter amount (PKR)</span>
             <input type="text" inputMode="numeric" pattern="[0-9]+" maxLength={12} required value={amount}
               onChange={(event) => { if (/^\d*$/.test(event.target.value)) setAmount(event.target.value); }} placeholder="0" aria-label="Enter amount in PKR" />
