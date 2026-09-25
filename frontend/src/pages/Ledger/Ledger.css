@@ -1,4 +1,5 @@
 .ledger-toolbar { align-items: end; }
+.filter-apply--pending { box-shadow: 0 0 12px #c9a22766; border-color: var(--color-gold); }
 .date-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .date-presets .btn { min-height: 44px; border-radius: 10px; }
 .date-range-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }

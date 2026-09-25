@@ -13,6 +13,9 @@ import { LedgerFilters } from './LedgerFilters';
 import { UserPicker } from '../Admin/components/UserPicker';
 
 type LedgerData = Awaited<ReturnType<typeof cashbookApi.ledger>>;
+const filterKey = (filters: FiltersState) => JSON.stringify([
+  filters.dateFrom, filters.dateTo, filters.userScope, filters.direction, filters.headId ?? null, filters.description ?? '',
+]);
 export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilterChange, company = false, onChanged }: {
   onChanged: () => Promise<void>; company?: boolean; onFilterChange: (filters: FiltersState) => void;
   filters: FiltersState; revision: number; heads: Head[]; users: AdminUser[]; onDirtyChange: (dirty: boolean) => void;
@@ -20,7 +23,17 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
   const [data, setData] = useState<LedgerData | null>(null);
   const [order, setOrder] = useState<LedgerOrder>('by-time');
   const [pagination, setPagination] = useState({ scope: '', page: 0 });
-  const scope = JSON.stringify(filters);
+  const scope = filterKey(filters);
+  const [draft, setDraft] = useState({ scope, filters });
+  const draftFilters = draft.scope === scope ? draft.filters : filters;
+  const pendingFilters = filterKey(draftFilters) !== scope;
+  const invalidDraftDates = !!draftFilters.dateFrom && !!draftFilters.dateTo && draftFilters.dateFrom > draftFilters.dateTo;
+  function stageFilters(next: FiltersState) { setDraft({ scope, filters: next }); }
+  function applyFilters() {
+    if (!pendingFilters || invalidDraftDates) return;
+    onFilterChange(draftFilters);
+    setPagination({ scope: filterKey(draftFilters), page: 0 });
+  }
   const page = pagination.scope === scope ? pagination.page : 0;
   function setPage(next: number) { setPagination({ scope, page: next }); }
   const [pageSize, setPageSize] = useState(20);
@@ -100,9 +113,9 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
       <button className="btn btn--primary" disabled={!data} onClick={() => {
         setCreditUserId(filters.userScope === 'all' ? '' : filters.userScope); setCreditDirty(false); setCrediting(true);
       }}>Credit a user</button></div>
-    {(subtitle || filters.description || filters.userScope !== 'all') && <div className="active-filters flex-row flex-wrap gap-sm"><span>{[subtitle, !company && filters.userScope !== 'all' ? userName(filters.userScope) : ''].filter(Boolean).join(' · ')}</span><button className="btn" onClick={() => onFilterChange({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' })}>Clear filters</button></div>}
+    {(subtitle || filters.description || filters.userScope !== 'all') && <div className="active-filters flex-row flex-wrap gap-sm"><span>{[subtitle, !company && filters.userScope !== 'all' ? userName(filters.userScope) : ''].filter(Boolean).join(' · ')}</span></div>}
     <div className="ledger-toolbar flex-row flex-wrap gap-sm">
-      <label className="field"><span>Entries</span><select value={filters.direction} onChange={(event) => onFilterChange({ ...filters, direction: event.target.value as FiltersState['direction'] })}><option value="both">Credits & debits</option><option value="credit">Credits</option><option value="debit">Debits</option></select></label>
+      <label className="field"><span>Entries</span><select value={draftFilters.direction} onChange={(event) => stageFilters({ ...draftFilters, direction: event.target.value as FiltersState['direction'] })}><option value="both">Credits & debits</option><option value="credit">Credits</option><option value="debit">Debits</option></select></label>
       <label className="field"><span>Arrangement</span><select value={order} onChange={(event) => { setOrder(event.target.value as LedgerOrder); setPage(0); }}>
         <option value="by-time">Default</option><option value="credit-first">Credits, then debits</option><option value="debit-first">Debits, then credits</option>
       </select></label>
@@ -110,7 +123,11 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
         {[10, 20, 50, 100].map((size) => <option key={size}>{size}</option>)}
       </select></label>
       <ReportActions disabled={!data || invalidDates} getReport={exportReport} />
+      <button className={`btn${pendingFilters ? ' btn--primary filter-apply--pending' : ''}`} disabled={!pendingFilters || invalidDraftDates} onClick={applyFilters}>Apply filters</button>
+      <button className="btn" onClick={() => stageFilters({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' })}>Clear filters</button>
+      {pendingFilters && <button className="btn" onClick={() => stageFilters(filters)}>Discard changes</button>}
     </div>
+    {pendingFilters && <p className={invalidDraftDates ? 'text-error' : 'text-muted'} role="status">{invalidDraftDates ? 'Choose an end date on or after the start date.' : 'Filter changes ready to apply.'}</p>}
     {error && <p role="alert" className="text-error">{error} <button className="btn" onClick={() => setReload((value) => value + 1)}>Reload</button></p>}
     {invalidDates ? <p role="alert">Choose an end date on or after the start date.</p> : !data ? <p>Loading ledger…</p> : <>
       <dl className="ledger-totals">
@@ -119,9 +136,9 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
           <dt>{label}</dt><dd>{money(value)}</dd></div>)}
       </dl>
       <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{columns.map((label) => <th key={label}
-        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{['Date/time', 'User', 'Head', 'Description'].includes(label) ? <LedgerFilters column={label} filters={filters} heads={reportHeads} users={data.users} onChange={onFilterChange} /> : label}</th>)}</tr></thead><tbody>
+        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{['Date/time', 'User', 'Head', 'Description'].includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} users={data.users} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
         {pageRows(currentPage).map(({ cells, entry: rowEntry }, index) => {
-          return <tr key={rowEntry?.id ?? index} className={rowEntry ? 'ledger-entry' : 'ledger-total'} onClick={() => { if (rowEntry) setSelected(rowEntry); }}>
+          return <tr key={rowEntry ? `transaction:${rowEntry.id}` : `total:${index}`} className={rowEntry ? 'ledger-entry' : 'ledger-total'} onClick={() => { if (rowEntry) setSelected(rowEntry); }}>
             {cells.map((value, column) => <td key={column}>{column === 0 && rowEntry ? <button className="ledger-row-link" onClick={() => setSelected(rowEntry)}>{value}</button> : typeof value === 'number' ? money(value) : value}</td>)}
           </tr>;
         })}
