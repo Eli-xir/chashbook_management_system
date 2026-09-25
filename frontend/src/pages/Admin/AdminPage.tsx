@@ -6,6 +6,7 @@ import { PermissionChanges } from './components/PermissionChanges';
 import { UserPreview } from './components/UserPreview';
 import { UserPicker } from './components/UserPicker';
 import { Dialog } from './components/Dialog';
+import { AdminTransactionDialog } from './components/AdminTransactionDialog';
 import { usePermissionChanges } from './hooks/usePermissionChanges';
 import { permissionDiff, permittedHeads } from './utils/permissions';
 import { Ledger } from '../Ledger/Ledger';
@@ -49,6 +50,7 @@ export function AdminPage(props: AdminPageProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [confirmRefresh, setConfirmRefresh] = useState(false);
   const [notice, setNotice] = useState('');
+  const [homeTransaction, setHomeTransaction] = useState<'credit' | 'debit' | null>(null);
   const [headPermission, setHeadPermission] = useState<{ head: Head; allow: boolean } | null>(null);
   const [permissionUsers, setPermissionUsers] = useState<string[]>([]);
   const editor = usePermissionChanges(permissions, heads);
@@ -97,6 +99,14 @@ export function AdminPage(props: AdminPageProps) {
       <nav className="home-cards" aria-label="Cashbook sections">{cards.map((card) => <button key={card.id} className={`home-card home-card--${card.tone}`} onClick={() => navigate(() => { setHeadMode('manage'); setHeadsFromUsers(false); setPage(card.id); })}>
         <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={card.icon} /></svg><span>{card.title}</span>
       </button>)}</nav>
+      <nav className="home-cards" aria-label="New transactions">
+        {([['credit', 'Admin credit', 'green'], ['debit', 'User debit', 'gold']] as const).map(([action, label, tone]) =>
+          <button key={action} className={`home-card home-card--${tone}`} onClick={() => setHomeTransaction(action)}>
+            <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d={action === 'credit' ? 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5' : 'M12 15V3m-5 5 5-5 5 5M4 16v5h16v-5'} />
+            </svg><span>{label}</span>
+          </button>)}
+      </nav>
     </section>
     <div className="admin-content">
       <section className="admin-controls flex-col gap-md" hidden={page !== 'users' && page !== 'heads'}>
@@ -136,6 +146,9 @@ export function AdminPage(props: AdminPageProps) {
         : (page === 'company' || page === 'statement') && <Ledger key={`${revision}:${page}`} company={page === 'company'} filters={filters} onFilterChange={setFilters} revision={revision} heads={heads} users={users} onDirtyChange={setLedgerDirty}
           onChanged={props.onRefresh} />}
     </div>
+    {homeTransaction && <AdminTransactionDialog title={homeTransaction === 'credit' ? 'Admin credit' : 'User debit'} users={users} heads={heads}
+      self={homeTransaction === 'credit' ? users.find((user) => user.user_id === currentAdminUserId) : undefined}
+      onClose={() => setHomeTransaction(null)} onSubmitted={props.onRefresh} />}
     {headPermission && <Dialog title={`${headPermission.allow ? 'Give permission' : 'Revoke permission'} · ${headPermission.head.head_name}`} onClose={() => setHeadPermission(null)}>
       <p>Select users. This change includes all subheads.</p>
       <UserPicker users={permissionCandidates} selectedIds={permissionUsers} onChange={(id) => setPermissionUsers((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id])} />

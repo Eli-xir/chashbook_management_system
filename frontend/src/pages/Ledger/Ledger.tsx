@@ -6,11 +6,9 @@ import type { LedgerOrder } from './ledgerModel';
 import { ReportActions } from './ReportActions';
 import type { ReportDocument } from './ledgerExport';
 import { TransactionCard } from './TransactionCard';
-import { UserPreview } from '../Admin/components/UserPreview';
-import { Dialog } from '../Admin/components/Dialog';
+import { AdminTransactionDialog } from '../Admin/components/AdminTransactionDialog';
 import './Ledger.css';
 import { LedgerFilters } from './LedgerFilters';
-import { UserPicker } from '../Admin/components/UserPicker';
 
 type LedgerData = Awaited<ReturnType<typeof cashbookApi.ledger>>;
 const filterKey = (filters: FiltersState) => JSON.stringify([
@@ -40,19 +38,10 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
   const [selected, setSelected] = useState<Transaction | null>(null);
   const [crediting, setCrediting] = useState(false);
   const [creditUserId, setCreditUserId] = useState('');
-  const [creditDirty, setCreditDirty] = useState(false);
-  const [creditBusy, setCreditBusy] = useState(false);
-  const [confirmCreditClose, setConfirmCreditClose] = useState(false);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
   const [showInactive, setShowInactive] = useState(false);
-  useEffect(() => { onDirtyChange(selected !== null || creditDirty); return () => onDirtyChange(false); }, [selected, creditDirty, onDirtyChange]);
-  function closeCredit() {
-    if (creditBusy) return;
-    if (creditDirty) setConfirmCreditClose(true);
-    else setCrediting(false);
-  }
-  const creditUser = data?.users.find((user) => user.user_id === creditUserId && user.is_active && user.role !== 'admin');
+  useEffect(() => { onDirtyChange(selected !== null); return () => onDirtyChange(false); }, [selected, onDirtyChange]);
   useEffect(() => {
     let ignore = false;
     cashbookApi.ledger().then((result) => { if (!ignore) { setData(result); setError(''); } })
@@ -62,7 +51,8 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
   async function refresh() { setData(await cashbookApi.ledger()); await onChanged(); }
   const reportHeads = data?.heads ?? heads;
   const entryDirection = (entry: Transaction) => direction(entry, company);
-  const report = ledgerReport(data?.transactions ?? [], filters, order, reportHeads, company);
+  const transactions = (data?.transactions ?? []).filter((entry) => company || !(data?.users ?? users).some((user) => user.user_id === entry.userId && user.role === 'admin'));
+  const report = ledgerReport(transactions, filters, order, reportHeads, company);
   const branch = headBranchIds(reportHeads, filters.headId);
   const pageCount = Math.max(1, Math.ceil(report.rows.length / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
@@ -108,8 +98,8 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
   return <div className="ledger-view flex-col gap-md">
     <div className="flex-row flex-wrap items-center justify-between gap-sm"><h1>{title}</h1>
       <button className="btn btn--primary" disabled={!data} onClick={() => {
-        setCreditUserId(filters.userScope === 'all' ? '' : filters.userScope); setCreditDirty(false); setCrediting(true);
-      }}>Credit a user</button></div>
+        setCreditUserId(filters.userScope === 'all' ? '' : filters.userScope); setCrediting(true);
+      }}>{company ? 'Debit users' : 'Credit a user'}</button></div>
     {(subtitle || filters.description || filters.userScope !== 'all') && <div className="active-filters flex-row flex-wrap gap-sm"><span>{[subtitle, !company && filters.userScope !== 'all' ? userName(filters.userScope) : ''].filter(Boolean).join(' · ')}</span></div>}
     <div className="ledger-toolbar flex-row flex-wrap gap-sm">
       <label className="field"><span>Entries</span><select value={draftFilters.direction} onChange={(event) => stageFilters({ ...draftFilters, direction: event.target.value as FiltersState['direction'] })}><option value="both">Credits & debits</option><option value="credit">Credits</option><option value="debit">Debits</option></select></label>
@@ -147,29 +137,14 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
         <button className="btn" disabled={currentPage + 1 === pageCount} onClick={() => setPage(currentPage + 1)}>Next</button>
       </div>
       <details className="disclosure" open={showInactive} onToggle={(event) => setShowInactive(event.currentTarget.open)}><summary>Deactivated entries</summary>
-        {data.transactions.filter((entry) => !entry.active && (filters.userScope === 'all' || entry.userId === filters.userScope) && (!branch || branch.has(entry.headId))).map((entry) =>
+        {transactions.filter((entry) => !entry.active && (filters.userScope === 'all' || entry.userId === filters.userScope) && (!branch || branch.has(entry.headId))).map((entry) =>
           <button className="btn" key={entry.id} onClick={() => setSelected(entry)}>{new Date(entry.createdAt).toLocaleString()} · {userName(entry.userId)} · {money(entry.amount)}</button>)}
       </details>
     </>}
     {selected && data && <TransactionCard key={selected.id} entry={selected}
       admin company={company} heads={data.heads} users={data.users}
       onClose={() => { setSelected(null); setReload((value) => value + 1); }} onChanged={refresh} />}
-    {crediting && data && <Dialog title="Credit a user" onClose={closeCredit} busy={creditBusy}>
-      {creditUser ? <UserPreview key={creditUser.user_id} user={creditUser} heads={data.heads} assigned={[]} pending={false}
-        adminCredit onClose={closeCredit} onDirtyChange={setCreditDirty} onBusyChange={setCreditBusy}
-        onSubmitted={async () => { await refresh(); setCrediting(false); }} /> : <div className="flex-col gap-md">
-        <p>Choose the user receiving this credit.</p>
-        <UserPicker users={data.users.filter((u) => u.is_active)} value={creditUserId} onChange={setCreditUserId} />
-        {!data.users.some((user) => user.is_active && user.role !== 'admin') && <p className="text-muted">Create an active user first.</p>}
-        <button className="btn" onClick={closeCredit}>Cancel</button>
-      </div>}
-    </Dialog>}
-    {confirmCreditClose && <Dialog title="Discard this credit draft?" onClose={() => setConfirmCreditClose(false)}>
-      <p>The credit has not been sent.</p>
-      <div className="flex-row justify-end gap-sm">
-        <button className="btn" onClick={() => setConfirmCreditClose(false)}>Keep editing</button>
-        <button className="btn btn--primary" onClick={() => { setConfirmCreditClose(false); setCrediting(false); setCreditDirty(false); }}>Discard</button>
-      </div>
-    </Dialog>}
+    {crediting && data && <AdminTransactionDialog title={company ? 'Debit users' : 'Credit a user'} users={data.users} heads={data.heads}
+      initialUserId={creditUserId} onClose={() => setCrediting(false)} onSubmitted={refresh} />}
   </div>;
 }
