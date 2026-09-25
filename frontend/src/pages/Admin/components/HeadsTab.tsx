@@ -67,9 +67,6 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, o
     const id = Number(source);
     if (!source || !Number.isFinite(id)) return;
     if (id === target) { setSelected(null); return; }
-    if (mergeMode && target === null) {
-      setError('Choose a head to merge into.'); return;
-    }
     const change: StagedChange = mergeMode
         ? { op: 'merge', source_head_id: id, target_head_id: target! }
         : { op: 'move', head_id: id, new_parent_id: target };
@@ -127,11 +124,6 @@ export function HeadsTab({ heads, reservedIds, onSubmitChanges, onDirtyChange, o
             onChange={(name) => setNewChild({ ...newChild, name })} onCommit={finishNewChild}
             onCancel={() => { setNewChild(null); setError(''); }} />}
         </ul>
-        <button className="heads-tree-root-dropzone" onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => { event.preventDefault(); drop(event.dataTransfer.getData('text/plain'), null); }}
-          onClick={() => { if (selected !== null) drop(String(selected), null); }}>
-          Drop here for top level
-        </button>
       </div>
       {!reviewing && error && <p role="alert" className="text-error">{error}</p>}
       <button className="btn btn--primary" disabled={!staged.changes.length}
