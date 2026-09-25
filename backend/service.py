@@ -104,7 +104,16 @@ def ledger(db, user_id=None, credits_only=False):
 
 
 def overview(db, user_id):
-    user = account(db, user_id, field=True)
+    user = account(db, user_id)
+    if user['user_role_id'] == 1:
+        amounts = db.execute('''SELECT
+            COALESCE(sum(v.transaction_amount) FILTER (WHERE t.created_by_user_id=t.user_id),0) AS credits,
+            COALESCE(sum(v.transaction_amount) FILTER (WHERE t.created_by_user_id<>t.user_id),0) AS debits
+            FROM transactions t JOIN transaction_versions v ON v.version_id=t.current_version_id
+            WHERE t.is_active''').fetchone()
+        credits, debits = float(amounts['credits']), float(amounts['debits'])
+        return {'balance': credits-debits, 'totalReceived': credits, 'totalBillPayment': debits,
+                'remainingPayable': debits-credits, 'credits': []}
     # Admin may inspect a deactivated account, but it cannot log in or submit.
     amounts = db.execute('''SELECT
         COALESCE(sum(v.transaction_amount) FILTER (WHERE t.created_by_user_id<>t.user_id),0) AS received,
@@ -227,7 +236,9 @@ def transaction_change(db, actor, change):
     else:
         admin(actor)
     if change.action in ('submit', 'credit'):
-        user = account(db, change.userId, field=True)
+        user = account(db, change.userId)
+        require(user['user_role_id'] != 1 or (not submitting and user['user_id'] == actor['user_id']),
+                'An administrator can only credit their own admin account.', 403)
         require(user['is_active'], 'This account is deactivated.')
         ids = validate_input(db, actor, change.input, user['user_id'], submitting)
         entry = db.execute('''INSERT INTO transactions(head_id,category_group_id,user_id,created_by_user_id,current_version_id)
