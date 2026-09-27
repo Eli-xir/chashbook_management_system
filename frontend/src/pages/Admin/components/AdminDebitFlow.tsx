@@ -21,7 +21,7 @@ export function AdminDebitFlow({ users, heads, onClose, onSubmitted, onDirtyChan
     {user ? <UserPreview key={userId} user={user} heads={heads} assigned={[]} pending={false} adminCredit transactionLabel="User debit"
       onClose={back} onDirtyChange={changeDirty} onBusyChange={changeBusy}
       onSubmitted={async () => { await onSubmitted(); onClose(); }} /> : <>
-      <header className="flex-row items-center gap-sm"><button className="btn" onClick={onClose}>← Home</button><h1>User debit</h1></header>
+      <header className="flex-row items-center gap-sm"><h1>User debit</h1></header>
       <UserCards users={users} onOpen={(item) => setUserId(item.user_id)} onChanged={onSubmitted} />
     </>}
     {discard && <Dialog title="Discard this transaction draft?" onClose={() => setDiscard(false)}>

@@ -111,13 +111,12 @@ export function AdminPage(props: AdminPageProps) {
     <section className="admin-home" hidden={page !== 'home'}>
       <h1>Overview</h1>
       <dl className="home-totals">{Object.entries({ Credits: totals.totalBillPayment, Debits: totals.totalReceived, Balance: totals.remainingPayable }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{money(value)}</dd></div>)}</dl>
-      <nav className="home-cards" aria-label="Cashbook sections">{cards.map((card) => <HomeCard key={card.id} title={card.title} tone={card.tone} onClick={() => navigate(() => {
+      <nav className="home-cards" aria-label="Cashbook actions">{cards.map((card) => <HomeCard key={card.id} title={card.title} tone={card.tone} onClick={() => navigate(() => {
         setHeadMode('manage'); setHeadsFromUsers(false);
         if (card.id === 'attachments') setAttachmentScope('');
         if (card.id === 'statement') setFilters((current) => current.userScope.startsWith('credit:') ? { ...current, userScope: 'all' } : current);
         setPage(card.id);
-      })} icon={<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={card.icon} /></svg>} />)}</nav>
-      <nav className="home-cards" aria-label="New transactions">
+      })} icon={<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={card.icon} /></svg>} />)}
         {([['credit', 'Admin credit', 'green'], ['debit', 'User debit', 'gold']] as const).map(([action, label, tone]) =>
           <HomeCard key={action} title={label} tone={tone} onClick={() => action === 'credit'
             ? navigate(() => { setCreditShortcut(null); setPage('credit'); }) : navigate(() => { setDebitShortcut(''); setPage('debit'); })} icon={

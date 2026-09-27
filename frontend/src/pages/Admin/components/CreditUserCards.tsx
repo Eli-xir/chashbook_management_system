@@ -44,7 +44,7 @@ export function CreditUserCards({ users, selectedId = '', onOpen, onEdit, onChan
       value={search} onChange={(event) => setSearch(event.target.value)} />}
     {error && <p className="text-error" role="alert">{error}</p>}
     {message && <p className="credit-success" role="status">{message}</p>}
-    <div className="admin-credit-cards">{choices.map((user, index) => <HomeCard onAttachments={onAttachments ? () => onAttachments(user) : undefined} key={user.credit_user_id} accountType="external"
+    <div className="home-cards">{choices.map((user, index) => <HomeCard onAttachments={onAttachments ? () => onAttachments(user) : undefined} key={user.credit_user_id} accountType="external"
       title={user.is_active ? user.user_name : `${user.user_name} · Inactive`} description={user.description} detail={user.contacts[0]}
       icon={<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>}
       tone={(['blue', 'gold', 'green', 'purple'] as const)[index % 4]}

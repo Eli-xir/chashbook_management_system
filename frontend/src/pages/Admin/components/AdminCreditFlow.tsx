@@ -77,12 +77,12 @@ export function AdminCreditFlow({ admin, creditUsers, heads, initialCreditUserId
   }
   return <section className="admin-credit-page flex-col gap-md">
     {screen !== 'transaction' && <header className="flex-row items-center gap-sm">
-      <button className="btn" onClick={back} disabled={locked}>← {screen === 'menu' ? 'Home' : screen === 'edit' ? 'External users' : 'Back'}</button>
+      {screen !== 'menu' && <button className="btn" onClick={back} disabled={locked}>← {screen === 'edit' ? 'External users' : 'Back'}</button>}
       <h1>{screen === 'menu' ? 'Admin credit' : screen === 'create' ? 'New external user' : screen === 'edit' ? 'Edit external user' : 'Credit amount'}</h1>
     </header>}
     {notice && screen !== 'transaction' && <p className="credit-success" role="status">{notice}</p>}
     {error && screen !== 'create' && screen !== 'edit' && <p className="text-error" role="alert">{error}</p>}
-    {screen === 'menu' && <nav className="home-cards admin-credit-cards" aria-label="Admin credit options">
+    {screen === 'menu' && <nav className="home-cards" aria-label="Admin credit options">
       {([['create', 'New external user', 'M12 5v14M5 12h14'], ['choose', 'Credit amount', 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5']] as const).map(([target, label, icon]) =>
         <HomeCard key={target} title={label} tone={target === 'create' ? 'blue' : 'green'}
           icon={<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={icon} /></svg>}

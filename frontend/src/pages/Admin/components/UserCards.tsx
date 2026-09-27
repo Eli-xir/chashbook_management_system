@@ -34,7 +34,7 @@ export function UserCards({ users, onOpen, onChanged, search: sharedSearch, mana
     {sharedSearch === undefined && <input type="search" aria-label="Search users" placeholder="Search name, contact or description"
       value={search} onChange={(event) => setSearch(event.target.value)} />}
     {error && !deleting && <p className="text-error" role="alert">{error}</p>}
-    <div className="admin-credit-cards">{choices.map((user, index) => <HomeCard onAttachments={onAttachments ? () => onAttachments(user) : undefined} key={user.user_id}
+    <div className="home-cards">{choices.map((user, index) => <HomeCard onAttachments={!management && onAttachments ? () => onAttachments(user) : undefined} key={user.user_id}
       accountType={user.role === 'admin' ? 'admin' : 'user'} selected={selectedId === user.user_id}
       title={user.is_active ? user.user_name : `${user.user_name} · Inactive`} description={user.description} detail={userContacts(user).join(' · ')}
       tone={(['blue', 'gold', 'green', 'purple'] as const)[index % 4]} disabled={busy} onClick={() => onOpen(user)}
@@ -49,7 +49,10 @@ export function UserCards({ users, onOpen, onChanged, search: sharedSearch, mana
           {user.role !== 'admin' && <button className="btn credit-user-action credit-user-action--danger" disabled={busy} aria-label={`Delete ${user.user_name}`}
             onClick={() => { setError(''); setDeleting(user); }}>Delete</button>}
         </div>
-        {extraActions && <div className="user-management-actions">{extraActions(user, busy)}</div>}
+        {(extraActions || management && onAttachments) && <div className="user-management-actions">
+          {extraActions?.(user, busy)}
+          {management && onAttachments && <button className="btn" disabled={busy} onClick={() => onAttachments(user)}>Attachments</button>}
+        </div>}
       </>} />)}</div>
     {!choices.length && sharedSearch === undefined && <p className="text-muted">No matching users.</p>}
     {editing && <UserEditor user={editing} mode="profile" onClose={() => setEditing(null)}
