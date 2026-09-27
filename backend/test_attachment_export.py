@@ -5,7 +5,9 @@ from unittest.mock import Mock, patch
 from fastapi import HTTPException
 from botocore.exceptions import ClientError
 import storage
-from main import download_attachment
+from main import download_attachment, export_attachments
+from models import AttachmentExport
+from fastapi.responses import Response
 
 
 class AttachmentExportTests(unittest.TestCase):
@@ -45,6 +47,31 @@ class AttachmentExportTests(unittest.TestCase):
         with patch('main.user_permissions', return_value=[]), patch.object(storage, 'response') as response:
             with self.assertRaises(HTTPException):
                 download_attachment(42, db, {'user_role_id': 2, 'user_id': 'other-user'}, export=True)
+            response.assert_not_called()
+
+    def test_batch_returns_all_images_once_and_deduplicates_ids(self):
+        db = Mock()
+        db.execute.return_value.fetchall.return_value = [dict(self.row, attachment_id=i, attachment_type_id=1) for i in (1, 2)]
+        with patch.object(storage, 'response', return_value=Response(b'image')) as response:
+            result = export_attachments(AttachmentExport(ids=[1, 2, 1]), db, {'user_role_id': 1})
+        self.assertEqual(set(result), {'1', '2'})
+        self.assertEqual(response.call_count, 2)
+        self.assertEqual(db.execute.call_args.args[1], ([1, 2],))
+        self.assertTrue(result['1'].startswith('data:image/png;base64,'))
+
+    def test_batch_rejects_non_admin_before_reading_files(self):
+        db = Mock()
+        with self.assertRaises(HTTPException) as caught:
+            export_attachments(AttachmentExport(ids=[1]), db, {'user_role_id': 2})
+        self.assertEqual(caught.exception.status_code, 403)
+        db.execute.assert_not_called()
+
+    def test_batch_rejects_missing_image_before_reading_any_files(self):
+        db = Mock()
+        db.execute.return_value.fetchall.return_value = []
+        with patch.object(storage, 'response') as response:
+            with self.assertRaises(HTTPException):
+                export_attachments(AttachmentExport(ids=[1]), db, {'user_role_id': 1})
             response.assert_not_called()
 
 

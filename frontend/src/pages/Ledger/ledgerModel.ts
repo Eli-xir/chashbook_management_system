@@ -48,6 +48,16 @@ export function headBranchIds(heads: Head[], headId: number | null | undefined):
   }
   return ids;
 }
+export function dateRangeLabel(filters: FiltersState) {
+  return [
+    filters.dateFrom || filters.timeFrom ? `From: ${[filters.dateFrom, filters.timeFrom].filter(Boolean).join(' ')}` : '',
+    filters.dateTo || filters.timeTo ? `To: ${[filters.dateTo, filters.timeTo].filter(Boolean).join(' ')}` : '',
+  ].filter(Boolean).join(' · ');
+}
+export function invalidDateRange(filters: FiltersState) {
+  return !!(filters.dateFrom && filters.dateTo && filters.dateFrom > filters.dateTo)
+    || filters.dateFrom === filters.dateTo && !!filters.timeFrom && !!filters.timeTo && filters.timeFrom > filters.timeTo;
+}
 export function ledgerReport(entries: Transaction[], filters: FiltersState, order: LedgerOrder, heads: Head[] = [], company = false) {
   const entryDirection = (entry: Transaction) => direction(entry, company);
   const day = (value: string) => {

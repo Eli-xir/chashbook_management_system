@@ -28,16 +28,7 @@ function remember(data: State) { headRevision = data.headRevision; return data; 
 
 // The sole frontend/backend boundary. Components keep their existing interfaces.
 export const cashbookApi = {
-  attachmentBlob: async (id: string): Promise<Blob> => {
-    let response: Response;
-    try { response = await fetch(`${apiBase}/attachments/${encodeURIComponent(id)}?export=true`, { credentials: 'same-origin' }); }
-    catch { throw new Error('Could not reach attachment storage. Check your connection and retry.'); }
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      throw new Error(typeof body?.detail === 'string' ? body.detail : 'Could not download attachment. Refresh your session and retry.');
-    }
-    return response.blob();
-  },
+  attachmentImages: (ids: string[]) => request<Record<string, string>>('/attachments/export', { method: 'POST', body: JSON.stringify({ ids: ids.map(Number) }) }),
   currentSession: () => request<AppSession | null>('/session'),
   signIn: (username: string, password: string) => request<AppSession>('/session', { method: 'POST', body: JSON.stringify({ username, password }) }),
   signOut: () => request('/session', { method: 'DELETE' }),

@@ -58,7 +58,7 @@ export function ReportActions({ getReport, disabled = false }: { getReport: () =
 
   return <>
     <button className="btn" disabled={disabled} onClick={() => {
-      setReady(null); setError(''); setZoom('fit'); setReport(getReport());
+      setReady(null); setError(''); setZoom('fit'); setReport({ ...getReport(), printedAt: new Date().toLocaleString() });
     }}>Preview / export</button>
     {report && <Dialog className="report-preview" title="Ledger preview" busy={sharing} onClose={() => setReport(null)}>
       <div className="flex-row flex-wrap items-center gap-sm">

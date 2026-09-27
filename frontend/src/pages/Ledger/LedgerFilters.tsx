@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { AdminUser, CreditUser, FiltersState, Head } from '../Admin/types';
 import { UserPicker } from '../Admin/components/UserPicker';
 import { Dialog } from '../Admin/components/Dialog';
-import { creditUserScope } from './ledgerModel';
+import { creditUserScope, invalidDateRange } from './ledgerModel';
 
 export function LedgerFilters({ column, filters, heads, users, creditUsers = [], onChange, includeTime = false }: {
   includeTime?: boolean; column: string; filters: FiltersState; heads: Head[]; users: AdminUser[]; creditUsers?: CreditUser[]; onChange: (filters: FiltersState) => void;
@@ -62,7 +62,7 @@ export function LedgerFilters({ column, filters, heads, users, creditUsers = [],
               <input type="time" value={filters[key] ?? ''} onChange={(event) => update({ [key]: event.target.value })} /></label>)}
           </div>}
           </fieldset>
-          {filters.dateFrom && filters.dateTo && filters.dateFrom > filters.dateTo && <p className="text-error" role="alert">From must be on or before To.</p>}
+          {invalidDateRange(filters) && <p className="text-error" role="alert">From date/time must be on or before To.</p>}
         </div>}
       <div className="flex-row justify-end gap-sm">
         <button className="btn" onClick={() => { update(column === 'Head' ? { headId: null } : column === 'User' ? { userScope: 'all' } : column === 'Description' ? { description: '' } : { dateFrom: '', dateTo: '', timeFrom: '', timeTo: '' }); setOpen(false); }}>Clear</button>

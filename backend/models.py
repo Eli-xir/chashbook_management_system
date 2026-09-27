@@ -127,3 +127,7 @@ class TransactionChange(Model):
 
 
 Change = Annotated[HeadsChange | PermissionsChange | UserChange | CreditUserChange | TransactionChange, Field(discriminator='op')]
+
+
+class AttachmentExport(Model):
+    ids: list[Annotated[int, Field(gt=0)]] = Field(min_length=1, max_length=1000)

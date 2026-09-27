@@ -4,7 +4,7 @@ import logoUrl from '../../assets/logo.jpeg';
 import type { CellInput } from 'jspdf-autotable';
 
 export interface ReportDocument {
-  title: string; subtitle: string; columns: string[]; pages: (string | number)[][][];
+  title: string; subtitle: string; printedAt?: string; columns: string[]; pages: (string | number)[][][];
 }
 export function creditDocument(overview: UserOverview, userName: string): ReportDocument {
   // Input is the userOverview response, which contains received credits only.
@@ -76,7 +76,8 @@ export async function ledgerFile(report: ReportDocument, format: ReportFormat): 
     sheet.mergeCells(3, 2, 3, last); sheet.getCell(3, 2).value = report.subtitle || 'Ledger';
     sheet.addImage(book.addImage({ base64: logo, extension: 'png' }), { tl: { col: 0, row: 0 }, ext: { width: 72, height: 72 } });
     sheet.getRow(1).font = { bold: true, size: 14 }; sheet.getRow(2).font = { bold: true, size: 12 };
-    sheet.addRow([]);
+    sheet.addRow([`Printed: ${report.printedAt ?? new Date().toLocaleString()}`]);
+    sheet.mergeCells(4, 1, 4, last);
     const header = sheet.addRow(report.columns);
     header.font = { bold: true, color: { argb: 'FF000000' } };
     const headerRows = sheet.rowCount;
@@ -136,7 +137,7 @@ export async function ledgerFile(report: ReportDocument, format: ReportFormat): 
     for (let page = 1; page <= pdf.getNumberOfPages(); page++) {
       pdf.setPage(page); pdf.setDrawColor(220); pdf.setLineWidth(.2); pdf.line(12, 281, 198, 281);
       pdf.setFont('helvetica', 'normal'); pdf.setFontSize(7); pdf.setTextColor(0);
-      pdf.text('Sohail Malik Architects', 12, 286);
+      pdf.text(`Printed: ${report.printedAt ?? new Date().toLocaleString()}`, 12, 286);
       pdf.text(`Page ${page} of ${pdf.getNumberOfPages()}`, 198, 286, { align: 'right' });
     }
     return new File([pdf.output('blob')], `${name}.pdf`, { type: 'application/pdf' });
@@ -156,6 +157,6 @@ export function reportHtml(report: ReportDocument) {
   const escape = (value: string | number) => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Ledger</title><style>
     @page{size:A4 portrait;margin:0}*{box-sizing:border-box}body{margin:0;padding:16px;background:white;font:11px Arial;color:black}.page{width:794px;min-height:1123px;padding:45px;margin:0 auto 20px;background:white;display:flex;flex-direction:column;break-after:page}.page:last-child{break-after:auto}.brand{display:flex;align-items:center;gap:20px}.brand img{width:90px;height:90px;object-fit:contain;filter:grayscale(1) invert(1) contrast(3)}.brand strong{font-size:15px;letter-spacing:1px}.eyebrow{color:black;font-size:10px;letter-spacing:1px;margin-top:10px}h1{font-size:22px;margin:8px 0}.subtitle{color:black;line-height:1.5}.rule{height:1px;background:black;margin:16px 0}table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:10px}th,td{padding:8px 6px;border:1px solid #deded8;text-align:left;overflow-wrap:anywhere;vertical-align:top}th{background:white;color:black;font-weight:600}thead{display:table-header-group}tr{break-inside:avoid}.summary{font-weight:bold}.number{text-align:right;font-variant-numeric:tabular-nums}footer{margin-top:auto;padding-top:28px;color:black;font-size:10px;display:flex;justify-content:space-between}footer span{border-top:1px solid #ddd;padding-top:10px;flex:1}footer span:last-child{text-align:right}@media print{body{padding:0;background:white}.page{margin:0;width:210mm;min-height:297mm}}
-    </style></head><body>${report.pages.map((page, index) => `<section class="page"><header class="brand"><img src="${escape(new URL(logoUrl, window.location.href).href)}" alt="Sohail Malik Architects"><div><strong>SOHAIL MALIK ARCHITECTS</strong><div class="eyebrow">ACCOUNT STATEMENT</div><h1>${escape(report.title)}</h1></div></header>${report.subtitle ? `<p class="subtitle">${escape(report.subtitle)}</p>` : ''}<div class="rule"></div><table><colgroup>${columnWidths(report).map((width) => `<col style="width:${width / 186 * 100}%">`).join('')}</colgroup><thead><tr>${report.columns.map((cell) => `<th>${escape(cell)}</th>`).join('')}</tr></thead><tbody>${page.map((row) => { const span = labelSpan(report, row); return `<tr class="${span > 1 ? 'summary' : ''}">${row.map((cell, column) => column > 0 && column < span ? '' : `<td${column === 0 && span > 1 ? ` colspan="${span}"` : ''} class="${typeof cell === 'number' ? 'number' : ''}">${escape(numeric(cell))}</td>`).join('')}</tr>`; }).join('')}</tbody></table><footer><span>Sohail Malik Architects</span><span>Page ${index + 1} of ${report.pages.length}</span></footer></section>`).join('')}</body></html>`;
+    </style></head><body>${report.pages.map((page, index) => `<section class="page"><header class="brand"><img src="${escape(new URL(logoUrl, window.location.href).href)}" alt="Sohail Malik Architects"><div><strong>SOHAIL MALIK ARCHITECTS</strong><div class="eyebrow">ACCOUNT STATEMENT</div><h1>${escape(report.title)}</h1></div></header>${report.subtitle ? `<p class="subtitle">${escape(report.subtitle)}</p>` : ''}<div class="rule"></div><table><colgroup>${columnWidths(report).map((width) => `<col style="width:${width / 186 * 100}%">`).join('')}</colgroup><thead><tr>${report.columns.map((cell) => `<th>${escape(cell)}</th>`).join('')}</tr></thead><tbody>${page.map((row) => { const span = labelSpan(report, row); return `<tr class="${span > 1 ? 'summary' : ''}">${row.map((cell, column) => column > 0 && column < span ? '' : `<td${column === 0 && span > 1 ? ` colspan="${span}"` : ''} class="${typeof cell === 'number' ? 'number' : ''}">${escape(numeric(cell))}</td>`).join('')}</tr>`; }).join('')}</tbody></table><footer><span>Printed: ${escape(report.printedAt ?? new Date().toLocaleString())}</span><span>Page ${index + 1} of ${report.pages.length}</span></footer></section>`).join('')}</body></html>`;
 }
 

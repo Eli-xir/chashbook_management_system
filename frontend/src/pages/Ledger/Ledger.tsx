@@ -3,7 +3,7 @@ import type { EvidenceRecord } from './attachmentReport';
 import { useEffect, useState } from 'react';
 import type { AdminUser, FiltersState, Head, Transaction } from '../Admin/types';
 import { cashbookApi } from '../../data/cashbookApi';
-import { direction, headBranchIds, headPath, ledgerReport, matchesUserScope, money } from './ledgerModel';
+import { dateRangeLabel, invalidDateRange, direction, headBranchIds, headPath, ledgerReport, matchesUserScope, money } from './ledgerModel';
 import type { LedgerOrder } from './ledgerModel';
 import { ReportActions } from './ReportActions';
 import type { ReportDocument } from './ledgerExport';
@@ -28,7 +28,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   const [draft, setDraft] = useState({ scope, filters });
   const draftFilters = draft.scope === scope ? draft.filters : filters;
   const pendingFilters = filterKey(draftFilters) !== scope;
-  const invalidDraftDates = !!draftFilters.dateFrom && !!draftFilters.dateTo && draftFilters.dateFrom > draftFilters.dateTo;
+  const invalidDraftDates = invalidDateRange(draftFilters);
   function stageFilters(next: FiltersState) { setDraft({ scope, filters: next }); }
   function applyFilters() {
     if (!pendingFilters || invalidDraftDates) return;
@@ -68,8 +68,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   const title = company ? 'Company Statement' : filters.userScope === 'all' ? 'Users Statement' : userName(filters.userScope);
   const receivedLabel = `Total received by ${filters.userScope === 'all' ? 'users' : userName(filters.userScope)}`;
   const branchLabel = filters.headId == null ? '' : `${headPath(reportHeads, filters.headId)} · Includes subheads`;
-  const dateLabel = filters.dateFrom && filters.dateTo ? `${filters.dateFrom} to ${filters.dateTo}`
-    : filters.dateFrom ? `From ${filters.dateFrom}` : filters.dateTo ? `Through ${filters.dateTo}` : '';
+  const dateLabel = dateRangeLabel(filters);
   const subtitle = [branchLabel, dateLabel, company && filters.userScope !== 'all' ? userName(filters.userScope) : '', filters.description ? `Description: ${filters.description}` : ''].filter(Boolean).join(' · ');
   const columns = ['Date/time', 'User', 'Entered by', 'Head', 'Description', 'Credit', 'Debit', 'Balance'];
   const entryCells = (entry: Transaction, balance: number): (string | number)[] => [
@@ -98,11 +97,11 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
     return rows;
   }
   function exportReport(): ReportDocument {
-    return { title, subtitle, columns, pages: Array.from({ length: pageCount }, (_, index) => pageRows(index).map((row) => row.cells)) };
+    return { title, subtitle, printedAt: new Date().toLocaleString(), columns, pages: Array.from({ length: pageCount }, (_, index) => pageRows(index).map((row) => row.cells)) };
   }
   const summary = company ? { Credits: report.totalBillPayment, Debits: report.totalReceived, Balance: report.remainingPayable }
     : { [receivedLabel]: report.totalReceived, 'Total paid': report.totalBillPayment, 'Remaining balance': -report.remainingPayable };
-  const invalidDates = !!filters.dateFrom && !!filters.dateTo && filters.dateFrom > filters.dateTo;
+  const invalidDates = invalidDateRange(filters);
   return <div className="ledger-view flex-col gap-md">
     {!attachmentReview && <h1>{title}</h1>}
     {(subtitle || !attachmentReview && filters.userScope !== 'all') && <div className="active-filters flex-row flex-wrap gap-sm"><span>{[subtitle, !company && filters.userScope !== 'all' ? userName(filters.userScope) : ''].filter(Boolean).join(' · ')}</span></div>}
@@ -119,9 +118,9 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
       <button className="btn" onClick={() => stageFilters({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' })}>Clear filters</button>
       {pendingFilters && <button className="btn" onClick={() => stageFilters(filters)}>Discard changes</button>}
     </div>
-    {pendingFilters && <p className={invalidDraftDates ? 'text-error' : 'text-muted'} role="status">{invalidDraftDates ? 'Choose an end date on or after the start date.' : 'Filter changes ready to apply.'}</p>}
+    {pendingFilters && <p className={invalidDraftDates ? 'text-error' : 'text-muted'} role="status">{invalidDraftDates ? 'Choose an end date/time on or after the start.' : 'Filter changes ready to apply.'}</p>}
     {error && <p role="alert" className="text-error">{error} <button className="btn" onClick={() => setReload((value) => value + 1)}>Reload</button></p>}
-    {invalidDates ? <p role="alert">Choose an end date on or after the start date.</p> : !data ? <p>Loading ledger…</p> : <>
+    {invalidDates ? <p role="alert">Choose an end date/time on or after the start.</p> : !data ? <p>Loading ledger…</p> : <>
       <dl className="ledger-totals">
         {Object.entries(summary).map(([label, value]) => <div key={label}
           >
@@ -135,7 +134,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
         <div className="ledger-total">{currentPage + 1 === pageCount ? 'Closing balance' : 'Page carried forward'} · {money(report.rows[Math.min((currentPage + 1) * pageSize, report.rows.length) - 1]?.balance ?? report.opening)}</div>
       </> : <>
       <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{columns.map((label) => <th key={label}
-        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{(company ? ['Date/time', 'Description'] : ['Date/time', 'User', 'Head', 'Description']).includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} users={data.users} includeTime={!!attachmentReview} creditUsers={company || attachmentReview ? data.creditUsers : []} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
+        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{(company ? ['Date/time', 'Description'] : ['Date/time', 'User', 'Head', 'Description']).includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} users={data.users} includeTime creditUsers={company || attachmentReview ? data.creditUsers : []} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
         {pageRows(currentPage).map(({ cells, entry: rowEntry }, index) => {
           return <tr key={rowEntry ? `transaction:${rowEntry.id}` : `total:${index}`} className={rowEntry ? 'ledger-entry' : 'ledger-total'} onClick={() => { if (rowEntry) openEntry(rowEntry); }}>
             {cells.map((value, column) => <td key={column}>{column === 0 && rowEntry ? <button className="ledger-row-link" onClick={() => openEntry(rowEntry)}>{value}</button> : typeof value === 'number' ? money(value) : value}</td>)}

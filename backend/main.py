@@ -1,5 +1,6 @@
 """Run locally: uvicorn main:app --reload"""
 import os
+import base64
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal
@@ -10,7 +11,7 @@ from fastapi import Depends, FastAPI, File, Form, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 
 from db import UPLOADS, connect, initialize, password_hash, password_matches
-from models import Change, Login
+from models import Change, Login, AttachmentExport
 from service import apply_change, attachment, overview, require, state, user_permissions
 import storage
 
@@ -197,3 +198,22 @@ def download_attachment(attachment_id: int, db: DB, actor: Actor, export: bool =
     if not storage.BUCKET:
         require((UPLOADS / row['attachment_url']).is_file(), 'Attachment file is missing.', 404)
     return storage.response(row, export=export)
+
+
+@app.post('/api/attachments/export')
+def export_attachments(value: AttachmentExport, db: DB, actor: Actor):
+    require(actor['user_role_id'] == 1, 'Administrator access required.', 403)
+    ids = list(dict.fromkeys(value.ids))
+    rows = db.execute('SELECT * FROM attachments WHERE attachment_id=ANY(%s)', (ids,)).fetchall()
+    require(len(rows) == len(ids), 'An attachment is missing. Refresh and retry.', 404)
+    require(all(row['attachment_type_id'] == 1 for row in rows), 'Only images can be exported here.')
+    images = {}
+    for row in rows:
+        result = storage.response(row, export=True)
+        if hasattr(result, 'path'):
+            require(Path(result.path).is_file(), 'Attachment file is missing.', 404)
+            content = Path(result.path).read_bytes()
+        else:
+            content = result.body
+        images[str(row['attachment_id'])] = f"data:{row['content_type']};base64,{base64.b64encode(content).decode('ascii')}"
+    return images

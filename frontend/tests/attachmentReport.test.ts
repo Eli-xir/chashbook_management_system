@@ -36,24 +36,40 @@ test('Description and user-statement credit filters include admin payments witho
 });
 
 const document = {
-  title: 'Test statement', subtitle: '',
+  title: 'Test statement', subtitle: 'From: 2026-09-20 09:00 | To: 2026-09-27 18:00', printedAt: '2026-09-27 19:00',
   columns: ['Date/time', 'User', 'Entered by', 'Head', 'Description', 'Credit', 'Debit', 'Balance'],
   pages: [[['Balance brought forward', '', '', '', '', '', '', 0], ['Totals / closing balance', '', '', '', '', 100, 0, 100]]],
 };
 test('Combined PDF retains headless entries without media and long descriptions across pages', async () => {
   const entry = { ...base, attachments: [] };
-  const description = 'START ' + 'Detailed transaction notes '.repeat(200) + ' FINISH';
+  const description = 'START ' + 'Detailed transaction notes '.repeat(600) + ' FINISH';
   const file = await attachmentPdf([{ entry, cells: ['2026-09-20', 'Ali', 'Admin', 'No head', description, 100, '', 100] }], document, 4,
     async () => { throw new Error('No download should be attempted'); });
   const pdf = await file.text();
   assert.equal(file.type, 'application/pdf');
+  assert.match(pdf, /From: 2026-09-20 09:00/);
+  assert.match(pdf, /To: 2026-09-27 18:00/);
+  assert.match(pdf, /Printed: 2026-09-27 19:00/);
   assert.match(pdf, /START/);
   assert.match(pdf, /FINISH/);
   assert.match(pdf, /No attachments/);
   assert.match(pdf, /Totals \/ closing balance/);
   assert.ok((pdf.match(/\/Type \/Page\b/g) ?? []).length > 1);
 });
-test('Combined PDF reports a failed attachment by name instead of exporting an incomplete statement', async () => {
+test('Combined PDF fails rather than exporting an incomplete batch', async () => {
   await assert.rejects(attachmentPdf([{ entry: base, cells: ['2026-09-20', 'Ali', 'Admin', '', '', 100, '', 100] }], document, 4,
-    async () => { throw new Error('Storage unavailable'); }), /Receipt: Storage unavailable/);
+    async () => { throw new Error('Storage unavailable'); }), /Storage unavailable/);
+});
+
+test('Export downloads all unique images in exactly one call', async () => {
+  let calls = 0;
+  await assert.rejects(attachmentPdf([
+    { entry: { ...base, attachments: [image, { ...image, id: '2' }] }, cells: ['First'] },
+    { entry: base, cells: ['Second'] },
+  ], document, 4, async (ids) => {
+    calls++;
+    assert.deepEqual(ids, ['1', '2']);
+    return {};
+  }), /missing from the export response/);
+  assert.equal(calls, 1);
 });

@@ -23,7 +23,7 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
   const [images, setImages] = useState<Attachment[]>([]);
   const [imageIndex, setImageIndex] = useState<number | null>(null);
   const [zoom, setZoom] = useState(1);
-  const [perPage, setPerPage] = useState(4);
+  const [perPage, setPerPage] = useState(2);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [pdf, setPdf] = useState<File | null>(null);
@@ -42,7 +42,7 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
   
   async function prepare(records: EvidenceRecord[], document: ReportDocument) {
     setBusy(true); setError('');
-    try { setPdf(await attachmentPdf(records, document, perPage, cashbookApi.attachmentBlob)); }
+    try { setPdf(await attachmentPdf(records, document, perPage, cashbookApi.attachmentImages)); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not prepare images.'); }
     finally { setBusy(false); }
   }
