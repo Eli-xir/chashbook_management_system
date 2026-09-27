@@ -171,3 +171,10 @@ textarea { min-height: 90px; resize: vertical; }
   .home-card, .user-card-panel, .dialog-panel { padding: 18px; }
   .home-card { gap: 16px; font-size: .95rem; }
 }
+@media (max-width: 600px) {
+  .home-card { aspect-ratio: auto; padding: 12px; gap: 10px; font-size: .85rem; }
+  .home-card:not(.credit-user-card) { min-height: 112px; }
+  .home-card > svg, .user-card-art { width: 34px; height: 34px; }
+  .user-card-art > svg { width: 30px; height: 30px; }
+  .user-card-list { gap: 10px; }
+}

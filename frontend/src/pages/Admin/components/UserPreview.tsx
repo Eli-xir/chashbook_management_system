@@ -11,7 +11,6 @@ import { ReportActions } from '../../Ledger/ReportActions';
 import { money } from '../../Ledger/ledgerModel';
 
 type Screen = 'home' | 'heads' | 'images' | 'voice' | 'description' | 'review';
-const formatAmount = (value: number) => money(value);
 const ignoreChange = (_value: boolean) => {};
 
 export function UserPreview({ user, heads, assigned, pending, onClose, preview = true, adminCredit = false, creditUser, transactionLabel = 'Credit', onSubmitted, onRefresh,
@@ -220,7 +219,7 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
         <div className="user-card-panel flex-col gap-md">
           <dl className="review-details">
             {adminCredit && <><dt>{creditUser ? 'Received from' : 'Recipient'}</dt><dd>{creditUser?.user_name ?? user.user_name}</dd></>}
-            <dt>Amount</dt><dd>{formatAmount(Number(amount))}</dd>
+            <dt>Amount</dt><dd>{money(Number(amount))}</dd>
             <dt>Description</dt><dd>{description || '—'}</dd>
             {!adminCredit && <><dt>Head</dt><dd>{selectedHead?.head_name ?? 'Head no longer available'}</dd></>}
           </dl>
@@ -245,15 +244,15 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
           <ReportActions getReport={() => creditDocument(overview, user.user_name)} />
         </div>
         <dl className="user-card-panel flex-col gap-md">
-          <div><dt>Total received</dt><dd className="credit-amount">{formatAmount(overview.totalReceived)}</dd></div>
-          <div><dt>Total paid</dt><dd>{formatAmount(overview.totalBillPayment)}</dd></div>
-          <div><dt>Remaining balance</dt><dd className="credit-amount">{formatAmount(overview.balance)}</dd></div>
+          <div><dt>Total received</dt><dd className="credit-amount">{money(overview.totalReceived)}</dd></div>
+          <div><dt>Total paid</dt><dd>{money(overview.totalBillPayment)}</dd></div>
+          <div><dt>Remaining balance</dt><dd className="credit-amount">{money(overview.balance)}</dd></div>
         </dl>
         {!overview.credits.length && <p className="text-muted empty-state">No credits received yet.</p>}
         {overview.credits.map((credit) => <button key={credit.id} className="user-card-panel credit-card flex-col gap-sm" onClick={() => setOpenedCredit(credit)}>
           <div className="flex-row items-center justify-between gap-sm">
             <span>Credit received</span>
-            <strong className="credit-amount">+{formatAmount(credit.amount)}</strong>
+            <strong className="credit-amount">+{money(credit.amount)}</strong>
           </div>
           <time className="hint text-muted" dateTime={credit.createdAt}>{new Date(credit.createdAt).toLocaleString()}</time>
           {(credit.headPath || credit.description) && <span className="hint text-muted">{[credit.headPath, credit.description].filter(Boolean).join(' · ')}</span>}
