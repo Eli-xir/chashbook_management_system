@@ -1,3 +1,4 @@
+import { Icon } from '../../../Icon';
 import { useEffect, useRef, useState } from 'react';
 import type { Attachment } from '../types';
 import { cashbookApi } from '../../../data/cashbookApi';
@@ -115,7 +116,7 @@ export function AttachmentInput({ kind, items, onChange, onBusyChange, multiple 
             else if (kind === 'image') fileInput.current?.click();
             else void record();
           }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+            <Icon size={26} strokeWidth="1.7">
               {recording ? <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" /> : kind === 'image' ? <>
                 <rect x="3" y="3" width="18" height="18" rx="3" />
                 <circle cx="8" cy="8" r="1.5" />
@@ -124,7 +125,7 @@ export function AttachmentInput({ kind, items, onChange, onBusyChange, multiple 
                 <rect x="9" y="2" width="6" height="13" rx="3" />
                 <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" />
               </>}
-            </svg>
+            </Icon>
         </button>
         <p className="attachment-prompt">{kind === 'image'
           ? `Drag ${multiple ? 'images' : 'an image'} here or choose below`

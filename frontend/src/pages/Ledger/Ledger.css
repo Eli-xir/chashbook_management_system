@@ -1,7 +1,8 @@
 .ledger-toolbar { align-items: end; }
 .filter-apply--pending { box-shadow: 0 0 12px #c9a22766; border-color: var(--color-gold); }
-.date-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.date-range-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.date-presets, .date-range-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.date-presets { gap: 8px; }
+.date-range-fields { gap: 12px; }
 @media (max-width: 360px) { .date-range-fields { grid-template-columns: 1fr; } }
 .ledger-totals { display: flex; flex-wrap: wrap; gap: 20px; border-block: 1px solid var(--color-line); padding-block: 12px; }
 .ledger-totals dt { color: var(--color-text-muted); font-size: .8rem; }

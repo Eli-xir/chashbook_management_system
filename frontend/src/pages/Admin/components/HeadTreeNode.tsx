@@ -1,3 +1,4 @@
+import { Icon } from '../../../Icon';
 import { useEffect, useRef, useState } from 'react';
 import type { Head, HeadNode } from '../types';
 import { NewHeadName } from './NewHeadName';
@@ -110,12 +111,12 @@ export function HeadTreeNode({ node, mergeMode, selected, destination, onSelect,
               aria-label={`Allow transactions for ${node.head_name}`} aria-pressed={node.is_transactionable}
               title={`Transactions ${node.is_transactionable ? 'enabled — tap to disable' : 'disabled — tap to enable'}`}
               onClick={(event) => { event.preventDefault(); event.stopPropagation(); onToggleTransactionable(node); }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+              <Icon size={18} strokeWidth="1.8">
                 <rect x="3" y="5" width="18" height="14" rx="2" />
                 <circle cx="12" cy="12" r="3" />
                 <path d="M6 12h1m10 0h1" />
                 {!node.is_transactionable && <path d="M3 3l18 18" />}
-              </svg>
+              </Icon>
             </button>}
             {onEdit && <button type="button" className="head-edit" aria-label={`Edit ${node.head_name}`}
               title="Edit or delete head" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onEdit(node); }}>✎</button>}

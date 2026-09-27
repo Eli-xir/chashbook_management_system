@@ -1,3 +1,4 @@
+import { Icon } from '../../../Icon';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AdminUser, UserAction } from '../types';
@@ -38,7 +39,7 @@ export function UserCards({ users, onOpen, onChanged, search: sharedSearch, mana
       accountType={user.role === 'admin' ? 'admin' : 'user'} selected={selectedId === user.user_id}
       title={user.is_active ? user.user_name : `${user.user_name} · Inactive`} description={user.description} detail={userContacts(user).join(' · ')}
       tone={(['blue', 'gold', 'green', 'purple'] as const)[index % 4]} disabled={busy} onClick={() => onOpen(user)}
-      icon={<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></svg>}
+      icon={<Icon size={42}><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></Icon>}
       actions={<>
         <div className={`credit-user-actions${user.role === 'admin' ? ' credit-user-actions--admin' : ''}`} role="group" aria-label={`${user.user_name} actions`}>
           {user.role !== 'admin' && <button className="btn credit-user-action" disabled={busy || !user.is_active} aria-pressed={!!user.is_pinned}

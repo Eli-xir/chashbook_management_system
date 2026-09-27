@@ -1,3 +1,4 @@
+import { Icon } from '../../Icon';
 import { useState } from 'react';
 import type { CashbookData, AdminUser, CreateUserInput, FiltersState, Head, StagedChange, UserAction, UserProfile } from './types';
 import { HeadsTab } from './components/HeadsTab';
@@ -116,13 +117,13 @@ export function AdminPage(props: AdminPageProps) {
         if (card.id === 'attachments') setAttachmentScope('');
         if (card.id === 'statement') setFilters((current) => current.userScope.startsWith('credit:') ? { ...current, userScope: 'all' } : current);
         setPage(card.id);
-      })} icon={<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={card.icon} /></svg>} />)}
+      })} icon={<Icon size={46} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d={card.icon} /></Icon>} />)}
         {([['credit', 'Admin credit', 'green'], ['debit', 'User debit', 'gold']] as const).map(([action, label, tone]) =>
           <HomeCard key={action} title={label} tone={tone} onClick={() => action === 'credit'
             ? navigate(() => { setCreditShortcut(null); setPage('credit'); }) : navigate(() => { setDebitShortcut(''); setPage('debit'); })} icon={
-            <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <Icon size={46} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
               <path d={action === 'credit' ? 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5' : 'M12 15V3m-5 5 5-5 5 5M4 16v5h16v-5'} />
-            </svg>} />)}
+            </Icon>} />)}
       </nav>
       {!!(pinnedUsers.length || pinnedExternal.length) && <section className="pinned-credit-users flex-col gap-md">
         <h2>Pinned users</h2>

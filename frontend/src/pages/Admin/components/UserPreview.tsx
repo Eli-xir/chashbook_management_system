@@ -1,3 +1,4 @@
+import { Icon } from '../../../Icon';
 import { useEffect, useRef, useState } from 'react';
 import type { AdminUser, Attachment, CreditUser, Head, Transaction, UserOverview } from '../types';
 import { permittedHeads } from '../utils/permissions';
@@ -190,9 +191,9 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
           }}>
             <span className="user-card-art" aria-hidden="true">
               {item.image ? <img src={item.image} alt="" /> :
-                <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <Icon size={46}>
                   <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3Z" />
-                </svg>}
+                </Icon>}
             </span>
             <span className="user-card-label">{item.name}</span>
           </button>)}

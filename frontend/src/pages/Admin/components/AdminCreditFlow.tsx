@@ -1,3 +1,4 @@
+import { Icon } from '../../../Icon';
 import { useEffect, useState } from 'react';
 import type { AdminUser, CreditUser, Head } from '../types';
 import { cashbookApi } from '../../../data/cashbookApi';
@@ -85,7 +86,7 @@ export function AdminCreditFlow({ admin, creditUsers, heads, initialCreditUserId
     {screen === 'menu' && <nav className="home-cards" aria-label="Admin credit options">
       {([['create', 'New external user', 'M12 5v14M5 12h14'], ['choose', 'Credit amount', 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5']] as const).map(([target, label, icon]) =>
         <HomeCard key={target} title={label} tone={target === 'create' ? 'blue' : 'green'}
-          icon={<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={icon} /></svg>}
+          icon={<Icon size={46} strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></Icon>}
           onClick={() => { setNotice(''); setError(''); setScreen(target); }} />)}
     </nav>}
     {(screen === 'create' || screen === 'edit') && <form className="admin-credit-form user-card-panel flex-col gap-md" onSubmit={(event) => { event.preventDefault(); void save(); }}>

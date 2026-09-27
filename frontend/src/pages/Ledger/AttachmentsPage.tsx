@@ -1,3 +1,4 @@
+import { Icon } from '../../Icon';
 import { cashbookApi } from '../../data/cashbookApi';
 import { useEffect, useState } from 'react';
 import type { AdminUser, CreditUser, FiltersState, Head, Attachment } from '../Admin/types';
@@ -67,7 +68,7 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
       <div className="home-cards">{people.filter((user) => matchesUser(user, search)).map((user, index) => <HomeCard key={user.id}
         title={user.user_name} description={user.description} detail={user.is_active ? undefined : 'Inactive'} accountType={user.type}
         tone={(['blue', 'gold', 'green', 'purple'] as const)[index % 4]} actions={<span className="hint">{user.type === 'external' ? 'External user' : 'User'}</span>}
-        icon={<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M5 3h14v18H5zM8 7h8M8 11h8M8 15h4" /></svg>}
+        icon={<Icon size={42}><path d="M5 3h14v18H5zM8 7h8M8 11h8M8 15h4" /></Icon>}
         onClick={() => { setScope(user.id); setFilters({ ...empty, userScope: user.id }); setImageIndex(null); }} />)}</div>
       {!people.some((user) => matchesUser(user, search)) && <p>No matching users.</p>}
     </> : <>

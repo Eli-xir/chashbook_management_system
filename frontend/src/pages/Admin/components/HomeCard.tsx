@@ -1,3 +1,4 @@
+import { Icon } from '../../../Icon';
 import type { ReactNode } from 'react';
 
 export function HomeCard({ title, icon, tone, onClick, description, detail, actions, accountType, onAttachments, selected = false, disabled = false }: {
@@ -16,14 +17,14 @@ export function HomeCard({ title, icon, tone, onClick, description, detail, acti
   return actions || onAttachments ? <article className={`${className} credit-user-card${selected ? ' credit-user-card--selected' : ''}`}>
     {accountType && <span className="account-type-badge" title={accountType === 'external' ? 'External user' : accountType === 'admin' ? 'Administrator' : 'User'}
       role="img" aria-label={accountType === 'external' ? 'External user' : accountType === 'admin' ? 'Administrator' : 'User'}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+      <Icon size={18} strokeWidth="1.7">
         {accountType === 'external' ? <><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><path d="M3 12h18" /></>
           : accountType === 'admin' ? <path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z" />
           : <><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></>}
-      </svg>
+      </Icon>
     </span>}
     {onAttachments && <button className="btn home-card-attachments" title="View attachments" aria-label={`View attachments for ${title}`} disabled={disabled} onClick={onAttachments}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M21 11.5 12.5 20a6 6 0 0 1-8.5-8.5L13 2.5a4 4 0 0 1 5.5 5.5l-9 9a2 2 0 0 1-3-3L15 5" /></svg>
+      <Icon size={18} strokeWidth="1.7"><path d="M21 11.5 12.5 20a6 6 0 0 1-8.5-8.5L13 2.5a4 4 0 0 1 5.5 5.5l-9 9a2 2 0 0 1-3-3L15 5" /></Icon>
     </button>}
     <button className="home-card-main" onClick={onClick} disabled={disabled}>{content}</button>
     {actions}

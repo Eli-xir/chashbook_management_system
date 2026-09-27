@@ -1,3 +1,4 @@
+import { Icon } from '../../../Icon';
 import { useEffect, useState } from 'react';
 import type { CreditUser } from '../types';
 import { cashbookApi } from '../../../data/cashbookApi';
@@ -46,7 +47,7 @@ export function CreditUserCards({ users, selectedId = '', onOpen, onEdit, onChan
     {message && <p className="credit-success" role="status">{message}</p>}
     <div className="home-cards">{choices.map((user, index) => <HomeCard onAttachments={onAttachments ? () => onAttachments(user) : undefined} key={user.credit_user_id} accountType="external"
       title={user.is_active ? user.user_name : `${user.user_name} · Inactive`} description={user.description} detail={user.contacts[0]}
-      icon={<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>}
+      icon={<Icon size={42}><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></Icon>}
       tone={(['blue', 'gold', 'green', 'purple'] as const)[index % 4]}
       selected={selectedId === user.credit_user_id} disabled={!!busyId || !user.is_active} onClick={() => onOpen(user)} actions={<>
       {!user.is_active ? <button className="btn credit-user-reactivate" disabled={!!busyId}
