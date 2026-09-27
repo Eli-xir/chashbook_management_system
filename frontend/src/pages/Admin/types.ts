@@ -17,6 +17,7 @@ export interface HeadNode extends Head {
 }
 
 export interface AdminUser {
+  is_pinned?: boolean;
   role?: 'admin' | 'user';
   user_id: string;
   user_name: string;
@@ -35,6 +36,8 @@ export interface CreditUser {
 }
 
 export interface FiltersState {
+  timeFrom?: string;
+  timeTo?: string;
   headId?: number | null;
   description?: string;
   dateFrom: string;
@@ -87,7 +90,7 @@ export interface UserProfile { user_name: string; description?: string; contacts
 export interface CreateUserInput extends UserProfile { password: string; }
 export interface Attachment { id: string; kind: 'image' | 'voice'; name: string; url: string; }
 export interface ReferenceType { id: number; name: string; }
-export interface TransactionInput { amount: number; description?: string; headId: number; attachments: Attachment[]; transactionTypeId?: number; }
+export interface TransactionInput { amount: number; description?: string; headId: number | null; attachments: Attachment[]; transactionTypeId?: number; }
 export interface TransactionRevision extends TransactionInput {
   versionId: string; recordedAt: string; editorId: string; action: string; active: boolean;
   headPath?: string;
@@ -105,4 +108,4 @@ export interface CashbookData extends AdminData {
   creditUsers: CreditUser[];
 }
 
-export type UserAction = 'deactivate' | 'reactivate' | 'delete';
+export type UserAction = 'deactivate' | 'reactivate' | 'delete' | 'pin' | 'unpin';

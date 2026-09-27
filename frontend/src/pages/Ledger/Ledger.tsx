@@ -6,18 +6,19 @@ import type { LedgerOrder } from './ledgerModel';
 import { ReportActions } from './ReportActions';
 import type { ReportDocument } from './ledgerExport';
 import { TransactionCard } from './TransactionCard';
-import { AdminTransactionDialog } from '../Admin/components/AdminTransactionDialog';
 import './Ledger.css';
 import { LedgerFilters } from './LedgerFilters';
 
 type LedgerData = Awaited<ReturnType<typeof cashbookApi.ledger>>;
 const filterKey = (filters: FiltersState) => JSON.stringify([
-  filters.dateFrom, filters.dateTo, filters.userScope, filters.direction, filters.headId ?? null, filters.description ?? '',
+  filters.dateFrom, filters.dateTo, filters.userScope, filters.direction, filters.headId ?? null, filters.description ?? '', filters.timeFrom ?? '', filters.timeTo ?? '',
 ]);
-export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilterChange, company = false, onChanged }: {
+export function Ledger({ filters: suppliedFilters, revision, heads, users, onDirtyChange, onFilterChange, company = false, onChanged, attachmentReview }: {
+  attachmentReview?: { onOpen: (entry: Transaction) => void };
   onChanged: () => Promise<void>; company?: boolean; onFilterChange: (filters: FiltersState) => void;
   filters: FiltersState; revision: number; heads: Head[]; users: AdminUser[]; onDirtyChange: (dirty: boolean) => void;
 }) {
+  const filters = company ? { ...suppliedFilters, userScope: 'all', headId: null } : suppliedFilters;
   const [data, setData] = useState<LedgerData | null>(null);
   const [order, setOrder] = useState<LedgerOrder>('by-time');
   const [pagination, setPagination] = useState({ scope: '', page: 0 });
@@ -36,8 +37,6 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
   function setPage(next: number) { setPagination({ scope, page: next }); }
   const [pageSize, setPageSize] = useState(20);
   const [selected, setSelected] = useState<Transaction | null>(null);
-  const [crediting, setCrediting] = useState(false);
-  const [creditUserId, setCreditUserId] = useState('');
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
   const [showInactive, setShowInactive] = useState(false);
@@ -51,7 +50,7 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
   async function refresh() { setData(await cashbookApi.ledger()); await onChanged(); }
   const reportHeads = data?.heads ?? heads;
   const entryDirection = (entry: Transaction) => direction(entry, company);
-  const transactions = (data?.transactions ?? []).filter((entry) => company || !(data?.users ?? users).some((user) => user.user_id === entry.userId && user.role === 'admin'));
+  const transactions = (data?.transactions ?? []).filter((entry) => company || attachmentReview || !(data?.users ?? users).some((user) => user.user_id === entry.userId && user.role === 'admin'));
   const report = ledgerReport(transactions, filters, order, reportHeads, company);
   const branch = headBranchIds(reportHeads, filters.headId);
   const pageCount = Math.max(1, Math.ceil(report.rows.length / pageSize));
@@ -59,6 +58,7 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
   const userName = (id: string) => id.startsWith('credit:')
     ? data?.creditUsers.find((user) => user.credit_user_id === id.slice(7))?.user_name ?? 'Unavailable external user'
     : data?.users.find((user) => user.user_id === id)?.user_name ?? 'Unavailable account';
+  const openEntry = (entry: Transaction) => attachmentReview ? attachmentReview.onOpen(entry) : setSelected(entry);
   const entryUserName = (entry: Transaction) => entry.creditUserId
     ? data?.creditUsers.find((user) => user.credit_user_id === entry.creditUserId)?.user_name ?? 'Unavailable external user'
     : company && (data?.users ?? users).some((user) => user.user_id === entry.userId && user.role === 'admin')
@@ -102,10 +102,7 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
     : { [receivedLabel]: report.totalReceived, 'Total paid': report.totalBillPayment, 'Remaining balance': -report.remainingPayable };
   const invalidDates = !!filters.dateFrom && !!filters.dateTo && filters.dateFrom > filters.dateTo;
   return <div className="ledger-view flex-col gap-md">
-    <div className="flex-row flex-wrap items-center justify-between gap-sm"><h1>{title}</h1>
-      <button className="btn btn--primary" disabled={!data} onClick={() => {
-        setCreditUserId(filters.userScope === 'all' ? '' : filters.userScope); setCrediting(true);
-      }}>{company ? 'Debit users' : 'Credit a user'}</button></div>
+    <h1>{title}</h1>
     {(subtitle || filters.description || filters.userScope !== 'all') && <div className="active-filters flex-row flex-wrap gap-sm"><span>{[subtitle, !company && filters.userScope !== 'all' ? userName(filters.userScope) : ''].filter(Boolean).join(' · ')}</span></div>}
     <div className="ledger-toolbar flex-row flex-wrap gap-sm">
       <label className="field"><span>Entries</span><select value={draftFilters.direction} onChange={(event) => stageFilters({ ...draftFilters, direction: event.target.value as FiltersState['direction'] })}><option value="both">Credits & debits</option><option value="credit">Credits</option><option value="debit">Debits</option></select></label>
@@ -129,10 +126,10 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
           <dt>{label}</dt><dd>{money(value)}</dd></div>)}
       </dl>
       <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{columns.map((label) => <th key={label}
-        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{['Date/time', 'User', 'Head', 'Description'].includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} users={data.users} creditUsers={company ? data.creditUsers : []} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
+        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{(company ? ['Date/time', 'Description'] : ['Date/time', 'User', 'Head', 'Description']).includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} users={data.users} includeTime={!!attachmentReview} creditUsers={company || attachmentReview ? data.creditUsers : []} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
         {pageRows(currentPage).map(({ cells, entry: rowEntry }, index) => {
-          return <tr key={rowEntry ? `transaction:${rowEntry.id}` : `total:${index}`} className={rowEntry ? 'ledger-entry' : 'ledger-total'} onClick={() => { if (rowEntry) setSelected(rowEntry); }}>
-            {cells.map((value, column) => <td key={column}>{column === 0 && rowEntry ? <button className="ledger-row-link" onClick={() => setSelected(rowEntry)}>{value}</button> : typeof value === 'number' ? money(value) : value}</td>)}
+          return <tr key={rowEntry ? `transaction:${rowEntry.id}` : `total:${index}`} className={rowEntry ? 'ledger-entry' : 'ledger-total'} onClick={() => { if (rowEntry) openEntry(rowEntry); }}>
+            {cells.map((value, column) => <td key={column}>{column === 0 && rowEntry ? <button className="ledger-row-link" onClick={() => openEntry(rowEntry)}>{value}</button> : typeof value === 'number' ? money(value) : value}</td>)}
           </tr>;
         })}
       </tbody></table></div>
@@ -142,15 +139,14 @@ export function Ledger({ filters, revision, heads, users, onDirtyChange, onFilte
         <span>Page {currentPage + 1} / {pageCount} · {report.rows.length} entries</span>
         <button className="btn" disabled={currentPage + 1 === pageCount} onClick={() => setPage(currentPage + 1)}>Next</button>
       </div>
-      <details className="disclosure" open={showInactive} onToggle={(event) => setShowInactive(event.currentTarget.open)}><summary>Deactivated entries</summary>
-        {transactions.filter((entry) => !entry.active && matchesUserScope(entry, filters.userScope) && (!branch || branch.has(entry.headId))).map((entry) =>
+      {!attachmentReview && <details className="disclosure" open={showInactive} onToggle={(event) => setShowInactive(event.currentTarget.open)}><summary>Deactivated entries</summary>
+        {transactions.filter((entry) => !entry.active && matchesUserScope(entry, filters.userScope) && (!branch || (entry.headId !== null && branch.has(entry.headId)))).map((entry) =>
           <button className="btn" key={entry.id} onClick={() => setSelected(entry)}>{new Date(entry.createdAt).toLocaleString()} · {entryUserName(entry)} · {money(entry.amount)}</button>)}
-      </details>
+      </details>}
     </>}
     {selected && data && <TransactionCard key={selected.id} entry={selected}
       admin company={company} heads={data.heads} users={data.users} creditUsers={data.creditUsers}
       onClose={() => { setSelected(null); setReload((value) => value + 1); }} onChanged={refresh} />}
-    {crediting && data && <AdminTransactionDialog title={company ? 'Debit users' : 'Credit a user'} users={data.users} heads={data.heads}
-      initialUserId={creditUserId} onClose={() => setCrediting(false)} onSubmitted={refresh} />}
+
   </div>;
 }

@@ -28,7 +28,7 @@ export function TransactionCard({ entry, admin = false, company = false, heads =
   const entryUserName = (item: Transaction) => item.creditUserId
     ? creditUsers.find((user) => user.credit_user_id === item.creditUserId)?.user_name ?? 'Unavailable external user'
     : company && users.some((user) => user.user_id === item.userId && user.role === 'admin') ? 'Source not recorded' : userName(item.userId);
-  const path = (id: number, saved?: string) => saved ?? headPath(heads, id);
+  const path = (id: number | null, saved?: string) => id === null ? '—' : saved || headPath(heads, id);
   async function save() {
     setBusy(true); setError('');
     try {
@@ -58,11 +58,11 @@ export function TransactionCard({ entry, admin = false, company = false, heads =
         </select></label>}
         <label className="field"><span>Amount</span><input type="number" min="0" max="999999999999.99" step="0.01" required value={Number.isNaN(input.amount) ? '' : input.amount}
           onChange={(event) => setInput({ ...input, amount: event.target.valueAsNumber })} /></label>
-        <label className="field"><span>Head</span><select required value={input.headId} onChange={(event) => setInput({ ...input, headId: Number(event.target.value) })}>
+        {input.headId !== null && <label className="field"><span>Head</span><select required value={input.headId ?? 0} onChange={(event) => setInput({ ...input, headId: Number(event.target.value) })}>
           <option value="0" disabled>Choose a head</option>
           {!heads.some((head) => head.head_id === input.headId && head.is_active && head.is_transactionable) && input.headId !== 0 && <option value={input.headId} disabled>Choose an active transactionable head</option>}
           {heads.filter((head) => head.is_active && head.is_transactionable).map((head) => <option key={head.head_id} value={head.head_id}>{headPath(heads, head.head_id)}</option>)}
-        </select></label>
+        </select></label>}
 <label className="field"><span>Description</span><textarea maxLength={4000} value={input.description ?? ''} onChange={(event) => setInput({ ...input, description: event.target.value })} /></label>
       </fieldset>
       {(['image', 'voice'] as const).map((kind) => <section key={kind} className="flex-col gap-sm">
@@ -81,7 +81,7 @@ export function TransactionCard({ entry, admin = false, company = false, heads =
       <dl className="review-details">
         <dt>Date/time</dt><dd>{new Date(current.createdAt).toLocaleString()}</dd>
         {admin && <><dt>User</dt><dd>{entryUserName(current)}</dd><dt>Entered by</dt><dd>{userName(current.createdBy)}</dd></>}
-        <dt>Head</dt><dd>{path(current.headId, current.headPath)}</dd>
+        {current.headId !== null && <><dt>Head</dt><dd>{path(current.headId, current.headPath)}</dd></>}
         <dt>Description</dt><dd>{current.description || '—'}</dd>
         <dt>Type</dt><dd>General</dd>
         {admin && <><dt>Status</dt><dd>{current.active ? 'Active' : 'Deactivated'}</dd></>}

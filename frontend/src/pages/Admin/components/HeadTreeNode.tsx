@@ -7,6 +7,7 @@ interface TreeProps {
   newChild?: { parentId: number | null; name: string; onChange: (name: string) => void; onCommit: () => void; onCancel: () => void };
   mergeMode?: boolean;
   selected?: number | null;
+  destination?: number | null;
   onSelect?: (id: number) => void;
   onStartMove?: (id: number) => void;
   onDrop?: (source: string, target: number | null) => void;
@@ -17,7 +18,7 @@ interface TreeProps {
   onTogglePermission?: (head: Head) => void;
 }
 
-export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEdit, onToggleTransactionable, assigned, onContext, newChild, onTogglePermission, onStartMove }: TreeProps) {
+export function HeadTreeNode({ node, mergeMode, selected, destination, onSelect, onDrop, onEdit, onToggleTransactionable, assigned, onContext, newChild, onTogglePermission, onStartMove }: TreeProps) {
   const lastTap = useRef(0);
   const details = useRef<HTMLDetailsElement>(null);
   const addingHere = newChild?.parentId === node.head_id;
@@ -38,7 +39,7 @@ export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEd
         <summary className={[
           'head-node-row', mergeMode ? 'shake-active' : '',
           assigned ? (assigned.has(node.head_id) ? 'permission-granted' : 'permission-unassigned') : '',
-          dragOver ? 'head-node-row--drag-over' : '', !node.is_active ? 'head-node-row--inactive' : '',
+          dragOver || destination === node.head_id ? 'head-node-row--drag-over' : '', !node.is_active ? 'head-node-row--inactive' : '',
         ].join(' ')}
           onContextMenu={(event) => { if (onContext) { event.preventDefault(); if (pointerType.current === 'mouse') { clearHold(); onContext(node); } } }}
           onPointerDown={(event) => {
@@ -74,6 +75,7 @@ export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEd
             setDragOver(false);
             onDrop?.(event.dataTransfer.getData('text/plain'), node.head_id);
           }}>
+          <span className="head-node-content">
           {node.image_url && <img className="head-icon" src={node.image_url} alt="" />}
           {onTogglePermission ? <button type="button" className="head-node-name" style={{ touchAction: 'manipulation' }}
             aria-pressed={assigned?.has(node.head_id)} title="Double-tap to toggle branch access"
@@ -102,6 +104,7 @@ export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEd
           ) : <span className="head-node-name">{node.head_name}</span>}
           {node.head_description && <span className="head-description" title={node.head_description}>{node.head_description}</span>}
           {!node.is_transactionable && !onToggleTransactionable && <span className="head-node-badge">group</span>}
+          </span>
           {(onEdit || onToggleTransactionable) && <span className="head-actions">
             {onToggleTransactionable && <button type="button" className="head-edit head-transaction-toggle"
               aria-label={`Allow transactions for ${node.head_name}`} aria-pressed={node.is_transactionable}
@@ -122,7 +125,7 @@ export function HeadTreeNode({ node, mergeMode, selected, onSelect, onDrop, onEd
           <ul className="head-node-children">
             {node.children.map((child) => (
               <HeadTreeNode key={child.head_id} node={child} mergeMode={mergeMode}
-                selected={selected} onSelect={onSelect} onStartMove={onStartMove} onDrop={onDrop} onEdit={onEdit}
+                selected={selected} destination={destination} onSelect={onSelect} onStartMove={onStartMove} onDrop={onDrop} onEdit={onEdit}
                 onToggleTransactionable={onToggleTransactionable} assigned={assigned} onContext={onContext} newChild={newChild} onTogglePermission={onTogglePermission} />
             ))}
             {addingHere && newChild && <NewHeadName {...newChild} />}

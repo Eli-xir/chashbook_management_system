@@ -52,7 +52,7 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
     ? head.parent_head_id === null || !visibleIds.has(head.parent_head_id)
     : head.parent_head_id === headId).sort((a, b) => a.head_name.localeCompare(b.head_name));
   const amountValid = amount.trim() !== '' && Number.isSafeInteger(Number(amount)) && Number(amount) > 0 && Number(amount) <= 999999999999;
-  const valid = amountValid && !!selectedHead?.is_transactionable;
+  const valid = amountValid && (adminCredit || !!selectedHead?.is_transactionable);
   const dirty = !previewOnly && (amount !== '' || description !== '' || attachments.length > 0 || screen !== 'home');
   const locked = busy || attachmentBusy;
   const title = screen === 'heads'
@@ -80,13 +80,13 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
     if (locked) return;
     if (screen === 'heads' && path.length) { setPath((current) => current.slice(0, -1)); setSearch(''); setError(''); }
     else go(screen === 'heads' ? 'home'
-      : screen === 'images' ? 'heads' : screen === 'voice' ? 'images' : screen === 'description' ? 'voice' : 'description');
+      : screen === 'images' ? adminCredit ? 'home' : 'heads' : screen === 'voice' ? 'images' : screen === 'description' ? 'voice' : 'description');
   }
   async function submit() {
     if (previewOnly || !valid || pending || !user.is_active || locked) return;
     setBusy(true); setError('');
     try {
-      const input = { amount: Number(amount), description, headId: headId!, attachments };
+      const input = { amount: Number(amount), description, headId: adminCredit ? null : headId!, attachments };
       if (adminCredit) await cashbookApi.creditUser(user.user_id, input, creditUser?.credit_user_id);
       else await cashbookApi.submitTransaction(user.user_id, input);
       setScreen('home'); setAmount(''); setDescription(''); setPath([]); setAttachments([]); setSuccess(true);
@@ -167,7 +167,7 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
         </article>
         <form className="flex-col gap-md" onSubmit={(event) => {
           event.preventDefault();
-          if (amountValid && user.is_active) { setSuccess(false); go('heads'); }
+          if (amountValid && user.is_active) { setSuccess(false); go(adminCredit ? 'images' : 'heads'); }
         }}>
           <label className="user-card-panel home-card--blue field amount-card">
             <span>Enter amount (PKR)</span>
@@ -221,9 +221,9 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
             {adminCredit && <><dt>{creditUser ? 'Received from' : 'Recipient'}</dt><dd>{creditUser?.user_name ?? user.user_name}</dd></>}
             <dt>Amount</dt><dd>{formatAmount(Number(amount))}</dd>
             <dt>Description</dt><dd>{description || '—'}</dd>
-            <dt>Head</dt><dd>{selectedHead?.head_name ?? 'Head no longer available'}</dd>
+            {!adminCredit && <><dt>Head</dt><dd>{selectedHead?.head_name ?? 'Head no longer available'}</dd></>}
           </dl>
-          {!valid && <p role="alert">Go back and check the amount and head.</p>}
+          {!valid && <p role="alert">{adminCredit ? 'Go back and check the amount.' : 'Go back and check the amount and head.'}</p>}
         </div>
         {(['image', 'voice'] as const).map((kind) => attachments.some((item) => item.kind === kind) &&
           <div className="user-card-panel flex-col gap-sm" key={kind}>
@@ -255,7 +255,7 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
             <strong className="credit-amount">+{formatAmount(credit.amount)}</strong>
           </div>
           <time className="hint text-muted" dateTime={credit.createdAt}>{new Date(credit.createdAt).toLocaleString()}</time>
-          <span className="hint text-muted">{credit.headPath} · {credit.description}</span>
+          {(credit.headPath || credit.description) && <span className="hint text-muted">{[credit.headPath, credit.description].filter(Boolean).join(' · ')}</span>}
           {credit.attachments.length > 0 && <span className="hint">{credit.attachments.length} attachments</span>}
         </button>)}
       </section>}

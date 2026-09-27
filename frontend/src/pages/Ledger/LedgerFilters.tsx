@@ -4,14 +4,14 @@ import { UserPicker } from '../Admin/components/UserPicker';
 import { Dialog } from '../Admin/components/Dialog';
 import { creditUserScope } from './ledgerModel';
 
-export function LedgerFilters({ column, filters, heads, users, creditUsers = [], onChange }: {
-  column: string; filters: FiltersState; heads: Head[]; users: AdminUser[]; creditUsers?: CreditUser[]; onChange: (filters: FiltersState) => void;
+export function LedgerFilters({ column, filters, heads, users, creditUsers = [], onChange, includeTime = false }: {
+  includeTime?: boolean; column: string; filters: FiltersState; heads: Head[]; users: AdminUser[]; creditUsers?: CreditUser[]; onChange: (filters: FiltersState) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const selected = heads.find((h) => h.head_id === filters.headId);
   const active = column === 'Head' ? filters.headId != null : column === 'User' ? filters.userScope !== 'all'
-    : column === 'Description' ? !!filters.description : !!(filters.dateFrom || filters.dateTo);
+    : column === 'Description' ? !!filters.description : !!(filters.dateFrom || filters.dateTo || filters.timeFrom || filters.timeTo);
   function update(patch: Partial<FiltersState>) { onChange({ ...filters, ...patch }); }
   const today = new Date();
   const date = (year: number, month: number, day: number) => {
@@ -51,16 +51,21 @@ export function LedgerFilters({ column, filters, heads, users, creditUsers = [],
         : <div className="flex-col gap-md">
           <div className="date-presets" role="group" aria-label="Quick date ranges">{ranges.map(({ label, dateFrom, dateTo }) =>
             <button type="button" className="btn" key={label} aria-pressed={filters.dateFrom === dateFrom && filters.dateTo === dateTo}
-              onClick={() => { update({ dateFrom, dateTo }); setOpen(false); }}>{label}</button>)}</div>
+              onClick={() => { update({ dateFrom, dateTo, timeFrom: '', timeTo: '' }); setOpen(false); }}>{label}</button>)}</div>
           <fieldset className="field"><legend>Custom dates</legend><div className="date-range-fields">
             {(['dateFrom', 'dateTo'] as const).map((key) => <label className="field" key={key}><span>{key === 'dateFrom' ? 'From' : 'To'}</span>
               <input type="date" value={filters[key]} min={key === 'dateTo' ? filters.dateFrom || undefined : undefined}
                 max={key === 'dateFrom' ? filters.dateTo || undefined : undefined} onChange={(e) => update({ [key]: e.target.value })} /></label>)}
-          </div></fieldset>
+          </div>
+          {includeTime && <div className="date-range-fields">{(['timeFrom', 'timeTo'] as const).map((key) =>
+            <label className="field" key={key}><span>{key === 'timeFrom' ? 'From time' : 'To time'}</span>
+              <input type="time" value={filters[key] ?? ''} onChange={(event) => update({ [key]: event.target.value })} /></label>)}
+          </div>}
+          </fieldset>
           {filters.dateFrom && filters.dateTo && filters.dateFrom > filters.dateTo && <p className="text-error" role="alert">From must be on or before To.</p>}
         </div>}
       <div className="flex-row justify-end gap-sm">
-        <button className="btn" onClick={() => { update(column === 'Head' ? { headId: null } : column === 'User' ? { userScope: 'all' } : column === 'Description' ? { description: '' } : { dateFrom: '', dateTo: '' }); setOpen(false); }}>Clear</button>
+        <button className="btn" onClick={() => { update(column === 'Head' ? { headId: null } : column === 'User' ? { userScope: 'all' } : column === 'Description' ? { description: '' } : { dateFrom: '', dateTo: '', timeFrom: '', timeTo: '' }); setOpen(false); }}>Clear</button>
         <button className="btn btn--primary" onClick={() => setOpen(false)}>Done</button>
       </div>
     </Dialog>}

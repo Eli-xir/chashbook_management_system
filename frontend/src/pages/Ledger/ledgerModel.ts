@@ -15,7 +15,8 @@ export function accountTotals(entries: Transaction[]) {
   }
   return { totalReceived, totalBillPayment, remainingPayable: roundMoney(totalBillPayment - totalReceived) };
 }
-export function headPath(heads: Head[], id: number) {
+export function headPath(heads: Head[], id: number | null) {
+  if (id === null) return '—';
   const names: string[] = [], seen = new Set<number>();
   let head = heads.find((item) => item.head_id === id);
   while (head && !seen.has(head.head_id)) {
@@ -53,13 +54,21 @@ export function ledgerReport(entries: Transaction[], filters: FiltersState, orde
     const d = new Date(value);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
+  const time = (value: string) => {
+    const d = new Date(value);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+  const beforeStart = (entry: Transaction) => !!filters.dateFrom && (day(entry.createdAt) < filters.dateFrom
+    || day(entry.createdAt) === filters.dateFrom && !!filters.timeFrom && time(entry.createdAt) < filters.timeFrom);
   const signed = (entry: Transaction) => entryDirection(entry) === 'credit' ? entry.amount : -entry.amount;
   const branch = headBranchIds(heads, filters.headId);
   const account = entries.filter((entry) => entry.active && matchesUserScope(entry, filters.userScope)
-    && (!branch || branch.has(entry.headId)) && (!filters.description || (entry.description ?? '').toLowerCase().includes(filters.description.toLowerCase())));
+    && (!branch || (entry.headId !== null && branch.has(entry.headId))) && (!filters.description || (entry.description ?? '').toLowerCase().includes(filters.description.toLowerCase())));
   const selected = account.filter((entry) => filters.direction === 'both' || entryDirection(entry) === filters.direction);
-  const opening = selected.filter((entry) => filters.dateFrom && day(entry.createdAt) < filters.dateFrom).reduce((sum, entry) => roundMoney(sum + signed(entry)), 0);
-  const period = selected.filter((entry) => (!filters.dateFrom || day(entry.createdAt) >= filters.dateFrom) && (!filters.dateTo || day(entry.createdAt) <= filters.dateTo));
+  const opening = selected.filter(beforeStart).reduce((sum, entry) => roundMoney(sum + signed(entry)), 0);
+  const period = selected.filter((entry) => !beforeStart(entry) && (!filters.dateTo || day(entry.createdAt) <= filters.dateTo)
+    && (!filters.timeFrom || !!filters.dateFrom || time(entry.createdAt) >= filters.timeFrom)
+    && (!filters.timeTo || (!!filters.dateTo && day(entry.createdAt) < filters.dateTo) || time(entry.createdAt) <= filters.timeTo));
   period.sort((a, b) => {
     if (order !== 'by-time' && entryDirection(a) !== entryDirection(b)) return entryDirection(a) === (order === 'credit-first' ? 'credit' : 'debit') ? -1 : 1;
     return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);

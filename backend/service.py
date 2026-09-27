@@ -127,12 +127,12 @@ def overview(db, user_id):
 
 def state(db, actor):
     is_admin = actor['user_role_id'] == 1
-    users = db.execute('SELECT user_id,user_name,description,is_active,user_role_id FROM users ORDER BY user_role_id,user_name').fetchall() if is_admin else [actor]
+    users = db.execute('SELECT user_id,user_name,description,is_active,is_pinned,user_role_id FROM users ORDER BY user_role_id,user_name').fetchall() if is_admin else [actor]
     contacts = db.execute('SELECT user_id,contact_no FROM contacts ORDER BY contact_id').fetchall() if is_admin else []
     profiles = []
     for u in users:
         profiles.append({'user_id': str(u['user_id']), 'user_name': u['user_name'], 'is_active': u['is_active'],
-                         'description': u.get('description', ''), 'role': 'admin' if u['user_role_id'] == 1 else 'user',
+                         'is_pinned': u.get('is_pinned', False), 'description': u.get('description', ''), 'role': 'admin' if u['user_role_id'] == 1 else 'user',
                          'contacts': [c['contact_no'] for c in contacts if c['user_id'] == u['user_id']]})
     permissions = {}
     grants = db.execute('SELECT * FROM user_head_permissions' + ('' if is_admin else ' WHERE user_id=%s'),
@@ -172,6 +172,10 @@ def user_change(db, actor, change, session_id):
         db.execute('DELETE FROM contacts WHERE user_id=%s', (user['user_id'],))
         for contact in dict.fromkeys(profile.contacts):
             db.execute('INSERT INTO contacts(user_id,contact_no) VALUES (%s,%s)', (user['user_id'], contact))
+    elif change.action in ('pin', 'unpin'):
+        require(user['user_role_id'] != 1, 'Only regular users can be pinned here.')
+        require(user['is_active'] or change.action == 'unpin', 'Reactivate this user before pinning.')
+        db.execute('UPDATE users SET is_pinned=%s WHERE user_id=%s', (change.action == 'pin', user['user_id']))
     elif change.action == 'password':
         require(change.password and change.password.strip(), 'Enter a new password.')
         db.execute('UPDATE users SET password_hash=%s WHERE user_id=%s', (password_hash(change.password), user['user_id']))
@@ -187,10 +191,10 @@ def user_change(db, actor, change, session_id):
             db.execute('DELETE FROM users WHERE user_id=%s', (user['user_id'],))
         else:
             active = change.action == 'reactivate'
-            db.execute('''UPDATE users SET is_active=%s,
+            db.execute('''UPDATE users SET is_active=%s, is_pinned=CASE WHEN %s THEN is_pinned ELSE false END,
                 last_activated_at=CASE WHEN %s THEN now() ELSE last_activated_at END,
                 last_deactivated_at=CASE WHEN %s THEN last_deactivated_at ELSE now() END WHERE user_id=%s''',
-                (active, active, active, user['user_id']))
+                (active, active, active, active, user['user_id']))
             if not active:
                 db.execute('DELETE FROM sessions WHERE user_id=%s', (user['user_id'],))
     saved = state(db, actor)
@@ -229,10 +233,14 @@ def credit_user_change(db, actor, change):
     return state(db, actor)
 
 
-def validate_input(db, actor, value, user_id, submission=False):
+def validate_input(db, actor, value, user_id, submission=False, direct=False):
     require(value, 'Enter the transaction details.')
-    head = db.execute('SELECT * FROM heads WHERE head_id=%s AND NOT is_deleted', (value.headId,)).fetchone()
-    require(head and head['is_active'] and head['is_transactionable'], 'Choose an active transactionable head.')
+    if direct:
+        # Older clients may still send a head; admin payments are always direct.
+        value.headId = None
+    else:
+        head = db.execute('SELECT * FROM heads WHERE head_id=%s AND NOT is_deleted', (value.headId,)).fetchone()
+        require(head and head['is_active'] and head['is_transactionable'], 'Choose an active transactionable head.')
     if submission:
         require(value.amount > 0, 'Enter an amount greater than zero.')
         require(value.headId in user_permissions(db, user_id), 'This head is not assigned to the user.', 403)
@@ -282,7 +290,7 @@ def transaction_change(db, actor, change):
         else:
             require(change.creditUserId is None, 'External users only apply to Admin credits.')
         require(user['is_active'], 'This account is deactivated.')
-        ids = validate_input(db, actor, change.input, user['user_id'], submitting)
+        ids = validate_input(db, actor, change.input, user['user_id'], submitting, direct=not submitting)
         entry = db.execute('''INSERT INTO transactions(head_id,category_group_id,user_id,created_by_user_id,credit_user_id,current_version_id)
             VALUES (%s,%s,%s,%s,%s,0) RETURNING *''', (change.input.headId, None, user['user_id'],
             actor['user_id'], change.creditUserId)).fetchone()
@@ -295,7 +303,8 @@ def transaction_change(db, actor, change):
             db.execute('DELETE FROM transactions WHERE transaction_id=%s', (change.id,))
             return None
         if change.action == 'edit':
-            ids = validate_input(db, actor, change.input, entry['user_id'])
+            creator = account(db, entry['created_by_user_id'])
+            ids = validate_input(db, actor, change.input, entry['user_id'], direct=creator['user_role_id'] == 1)
             revise(db, entry, actor['user_id'], 'Edited', change.input, ids)
         else:
             entry['is_active'] = change.action == 'reactivate'

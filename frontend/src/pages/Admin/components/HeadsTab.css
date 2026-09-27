@@ -1,13 +1,23 @@
 .heads-tree {
   border: 1px solid var(--color-line);
   border-radius: var(--radius);
-  max-height: 55dvh;
+  max-height: 72dvh;
+  min-height: 45dvh;
+  min-width: 0;
+  font-size: .85rem;
   overflow: auto;
   padding: var(--space-xs);
 }
 .heads-tree ul, ul.heads-tree { list-style: none; }
 .head-node-children { margin-left: 16px; border-left: 1px solid var(--color-line); padding-left: 8px; }
-.head-node-row { padding: 7px 4px; border-radius: var(--radius); overflow-wrap: anywhere; }
+.heads-tree > ul { width: max-content; min-width: 100%; padding: 0; }
+.head-node-row { display: flex; align-items: center; gap: 4px; padding: 4px 0; border-radius: var(--radius); }
+.head-node-row::before { content: '▸'; flex: 0 0 14px; color: var(--color-gold); }
+.head-node > details[open] > .head-node-row::before { content: '▾'; }
+.head-node-row::-webkit-details-marker { display: none; }
+.head-node-content { display: flex; align-items: center; gap: 4px; white-space: nowrap; padding-right: 12px; }
+.heads-tree .head-description { max-width: none; overflow: visible; text-overflow: clip; }
+.admin-controls.admin-controls--heads { max-width: 1240px; }
 .head-node-row[draggable="true"] { cursor: grab; }
 .head-node-row:hover { background: var(--color-surface); }
 .head-node-row--drag-over { outline: 1px dashed var(--color-gold); background: rgba(201, 162, 39, .1); }
@@ -27,7 +37,7 @@
 .head-icon { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; vertical-align: middle; }
 .head-edit { float: right; padding: 3px 8px; border: 1px solid var(--color-line); background: none; color: var(--color-gold); cursor: pointer; border-radius: var(--radius); }
 .head-edit:hover { border-color: var(--color-gold); }
-.head-actions { float: right; display: inline-flex; gap: 4px; }
+.head-actions { position: sticky; right: 0; z-index: 1; margin-left: auto; display: flex; flex-direction: column; flex-shrink: 0; gap: 3px; padding: 3px; background: var(--color-surface); border-left: 1px solid var(--color-line); border-radius: 6px; }
 .head-actions .head-edit { float: none; min-width: 36px; display: inline-flex; align-items: center; justify-content: center; }
 .head-transaction-toggle[aria-pressed="true"] { color: var(--color-ink); background: var(--color-gold); border-color: var(--color-gold); }
 .head-transaction-toggle[aria-pressed="false"] { color: var(--color-text-muted); }

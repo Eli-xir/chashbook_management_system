@@ -34,7 +34,7 @@ class AttachmentRef(Model):
 
 class TransactionInput(Model):
     amount: Decimal = Field(ge=0, le=999999999999.99, max_digits=18, decimal_places=2, allow_inf_nan=False)
-    headId: int
+    headId: int | None = None
     description: str = Field(default="", max_length=4000)
     transactionTypeId: Literal[1] = 1
     attachments: list[AttachmentRef] = Field(default_factory=list)
@@ -101,7 +101,7 @@ class PermissionsChange(Model):
 
 class UserChange(Model):
     op: Literal['user']
-    action: Literal['create', 'profile', 'password', 'deactivate', 'reactivate', 'delete']
+    action: Literal['create', 'profile', 'password', 'deactivate', 'reactivate', 'delete', 'pin', 'unpin']
     userId: UUID | None = None
     profile: Profile | None = None
     password: Password | None = None

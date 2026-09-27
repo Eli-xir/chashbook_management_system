@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AdminUser, CreateUserInput, UserAction, UserProfile } from '../types';
-import { matchesUser, userContacts } from '../utils/userProfile';
+import { matchesUser } from '../utils/userProfile';
+import { UserCards } from './UserCards';
 import { UserEditor } from './UserEditor';
 import './UsersTab.css';
 
@@ -9,6 +10,7 @@ interface UsersTabProps {
   selectedUserId: string;
   users: AdminUser[];
   onSelect: (userId: string) => void;
+  onAttachments: (userId: string) => void;
   onViewLedger: (userId: string) => void;
   onOpenHeadView: (userId: string, mode: 'permissions' | 'preview') => void;
   onAction: (userId: string, action: UserAction) => Promise<void>;
@@ -23,7 +25,6 @@ export function UsersTab(props: UsersTabProps) {
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ user: AdminUser; mode: 'profile' | 'password' | 'create' } | null>(null);
   const dirty = editing !== null;
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
@@ -34,7 +35,6 @@ export function UsersTab(props: UsersTabProps) {
     try {
       await onAction(user.user_id, action);
       setMessage('Account updated.');
-      setDeleting(null);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not update the account.'); }
     finally { setBusy(false); }
   }
@@ -50,48 +50,21 @@ export function UsersTab(props: UsersTabProps) {
         <section key={String(self)} className="flex-col gap-sm">
           <h3 className="section-label">{self ? 'Your account' : 'All users'}</h3>
           {!self && users.every((user) => user.user_id === currentAdminUserId) && <p className="text-muted">No other users yet.</p>}
-          {users.filter((user) => (user.user_id === currentAdminUserId) === self && matchesUser(user, search)).map((user) => (
-            <details key={user.user_id} className={`user-card ${selectedUserId === user.user_id ? 'user-card--selected' : ''}`}
-              open={self ? true : undefined} name={self ? undefined : 'users'}>
-              <summary className="user-card-header" onClick={() => { if (!self) onSelect(user.user_id); }}>
-                {user.user_name} {!user.is_active && <span className="head-node-badge">deactivated</span>}
-              </summary>
-              <div className="user-card-body flex-col gap-sm">
-                <p className="text-muted">{user.description}</p>
-                <dl className="flex-col gap-xs">
-                  <div className="field-row"><dt className="text-muted">Name</dt><dd>{user.user_name}</dd></div>
-                  <div className="field-row">
-                    <dt className="text-muted">Contacts</dt>
-                    <dd>{userContacts(user).length ? userContacts(user).map((contact) => <div key={contact}>{contact}</div>) : '—'}</dd>
-                  </div>
-                </dl>
-                <div className="flex-row flex-wrap gap-sm">
-                  <button className="btn" disabled={busy} onClick={() => setEditing({ user, mode: 'profile' })}>Info</button>
-                  <button className="btn" disabled={busy} onClick={() => setEditing({ user, mode: 'password' })}>Password</button>
-                  {!self && <>
-                    <button className="btn" onClick={() => onViewLedger(user.user_id)}>Statement</button>
-                    <button className="btn" disabled={busy} onClick={() => act(user, user.is_active ? 'deactivate' : 'reactivate')}>
-                      {user.is_active ? 'Deactivate' : 'Reactivate'}
-                    </button>
-                    {user.role !== 'admin' && <>
-                      <button className="btn" disabled={busy} onClick={() => props.onOpenHeadView(user.user_id, 'permissions')}>Permissions</button>
-                      <button className="btn" disabled={busy} onClick={() => props.onOpenHeadView(user.user_id, 'preview')}>Preview</button>
-                    </>}
-                    <button className="btn btn--danger" disabled={busy} onClick={() => setDeleting(user.user_id)}>Delete</button>
-                  </>}
-                </div>
-                {deleting === user.user_id && (
-                  <div className="flex-col gap-sm">
-                    <p>Delete {user.user_name}?</p>
-                    <div className="flex-row gap-sm">
-                      <button className="btn" disabled={busy} onClick={() => setDeleting(null)}>Cancel</button>
-                      <button className="btn btn--danger" disabled={busy} onClick={() => act(user, 'delete')}>Confirm delete</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </details>
-          ))}
+          <UserCards users={users.filter((user) => (user.user_id === currentAdminUserId) === self)} management search={search}
+            onAttachments={self ? undefined : (user) => props.onAttachments(user.user_id)} selectedId={selectedUserId} onOpen={(user) => { onSelect(user.user_id); setEditing({ user, mode: 'profile' }); }}
+            onEdit={(user) => setEditing({ user, mode: 'profile' })} onChanged={async () => {}} onAction={onAction}
+            extraActions={(user, cardBusy) => <>
+              <button className="btn" disabled={busy || cardBusy} onClick={() => setEditing({ user, mode: 'password' })}>Password</button>
+              {!self && <>
+                <button className="btn" disabled={busy || cardBusy} onClick={() => onViewLedger(user.user_id)}>Statement</button>
+                <button className="btn" disabled={busy || cardBusy} onClick={() => act(user, user.is_active ? 'deactivate' : 'reactivate')}>
+                  {user.is_active ? 'Deactivate' : 'Reactivate'}</button>
+                {user.role !== 'admin' && <>
+                  <button className="btn" disabled={busy || cardBusy} onClick={() => props.onOpenHeadView(user.user_id, 'permissions')}>Permissions</button>
+                  <button className="btn" disabled={busy || cardBusy} onClick={() => props.onOpenHeadView(user.user_id, 'preview')}>Preview</button>
+                </>}
+              </>}
+            </>} />
         </section>
       ))}
       {message && <p role="status">{message}</p>}

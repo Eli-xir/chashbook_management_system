@@ -133,3 +133,12 @@ CREATE TABLE credit_users (
 );
 ALTER TABLE transactions ADD COLUMN credit_user_id uuid REFERENCES credit_users;
 INSERT INTO schema_version VALUES (5);
+
+-- Version 6: admin payments are direct; user submissions still use heads.
+ALTER TABLE transactions ALTER COLUMN head_id DROP NOT NULL;
+ALTER TABLE transaction_versions ALTER COLUMN head_id DROP NOT NULL;
+INSERT INTO schema_version VALUES (6);
+
+-- Version 7: Home shortcuts for regular users.
+ALTER TABLE users ADD COLUMN is_pinned boolean NOT NULL DEFAULT false;
+INSERT INTO schema_version VALUES (7);

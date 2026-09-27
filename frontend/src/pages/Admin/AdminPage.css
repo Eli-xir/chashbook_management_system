@@ -60,3 +60,11 @@
 @media (max-width: 480px) { .admin-credit-cards { gap: 10px; } .credit-user-card { padding: 9px; gap: 4px; } .home-card-main { gap: 3px; } .home-card-main svg { width: 26px; height: 26px; } .credit-user-card .home-card-description { -webkit-line-clamp: 1; line-clamp: 1; } .credit-user-card .home-card-detail { display: none; } .credit-user-actions { gap: 3px; } .credit-user-action { font-size: .67rem; } }
 .head-mode-switch { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px; border: 1px solid var(--color-line); border-radius: 16px; background: var(--color-surface); }
 .head-mode-switch .btn { flex: 1; min-height: 44px; border-radius: 10px; }
+
+.credit-user-card { position: relative; }
+.credit-user-card .home-card-main { padding-top: 24px; }
+.account-type-badge { position: absolute; top: 12px; left: 12px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: #00000030; border: 1px solid #ffffff20; color: var(--card-ink); }
+.credit-user-actions--admin { grid-template-columns: 1fr; }
+.credit-user-action { border-radius: 8px; min-height: 32px; }
+
+.home-card-attachments { position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; padding: 8px; display: grid; place-items: center; border-radius: 10px; }
