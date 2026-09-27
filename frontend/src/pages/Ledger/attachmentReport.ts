@@ -5,6 +5,13 @@ export function attachmentTransactions(entries: Transaction[], filters: FiltersS
   return ledgerReport(entries, filters, 'by-time', heads).rows.map(({ entry }) => entry).filter((entry) => entry.attachments.length);
 }
 
+// Choose the orientation that prints the source at the largest scale, without cropping.
+export function imageOrientation(width: number, height: number, boxWidth: number, boxHeight: number) {
+  const upright = Math.min(boxWidth / width, boxHeight / height);
+  const rotated = Math.min(boxWidth / height, boxHeight / width);
+  return rotated > upright * 1.05;
+}
+
 export type EvidenceRecord = { entry: Transaction; cells: (string | number)[] };
 export async function attachmentPdf(records: EvidenceRecord[], reportDocument: import('./ledgerExport').ReportDocument, perPage: number, loadAttachments: (ids: string[]) => Promise<Record<string, string>>): Promise<File> {
   if (!records.length) throw new Error('No transactions in this selection.');
@@ -13,7 +20,7 @@ export async function attachmentPdf(records: EvidenceRecord[], reportDocument: i
   const { jsPDF } = await import('jspdf');
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
   const format = (value: string | number) => typeof value === 'number' ? `PKR ${value.toLocaleString('en-PK')}` : value;
-  const linesFor = (cells: (string | number)[]) => pdf.splitTextToSize(cells.flatMap((value, index) => value === '' ? [] : [`${reportDocument.columns[index]}: ${format(value)}`]).join('    |    '), 186) as string[];
+  const linesFor = (cells: (string | number)[], amounts = false) => pdf.splitTextToSize(cells.flatMap((value, index) => value === '' || ['Credit', 'Debit', 'Balance'].includes(reportDocument.columns[index]) !== amounts ? [] : [`${reportDocument.columns[index]}: ${format(value)}`]).join('    |    '), 186) as string[];
   pdf.setFontSize(8);
   const subtitleLines = reportDocument.subtitle ? pdf.splitTextToSize(reportDocument.subtitle, 186) as string[] : [];
   const pageTop = 28 + subtitleLines.length * 3.5;
@@ -36,6 +43,9 @@ export async function attachmentPdf(records: EvidenceRecord[], reportDocument: i
       if (images.length > 1) lines.push(`Image ${index + 1} of ${images.length}`);
       if (voiceCount) lines.push(`${voiceCount} voice note(s) available in the app`);
       if (!entry.attachments.length) lines.push('No attachments');
+      const amountLines = linesFor(cells, true);
+      const amountHeight = amountLines.length * 3.5 + 5;
+      const imageBoxHeight = Math.max(40, (276 - pageTop) / perPage - (Math.min(lines.length, 45) * 3.5 + 6) - amountHeight - 3);
       let imageData: { data: string; width: number; height: number } | null = null;
       if (attachment) {
         try {
@@ -44,11 +54,14 @@ export async function attachmentPdf(records: EvidenceRecord[], reportDocument: i
           const image = new Image(); image.src = source; await image.decode();
           const scale = Math.min(1, 2400 / Math.max(image.naturalWidth, image.naturalHeight));
           const canvas = document.createElement('canvas');
-          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const width = Math.max(1, Math.round(image.naturalWidth * scale)), height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const rotate = imageOrientation(width, height, 186, imageBoxHeight);
+          canvas.width = rotate ? height : width; canvas.height = rotate ? width : height;
           const context = canvas.getContext('2d');
           if (!context) throw new Error('Image export is unavailable in this browser.');
           context.fillStyle = '#fff'; context.fillRect(0, 0, canvas.width, canvas.height);
-          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          if (rotate) { context.translate(canvas.width, 0); context.rotate(Math.PI / 2); }
+          context.drawImage(image, 0, 0, width, height);
           imageData = { data: canvas.toDataURL('image/jpeg', .9), width: canvas.width, height: canvas.height };
         } catch (cause) {
           throw new Error(`${attachment.name}: ${cause instanceof Error ? cause.message : 'Could not prepare image.'}`);
@@ -58,13 +71,16 @@ export async function attachmentPdf(records: EvidenceRecord[], reportDocument: i
       for (let start = 0; start < lines.length; start += 45) {
         const text = lines.slice(start, start + 45);
         const textHeight = text.length * 3.5 + 6;
-        const imageHeight = imageData && start === 0 ? Math.max(40, (276 - pageTop) / perPage - textHeight - 3) : 0;
-        const height = textHeight + imageHeight;
+        const imageHeight = imageData && start === 0 ? imageBoxHeight : 0;
+        const height = textHeight + imageHeight + (start === 0 ? amountHeight : 0);
         if (y + height > 276) { pdf.addPage(); header(); y = pageTop; }
         pdf.text(text, 12, y + 4);
         if (imageData && start === 0) {
           const fit = Math.min(186 / imageData.width, imageHeight / imageData.height);
           pdf.addImage(imageData.data, 'JPEG', 12 + (186 - imageData.width * fit) / 2, y + textHeight, imageData.width * fit, imageData.height * fit);
+        }
+        if (start === 0 && amountLines.length) {
+          pdf.setFont('helvetica', 'bold'); pdf.text(amountLines, 12, y + textHeight + imageHeight + 4); pdf.setFont('helvetica', 'normal');
         }
         y += height;
         pdf.setDrawColor(210); pdf.setLineWidth(.15); pdf.line(12, y, 198, y); y += 3;

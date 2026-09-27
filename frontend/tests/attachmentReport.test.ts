@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { attachmentTransactions, attachmentPdf } from '../src/pages/Ledger/attachmentReport.ts';
+import { attachmentTransactions, attachmentPdf, imageOrientation } from '../src/pages/Ledger/attachmentReport.ts';
 import type { FiltersState, Transaction, Head } from '../src/pages/Admin/types.ts';
 const filters: FiltersState = { dateFrom: '', dateTo: '', direction: 'both', userScope: 'user' };
 const image = { id: '1', kind: 'image' as const, name: 'Receipt', url: '/api/attachments/1' };
@@ -72,4 +72,11 @@ test('Export downloads all unique images in exactly one call', async () => {
     return {};
   }), /missing from the export response/);
   assert.equal(calls, 1);
+});
+
+test('Image orientation uses wide space for tall receipts and preserves upright images when they fit better', () => {
+  assert.equal(imageOrientation(400, 1600, 186, 45), true);
+  assert.equal(imageOrientation(1200, 800, 186, 95), false);
+  assert.equal(imageOrientation(800, 1200, 186, 230), false);
+  assert.equal(imageOrientation(1000, 1000, 186, 95), false);
 });

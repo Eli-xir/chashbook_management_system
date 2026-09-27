@@ -75,7 +75,7 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
         revision={0} heads={heads} users={users} onDirtyChange={ignoreDirty} onChanged={unchanged}
         attachmentReview={{ export: exportControls, render: (records, columns) => <div className="evidence-records">{records.map(({ entry, cells }) =>
           <article key={entry.id} className="evidence-record">
-            <dl className="evidence-entry">{cells.map((value, index) => <div key={columns[index]}><dt>{columns[index]}</dt><dd>{typeof value === 'number' ? money(value) : value || '—'}</dd></div>)}</dl>
+            <dl className="evidence-entry">{cells.map((value, index) => index < 5 && <div key={columns[index]}><dt>{columns[index]}</dt><dd>{typeof value === 'number' ? money(value) : value || '—'}</dd></div>)}</dl>
             <div className="flex-col gap-md">
               <div className="evidence-images">{entry.attachments.filter((a) => a.kind === 'image').map((attachment, index, items) =>
                 <button key={attachment.id} aria-label={`Open ${attachment.name}`} onClick={() => { setImages(items); setImageIndex(index); setZoom(1); }}>
@@ -83,6 +83,7 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
                 </button>)}</div>
               {entry.attachments.some((a) => a.kind === 'voice') && <AttachmentInput kind="voice" items={entry.attachments.filter((a) => a.kind === 'voice')} />}
               {!entry.attachments.length && <p className="text-muted">No attachments</p>}
+              <dl className="evidence-entry">{cells.map((value, index) => index >= 5 && <div key={columns[index]}><dt>{columns[index]}</dt><dd>{typeof value === 'number' ? money(value) : '—'}</dd></div>)}</dl>
             </div>
           </article>)}</div> }} />
     </>}
