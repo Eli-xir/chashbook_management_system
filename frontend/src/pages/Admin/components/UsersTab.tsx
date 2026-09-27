@@ -60,7 +60,7 @@ export function UsersTab(props: UsersTabProps) {
                 <button className="btn" disabled={busy || cardBusy} onClick={() => act(user, user.is_active ? 'deactivate' : 'reactivate')}>
                   {user.is_active ? 'Deactivate' : 'Reactivate'}</button>
                 {user.role !== 'admin' && <>
-                  <button className="btn" disabled={busy || cardBusy} onClick={() => props.onOpenHeadView(user.user_id, 'permissions')}>Permissions</button>
+                  <button className="btn" disabled={busy || cardBusy} onClick={() => props.onOpenHeadView(user.user_id, 'permissions')}>Permission</button>
                   <button className="btn" disabled={busy || cardBusy} onClick={() => props.onOpenHeadView(user.user_id, 'preview')}>Preview</button>
                 </>}
               </>}

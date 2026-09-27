@@ -52,7 +52,7 @@ export function UserCards({ users, onOpen, onChanged, search: sharedSearch, mana
         </div>
         {(extraActions || management && onAttachments) && <div className="user-management-actions">
           {extraActions?.(user, busy)}
-          {management && onAttachments && <button className="btn" disabled={busy} onClick={() => onAttachments(user)}>Attachments</button>}
+          {management && onAttachments && <button className="btn" disabled={busy} onClick={() => onAttachments(user)}>Attachment</button>}
         </div>}
       </>} />)}</div>
     {!choices.length && sharedSearch === undefined && <p className="text-muted">No matching users.</p>}
