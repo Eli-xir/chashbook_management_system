@@ -126,7 +126,12 @@ class TransactionChange(Model):
 
 
 
-Change = Annotated[HeadsChange | PermissionsChange | UserChange | CreditUserChange | TransactionChange, Field(discriminator='op')]
+class HomeOrderChange(Model):
+    op: Literal['homeOrder']
+    ids: list[Literal['attachments', 'users', 'company', 'statement', 'heads', 'credit', 'debit']] = Field(min_length=7, max_length=7)
+
+
+Change = Annotated[HeadsChange | PermissionsChange | UserChange | CreditUserChange | TransactionChange | HomeOrderChange, Field(discriminator='op')]
 
 
 class AttachmentExport(Model):

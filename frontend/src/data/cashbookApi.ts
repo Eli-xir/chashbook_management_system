@@ -28,6 +28,7 @@ function remember(data: State) { headRevision = data.headRevision; return data; 
 
 // The sole frontend/backend boundary. Components keep their existing interfaces.
 export const cashbookApi = {
+  saveHomeOrder: (ids: string[]) => change<{ homeOrder: string[] }>({ op: 'homeOrder', ids }),
   attachmentImages: (ids: string[]) => request<Record<string, string>>('/attachments/export', { method: 'POST', body: JSON.stringify({ ids: ids.map(Number) }) }),
   currentSession: () => request<AppSession | null>('/session'),
   signIn: (username: string, password: string) => request<AppSession>('/session', { method: 'POST', body: JSON.stringify({ username, password }) }),

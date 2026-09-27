@@ -1,4 +1,3 @@
-import { Icon } from '../../Icon';
 import { useState } from 'react';
 import type { CashbookData, AdminUser, CreateUserInput, FiltersState, Head, StagedChange, UserAction, UserProfile } from './types';
 import { HeadsTab } from './components/HeadsTab';
@@ -12,7 +11,7 @@ import { AdminCreditFlow } from './components/AdminCreditFlow';
 import { UserCards } from './components/UserCards';
 import { matchesUser } from './utils/userProfile';
 import { CreditUserCards } from './components/CreditUserCards';
-import { HomeCard } from './components/HomeCard';
+import { HomeNavigation } from './components/HomeNavigation';
 import { usePermissionChanges } from './hooks/usePermissionChanges';
 import { permissionDiff, permittedHeads } from './utils/permissions';
 import { AttachmentsPage } from '../Ledger/AttachmentsPage';
@@ -38,6 +37,8 @@ const cards = [
   { id: 'company', title: 'Company Statement', icon: 'M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1M9 13h1m4 0h1M10 21v-4h4v4', tone: 'gold' },
   { id: 'statement', title: 'Users Statement', icon: 'M6 3h12v18H6zM9 7h6M9 11h6M9 15h2', tone: 'green' },
   { id: 'heads', title: 'Heads Management', icon: 'M3 6h6l2 2h10v12H3zM3 6V4h6l2 2M8 12h8M8 16h5', tone: 'purple' },
+  { id: 'credit', title: 'Admin credit', icon: 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5', tone: 'green' },
+  { id: 'debit', title: 'User debit', icon: 'M12 15V3m-5 5 5-5 5 5M4 16v5h16v-5', tone: 'gold' },
 ] as const;
 type HeadMode = 'manage' | 'preview' | 'permissions';
 type Page = 'home' | 'credit' | 'debit' | typeof cards[number]['id'];
@@ -112,19 +113,14 @@ export function AdminPage(props: AdminPageProps) {
     <section className="admin-home" hidden={page !== 'home'}>
       <h1>Overview</h1>
       <dl className="home-totals">{Object.entries({ Credits: totals.totalBillPayment, Debits: totals.totalReceived, Balance: totals.remainingPayable }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{money(value)}</dd></div>)}</dl>
-      <nav className="home-cards" aria-label="Cashbook actions">{cards.map((card) => <HomeCard key={card.id} title={card.title} tone={card.tone} onClick={() => navigate(() => {
+      <HomeNavigation key={`${revision}:${props.homeOrder?.join(',')}`} cards={cards} order={props.homeOrder} onOpen={(id) => navigate(() => {
         setHeadMode('manage'); setHeadsFromUsers(false);
-        if (card.id === 'attachments') setAttachmentScope('');
-        if (card.id === 'statement') setFilters((current) => current.userScope.startsWith('credit:') ? { ...current, userScope: 'all' } : current);
-        setPage(card.id);
-      })} icon={<Icon size={46} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d={card.icon} /></Icon>} />)}
-        {([['credit', 'Admin credit', 'green'], ['debit', 'User debit', 'gold']] as const).map(([action, label, tone]) =>
-          <HomeCard key={action} title={label} tone={tone} onClick={() => action === 'credit'
-            ? navigate(() => { setCreditShortcut(null); setPage('credit'); }) : navigate(() => { setDebitShortcut(''); setPage('debit'); })} icon={
-            <Icon size={46} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d={action === 'credit' ? 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5' : 'M12 15V3m-5 5 5-5 5 5M4 16v5h16v-5'} />
-            </Icon>} />)}
-      </nav>
+        if (id === 'attachments') setAttachmentScope('');
+        if (id === 'statement') setFilters((current) => current.userScope.startsWith('credit:') ? { ...current, userScope: 'all' } : current);
+        if (id === 'credit') setCreditShortcut(null);
+        if (id === 'debit') setDebitShortcut('');
+        setPage(id as Page);
+      })} />
       {!!(pinnedUsers.length || pinnedExternal.length) && <section className="pinned-credit-users flex-col gap-md">
         <h2>Pinned users</h2>
         <input type="search" className="credit-user-list" aria-label="Search pinned users" placeholder="Search name, contact or description"

@@ -142,3 +142,6 @@ INSERT INTO schema_version VALUES (6);
 -- Version 7: Home shortcuts for regular users.
 ALTER TABLE users ADD COLUMN is_pinned boolean NOT NULL DEFAULT false;
 INSERT INTO schema_version VALUES (7);
+
+ALTER TABLE users ADD COLUMN home_order text[] NOT NULL DEFAULT '{}';
+INSERT INTO schema_version VALUES (8);

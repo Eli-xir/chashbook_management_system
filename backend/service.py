@@ -147,6 +147,7 @@ def state(db, actor):
         allowed = {h['head_id'] for h in visible}
         visible = [{**h, 'parent_head_id': h['parent_head_id'] if h['parent_head_id'] in allowed else None} for h in visible]
     return {'heads': visible, 'users': profiles, 'permissions': permissions,
+            'homeOrder': actor.get('home_order', []),
             'creditUsers': [{'credit_user_id': str(row['credit_user_id']), 'user_name': row['user_name'],
                              'description': row['description'], 'contacts': row['contacts'],
                              'is_active': row['is_active'], 'is_pinned': row['is_pinned']}
@@ -431,6 +432,10 @@ def apply_change(db, actor, change, session_id):
     if change.op == 'transaction':
         return transaction_change(db, actor, change)
     admin(actor)
+    if change.op == 'homeOrder':
+        require(len(set(change.ids)) == 7, 'Include each Home card once.')
+        db.execute('UPDATE users SET home_order=%s WHERE user_id=%s', (change.ids, actor['user_id']))
+        return {'homeOrder': change.ids}
     if change.op == 'user':
         return user_change(db, actor, change, session_id)
     if change.op == 'creditUser':

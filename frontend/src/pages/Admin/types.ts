@@ -104,6 +104,7 @@ export interface AppSession { userId: string; role: 'admin' | 'user'; }
 export interface AccountTotals { totalReceived: number; totalBillPayment: number; remainingPayable: number; }
 export interface UserOverview extends AccountTotals { balance: number; credits: Transaction[]; }
 export interface CashbookData extends AdminData {
+  homeOrder?: string[];
   transactions: Transaction[];
   creditUsers: CreditUser[];
 }
