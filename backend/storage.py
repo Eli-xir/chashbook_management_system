@@ -3,7 +3,8 @@ import os
 from functools import lru_cache
 from uuid import uuid4
 
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import HTTPException
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from db import UPLOADS
 
 BUCKET = os.getenv('CASHBOOK_S3_BUCKET', '')
@@ -33,8 +34,20 @@ def remove(key):
         (UPLOADS / key).unlink(missing_ok=True)
 
 
-def response(row):
+def response(row, export=False):
     if BUCKET:
+        if export:
+            from botocore.exceptions import ClientError
+            try:
+                body = s3().get_object(Bucket=BUCKET, Key=row['attachment_url'])['Body']
+                try:
+                    content = body.read()
+                finally:
+                    body.close()
+            except ClientError as error:
+                missing = error.response.get('Error', {}).get('Code') in ('NoSuchKey', '404')
+                raise HTTPException(404 if missing else 502, 'Attachment file is missing.' if missing else 'Could not load attachment from storage.') from error
+            return Response(content, media_type=row['content_type'], headers={'Cache-Control': 'no-store'})
         url = s3().generate_presigned_url('get_object', Params={
             'Bucket': BUCKET, 'Key': row['attachment_url'],
             'ResponseContentType': row['content_type'],

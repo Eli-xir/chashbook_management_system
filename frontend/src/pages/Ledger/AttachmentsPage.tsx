@@ -1,25 +1,26 @@
+import { cashbookApi } from '../../data/cashbookApi';
 import { useEffect, useState } from 'react';
-import type { AdminUser, CreditUser, FiltersState, Head, Transaction } from '../Admin/types';
+import type { AdminUser, CreditUser, FiltersState, Head, Attachment } from '../Admin/types';
 import { HomeCard } from '../Admin/components/HomeCard';
 import { Dialog } from '../Admin/components/Dialog';
 import { AttachmentInput } from '../Admin/components/AttachmentInput';
 import { matchesUser } from '../Admin/utils/userProfile';
 import { Ledger } from './Ledger';
-import { ledgerReport, money } from './ledgerModel';
-import { attachmentPdf } from './attachmentReport';
-import { download, printLedger } from './ledgerExport';
+import { money } from './ledgerModel';
+import { attachmentPdf, type EvidenceRecord } from './attachmentReport';
+import { download, printLedger, type ReportDocument } from './ledgerExport';
 import './AttachmentsPage.css';
 
 const ignoreDirty = () => {};
 const unchanged = async () => {};
 const empty: FiltersState = { dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' };
-export function AttachmentsPage({ users, creditUsers, transactions, heads, initialScope = '' }: {
-  initialScope?: string; users: AdminUser[]; creditUsers: CreditUser[]; transactions: Transaction[]; heads: Head[];
+export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }: {
+  initialScope?: string; users: AdminUser[]; creditUsers: CreditUser[]; heads: Head[];
 }) {
   const [scope, setScope] = useState(initialScope);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FiltersState>({ ...empty, userScope: initialScope || 'all' });
-  const [opened, setOpened] = useState<string | null>(null);
+  const [images, setImages] = useState<Attachment[]>([]);
   const [imageIndex, setImageIndex] = useState<number | null>(null);
   const [zoom, setZoom] = useState(1);
   const [perPage, setPerPage] = useState(4);
@@ -37,16 +38,11 @@ export function AttachmentsPage({ users, creditUsers, transactions, heads, initi
     ...creditUsers.map((user) => ({ ...user, id: `credit:${user.credit_user_id}`, type: 'external' as const })),
   ];
   const selected = people.find((user) => user.id === filters.userScope);
-  const rows = ledgerReport(transactions, filters, 'by-time', heads).rows.map(({ entry }) => entry);
-  const entry = rows.find((item) => item.id === opened);
-  const images = (entry ? [entry] : rows).flatMap((item) => item.attachments.filter((attachment) => attachment.kind === 'image').map((attachment) => ({
-    ...attachment, caption: `${new Date(item.createdAt).toLocaleString()} · ${money(item.amount)} · ${item.description || attachment.name}`,
-  })));
   const photo = imageIndex === null ? null : images[imageIndex];
   
-  async function prepare() {
+  async function prepare(records: EvidenceRecord[], document: ReportDocument) {
     setBusy(true); setError('');
-    try { setPdf(await attachmentPdf(images, `Attachments · ${selected?.user_name ?? ''}`, perPage)); }
+    try { setPdf(await attachmentPdf(records, document, perPage, cashbookApi.attachmentBlob)); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not prepare images.'); }
     finally { setBusy(false); }
   }
@@ -56,14 +52,14 @@ export function AttachmentsPage({ users, creditUsers, transactions, heads, initi
     try { await navigator.share({ files: [pdf], title: 'Transaction attachments' }); }
     catch (cause) { if (!(cause instanceof DOMException && cause.name === 'AbortError')) setError('Could not share the file. Download it instead.'); }
   }
-  const exportControls = <div className="flex-row flex-wrap items-center gap-sm">
-    <label className="field"><span>Images per A4 page</span><select value={perPage} disabled={busy} onChange={(event) => setPerPage(Number(event.target.value))}>
+  const exportControls = (records: EvidenceRecord[], document: ReportDocument) => <div className="flex-row flex-wrap items-center gap-sm">
+    <label className="field"><span>Images per A4 page (maximum)</span><select value={perPage} disabled={busy} onChange={(event) => setPerPage(Number(event.target.value))}>
       {[1, 2, 4, 6].map((count) => <option key={count}>{count}</option>)}</select></label>
-    <button className="btn" disabled={busy || !images.length} onClick={() => void prepare()}>{busy ? 'Preparing…' : 'Preview / export images'}</button>
+    <button className="btn" disabled={busy || !records.length} onClick={() => void prepare(records, document)}>{busy ? 'Preparing…' : 'Preview / export'}</button>
   </div>;
   return <section className="evidence-page flex-col gap-md">
     <header className="flex-row items-center gap-sm">
-      {scope && <button className="btn" disabled={busy} onClick={() => { setScope(''); setOpened(null); setError(''); }}>← Users</button>}
+      {scope && <button className="btn" disabled={busy} onClick={() => { setScope(''); setImageIndex(null); setError(''); }}>← Users</button>}
       <h1>{selected ? `Attachments · ${selected.user_name}` : 'Attachments'}</h1>
     </header>
     {!scope ? <>
@@ -72,34 +68,25 @@ export function AttachmentsPage({ users, creditUsers, transactions, heads, initi
         title={user.user_name} description={user.description} detail={user.is_active ? undefined : 'Inactive'} accountType={user.type}
         tone={(['blue', 'gold', 'green', 'purple'] as const)[index % 4]} actions={<span className="hint">{user.type === 'external' ? 'External user' : 'User'}</span>}
         icon={<svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M5 3h14v18H5zM8 7h8M8 11h8M8 15h4" /></svg>}
-        onClick={() => { setScope(user.id); setFilters({ ...empty, userScope: user.id }); setOpened(null); }} />)}</div>
+        onClick={() => { setScope(user.id); setFilters({ ...empty, userScope: user.id }); setImageIndex(null); }} />)}</div>
       {!people.some((user) => matchesUser(user, search)) && <p>No matching users.</p>}
     </> : <>
-      <Ledger filters={filters} onFilterChange={(next) => { setFilters(next); setOpened(null); setImageIndex(null); }}
+      <Ledger filters={filters} onFilterChange={(next) => { setFilters(next); setImageIndex(null); }}
         revision={0} heads={heads} users={users} onDirtyChange={ignoreDirty} onChanged={unchanged}
-        attachmentReview={{ onOpen: (item) => { setOpened(item.id); setError(''); } }} />
-      {exportControls}
-      <div className="evidence-images">{!entry && images.map((image, index) => <figure key={image.id}>
-        <button onClick={() => { setImageIndex(index); setZoom(1); }} aria-label={`Open ${image.name}`}><img loading="lazy" src={image.url} alt={image.name} /></button>
-        <figcaption>{image.caption}</figcaption>
-      </figure>)}</div>
-      {rows.filter((item) => item.attachments.some((a) => a.kind === 'voice')).map((item) => <div key={item.id}>
-        <p>{new Date(item.createdAt).toLocaleString()} · {money(item.amount)} · {item.description}</p>
-        <AttachmentInput kind="voice" items={item.attachments.filter((a) => a.kind === 'voice')} />
-      </div>)}
-      {!images.length && !entry && <p role="status">No images in this selection.</p>}
+        attachmentReview={{ export: exportControls, render: (records, columns) => <div className="evidence-records">{records.map(({ entry, cells }) =>
+          <article key={entry.id} className="evidence-record">
+            <dl className="evidence-entry">{cells.map((value, index) => <div key={columns[index]}><dt>{columns[index]}</dt><dd>{typeof value === 'number' ? money(value) : value || '—'}</dd></div>)}</dl>
+            <div className="flex-col gap-md">
+              <div className="evidence-images">{entry.attachments.filter((a) => a.kind === 'image').map((attachment, index, items) =>
+                <button key={attachment.id} aria-label={`Open ${attachment.name}`} onClick={() => { setImages(items); setImageIndex(index); setZoom(1); }}>
+                  <img loading="lazy" src={attachment.url} alt={attachment.name} />
+                </button>)}</div>
+              {entry.attachments.some((a) => a.kind === 'voice') && <AttachmentInput kind="voice" items={entry.attachments.filter((a) => a.kind === 'voice')} />}
+              {!entry.attachments.length && <p className="text-muted">No attachments</p>}
+            </div>
+          </article>)}</div> }} />
     </>}
-    {error && !entry && !pdf && <p className="text-error" role="alert">{error}</p>}
-    {entry && <Dialog className="evidence-gallery" title={`${new Date(entry.createdAt).toLocaleString()} · ${money(entry.amount)}`} busy={busy} onClose={() => { setOpened(null); setImageIndex(null); }}>
-      {entry.description && <p>{entry.description}</p>}
-      {!entry.attachments.length && <p>No attachments for this transaction.</p>}
-      {exportControls}
-      {error && !pdf && <p className="text-error" role="alert">{error}</p>}
-      <div className="evidence-images">{images.map((image, index) => <button key={image.id} onClick={() => { setImageIndex(index); setZoom(1); }} aria-label={`Open ${image.name}`}>
-        <img loading="lazy" src={image.url} alt={image.name} /></button>)}</div>
-      {entry.attachments.some((a) => a.kind === 'voice') && <AttachmentInput kind="voice" items={entry.attachments.filter((a) => a.kind === 'voice')} />}
-      <button className="btn" disabled={busy} onClick={() => setOpened(null)}>Close</button>
-    </Dialog>}
+    {error && !pdf && <p className="text-error" role="alert">{error}</p>}
     {photo && <Dialog className="evidence-lightbox" title={photo.name} onClose={() => setImageIndex(null)}>
       <div className="flex-row flex-wrap items-center gap-sm">
         <button className="btn" disabled={imageIndex === 0} onClick={() => { setImageIndex(imageIndex! - 1); setZoom(1); }}>← Previous</button>

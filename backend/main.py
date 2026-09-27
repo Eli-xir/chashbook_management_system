@@ -181,7 +181,7 @@ def upload(db: DB, actor: Actor, file: Annotated[UploadFile, File()], kind: Anno
 
 
 @app.get('/api/attachments/{attachment_id}')
-def download_attachment(attachment_id: int, db: DB, actor: Actor):
+def download_attachment(attachment_id: int, db: DB, actor: Actor, export: bool = False):
     row = db.execute('SELECT * FROM attachments WHERE attachment_id=%s', (attachment_id,)).fetchone()
     require(row, 'Attachment not found.', 404)
     if actor['user_role_id'] != 1:
@@ -196,4 +196,4 @@ def download_attachment(attachment_id: int, db: DB, actor: Actor):
         require(allowed, 'Attachment not found.', 404)
     if not storage.BUCKET:
         require((UPLOADS / row['attachment_url']).is_file(), 'Attachment file is missing.', 404)
-    return storage.response(row)
+    return storage.response(row, export=export)

@@ -173,7 +173,7 @@ export function AdminPage(props: AdminPageProps) {
         onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} onClose={closeHeadView} /></section>
         : (page === 'company' || page === 'statement') && <Ledger key={`${revision}:${page}`} company={page === 'company'} filters={filters} onFilterChange={setFilters} revision={revision} heads={heads} users={users} onDirtyChange={setLedgerDirty}
           onChanged={props.onRefresh} />}
-      {page === 'attachments' && <AttachmentsPage key={attachmentScope} initialScope={attachmentScope} users={users} creditUsers={props.creditUsers} transactions={props.transactions} heads={heads} />}
+      {page === 'attachments' && <AttachmentsPage key={attachmentScope} initialScope={attachmentScope} users={users} creditUsers={props.creditUsers} heads={heads} />}
       {page === 'debit' && <AdminDebitFlow key={`${revision}:${debitShortcut}`} initialUserId={debitShortcut} users={users} heads={heads}
         onClose={() => setPage('home')} onSubmitted={props.onRefresh}
         onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} />}

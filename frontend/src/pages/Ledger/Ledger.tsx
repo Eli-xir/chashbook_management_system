@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+import type { EvidenceRecord } from './attachmentReport';
 import { useEffect, useState } from 'react';
 import type { AdminUser, FiltersState, Head, Transaction } from '../Admin/types';
 import { cashbookApi } from '../../data/cashbookApi';
@@ -14,7 +16,7 @@ const filterKey = (filters: FiltersState) => JSON.stringify([
   filters.dateFrom, filters.dateTo, filters.userScope, filters.direction, filters.headId ?? null, filters.description ?? '', filters.timeFrom ?? '', filters.timeTo ?? '',
 ]);
 export function Ledger({ filters: suppliedFilters, revision, heads, users, onDirtyChange, onFilterChange, company = false, onChanged, attachmentReview }: {
-  attachmentReview?: { onOpen: (entry: Transaction) => void };
+  attachmentReview?: { render: (records: EvidenceRecord[], columns: string[]) => ReactNode; export: (records: EvidenceRecord[], document: ReportDocument) => ReactNode };
   onChanged: () => Promise<void>; company?: boolean; onFilterChange: (filters: FiltersState) => void;
   filters: FiltersState; revision: number; heads: Head[]; users: AdminUser[]; onDirtyChange: (dirty: boolean) => void;
 }) {
@@ -58,7 +60,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   const userName = (id: string) => id.startsWith('credit:')
     ? data?.creditUsers.find((user) => user.credit_user_id === id.slice(7))?.user_name ?? 'Unavailable external user'
     : data?.users.find((user) => user.user_id === id)?.user_name ?? 'Unavailable account';
-  const openEntry = (entry: Transaction) => attachmentReview ? attachmentReview.onOpen(entry) : setSelected(entry);
+  const openEntry = (entry: Transaction) => setSelected(entry);
   const entryUserName = (entry: Transaction) => entry.creditUserId
     ? data?.creditUsers.find((user) => user.credit_user_id === entry.creditUserId)?.user_name ?? 'Unavailable external user'
     : company && (data?.users ?? users).some((user) => user.user_id === entry.userId && user.role === 'admin')
@@ -102,8 +104,8 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
     : { [receivedLabel]: report.totalReceived, 'Total paid': report.totalBillPayment, 'Remaining balance': -report.remainingPayable };
   const invalidDates = !!filters.dateFrom && !!filters.dateTo && filters.dateFrom > filters.dateTo;
   return <div className="ledger-view flex-col gap-md">
-    <h1>{title}</h1>
-    {(subtitle || filters.description || filters.userScope !== 'all') && <div className="active-filters flex-row flex-wrap gap-sm"><span>{[subtitle, !company && filters.userScope !== 'all' ? userName(filters.userScope) : ''].filter(Boolean).join(' · ')}</span></div>}
+    {!attachmentReview && <h1>{title}</h1>}
+    {(subtitle || !attachmentReview && filters.userScope !== 'all') && <div className="active-filters flex-row flex-wrap gap-sm"><span>{[subtitle, !company && filters.userScope !== 'all' ? userName(filters.userScope) : ''].filter(Boolean).join(' · ')}</span></div>}
     <div className="ledger-toolbar flex-row flex-wrap gap-sm">
       <label className="field"><span>Entries</span><select value={draftFilters.direction} onChange={(event) => stageFilters({ ...draftFilters, direction: event.target.value as FiltersState['direction'] })}><option value="both">Credits & debits</option><option value="credit">Credits</option><option value="debit">Debits</option></select></label>
       <label className="field"><span>Arrangement</span><select value={order} onChange={(event) => { setOrder(event.target.value as LedgerOrder); setPage(0); }}>
@@ -112,7 +114,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
       <label className="field"><span>Rows per page</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }}>
         {[10, 20, 50, 100].map((size) => <option key={size}>{size}</option>)}
       </select></label>
-      <ReportActions disabled={!data || invalidDates} getReport={exportReport} />
+      {attachmentReview ? data && !invalidDates && attachmentReview.export(report.rows.map(({ entry, balance }) => ({ entry, cells: entryCells(entry, balance) })), exportReport()) : <ReportActions disabled={!data || invalidDates} getReport={exportReport} />}
       <button className={`btn${pendingFilters ? ' btn--primary filter-apply--pending' : ''}`} disabled={!pendingFilters || invalidDraftDates} onClick={applyFilters}>Apply filters</button>
       <button className="btn" onClick={() => stageFilters({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' })}>Clear filters</button>
       {pendingFilters && <button className="btn" onClick={() => stageFilters(filters)}>Discard changes</button>}
@@ -125,6 +127,13 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
           >
           <dt>{label}</dt><dd>{money(value)}</dd></div>)}
       </dl>
+      {attachmentReview ? <>
+        <div className="flex-row flex-wrap gap-md" aria-label="Attachment statement filters">{['Date/time', 'User', 'Head', 'Description'].map((column) =>
+          <LedgerFilters key={column} column={column} filters={draftFilters} heads={reportHeads} users={data.users} includeTime creditUsers={data.creditUsers} onChange={stageFilters} />)}</div>
+        <div className="ledger-total">{currentPage ? 'Page brought forward' : 'Balance brought forward'} · {money(currentPage ? report.rows[currentPage * pageSize - 1].balance : report.opening)}</div>
+        {attachmentReview.render(report.rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map(({ entry, balance }) => ({ entry, cells: entryCells(entry, balance) })), columns)}
+        <div className="ledger-total">{currentPage + 1 === pageCount ? 'Closing balance' : 'Page carried forward'} · {money(report.rows[Math.min((currentPage + 1) * pageSize, report.rows.length) - 1]?.balance ?? report.opening)}</div>
+      </> : <>
       <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{columns.map((label) => <th key={label}
         title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{(company ? ['Date/time', 'Description'] : ['Date/time', 'User', 'Head', 'Description']).includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} users={data.users} includeTime={!!attachmentReview} creditUsers={company || attachmentReview ? data.creditUsers : []} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
         {pageRows(currentPage).map(({ cells, entry: rowEntry }, index) => {
@@ -133,6 +142,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
           </tr>;
         })}
       </tbody></table></div>
+      </>}
       {!report.rows.length && <p className="text-muted">No entries in this selection.</p>}
       <div className="flex-row items-center justify-between gap-sm">
         <button className="btn" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous</button>
