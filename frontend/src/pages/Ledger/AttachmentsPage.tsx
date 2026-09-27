@@ -1,3 +1,4 @@
+import { AttachmentExport } from './AttachmentExport';
 import { Icon } from '../../Icon';
 import { cashbookApi } from '../../data/cashbookApi';
 import { useEffect, useState } from 'react';
@@ -57,6 +58,7 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
     <label className="field"><span>Images per A4 page (maximum)</span><select value={perPage} disabled={busy} onChange={(event) => setPerPage(Number(event.target.value))}>
       {[1, 2, 4, 6].map((count) => <option key={count}>{count}</option>)}</select></label>
     <button className="btn" disabled={busy || !records.length} onClick={() => void prepare(records, document)}>{busy ? 'Preparing…' : 'Preview / export'}</button>
+    <AttachmentExport items={records.flatMap(({ entry }) => entry.attachments)} perPage={perPage} />
   </div>;
   return <section className="evidence-page flex-col gap-md">
     <header className="flex-row items-center gap-sm">
@@ -76,6 +78,7 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
         revision={0} heads={heads} users={users} onDirtyChange={ignoreDirty} onChanged={unchanged}
         attachmentReview={{ export: exportControls, render: (records, columns) => <div className="evidence-records">{records.map(({ entry, cells }) =>
           <article key={entry.id} className="evidence-record">
+            <AttachmentExport items={entry.attachments} perPage={perPage} />
             <dl className="evidence-entry">{cells.map((value, index) => index < 5 && <div key={columns[index]}><dt>{columns[index]}</dt><dd>{typeof value === 'number' ? money(value) : value || '—'}</dd></div>)}</dl>
             <div className="flex-col gap-md">
               <div className="evidence-images">{entry.attachments.filter((a) => a.kind === 'image').map((attachment, index, items) =>
@@ -95,6 +98,7 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
         <span>{imageIndex! + 1} / {images.length}</span>
         <button className="btn" disabled={imageIndex === images.length - 1} onClick={() => { setImageIndex(imageIndex! + 1); setZoom(1); }}>Next →</button>
         <select aria-label="Image zoom" value={zoom} onChange={(event) => setZoom(Number(event.target.value))}><option value="1">Fit</option><option value="2">200%</option><option value="3">300%</option></select>
+        <AttachmentExport items={[photo]} perPage={1} />
         <button className="btn" onClick={() => setImageIndex(null)}>Close image</button>
       </div>
       <div className="evidence-full-image"><img src={photo.url} alt={photo.name} style={{ width: `${zoom * 100}%`, maxHeight: zoom === 1 ? '75dvh' : undefined }} /></div>

@@ -1,3 +1,4 @@
+import { AttachmentExport } from '../../Ledger/AttachmentExport';
 import { Icon } from '../../../Icon';
 import { useEffect, useRef, useState } from 'react';
 import type { Attachment } from '../types';
@@ -5,9 +6,9 @@ import { cashbookApi } from '../../../data/cashbookApi';
 import { Dialog } from './Dialog';
 
 // Shared picker and review for image evidence and voice notes.
-export function AttachmentInput({ kind, items, onChange, onBusyChange, multiple = true }: {
+export function AttachmentInput({ kind, items, onChange, onBusyChange, multiple = true, exportable = false }: {
   kind: Attachment['kind']; items: Attachment[];
-  multiple?: boolean;
+  multiple?: boolean; exportable?: boolean;
   onChange?: (items: Attachment[]) => void; onBusyChange?: (busy: boolean) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -156,7 +157,10 @@ export function AttachmentInput({ kind, items, onChange, onBusyChange, multiple 
     </div>
     {expanded && <Dialog title={expanded.name} className="image-lightbox" onClose={() => setExpanded(null)}>
       <img src={expanded.url} alt={expanded.name} />
-      <button type="button" className="btn" onClick={() => setExpanded(null)}>Close image</button>
+      <div className="flex-row flex-wrap gap-sm">
+        {exportable && <AttachmentExport items={[expanded]} perPage={1} />}
+        <button type="button" className="btn" onClick={() => setExpanded(null)}>Close image</button>
+      </div>
     </Dialog>}
   </div>;
 }

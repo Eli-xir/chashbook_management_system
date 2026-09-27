@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { attachmentTransactions, attachmentPdf, imageOrientation, expandImageSlots } from '../src/pages/Ledger/attachmentReport.ts';
@@ -86,4 +87,30 @@ test('Spare page height grows images without growing text-only entries or crossi
   assert.deepEqual(expandImageSlots(slots, 240), [90, 0, 90]);
   assert.deepEqual(expandImageSlots(slots, 140), [40, 0, 40]);
   assert.deepEqual(expandImageSlots([{ height: 20, imageHeight: 0 }], 240), [0]);
+});
+
+
+test('Images-only PDF contains images but no ledger text, with one batch request', async () => {
+  const source = `data:image/jpeg;base64,${readFileSync(new URL('../src/assets/logo.jpeg', import.meta.url)).toString('base64')}`;
+  const previousImage = Object.getOwnPropertyDescriptor(globalThis, 'Image');
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'Image', { configurable: true, value: class {
+    naturalWidth = 100; naturalHeight = 100; async decode() {}
+  } });
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: {
+    createElement: () => ({ getContext: () => ({ fillRect() {}, drawImage() {}, translate() {}, rotate() {} }), toDataURL: () => source }),
+  } });
+  try {
+    let calls = 0;
+    const file = await attachmentPdf([{ entry: base, cells: ['Private date', 'Private user', 'Private admin', 'Private head', 'Private description', 100, '', 100] }], document, 2,
+      async (ids) => { calls++; assert.deepEqual(ids, ['1']); return { '1': source }; }, true);
+    const content = await file.text();
+    assert.equal(calls, 1);
+    assert.equal(file.name, 'attachments.pdf');
+    assert.match(content, /\/Subtype \/Image/);
+    assert.doesNotMatch(content, /Private|PKR|Credit|Debit|Balance|SOHAIL|Printed:|Test statement|From:/);
+  } finally {
+    if (previousImage) Object.defineProperty(globalThis, 'Image', previousImage); else Reflect.deleteProperty(globalThis, 'Image');
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument); else Reflect.deleteProperty(globalThis, 'document');
+  }
 });

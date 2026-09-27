@@ -1,6 +1,7 @@
+import { AttachmentExport } from './AttachmentExport';
 import type { ReactNode } from 'react';
 import type { EvidenceRecord } from './attachmentReport';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AdminUser, FiltersState, Head, Transaction } from '../Admin/types';
 import { cashbookApi } from '../../data/cashbookApi';
 import { dateRangeLabel, invalidDateRange, direction, headBranchIds, headPath, ledgerReport, matchesUserScope, money } from './ledgerModel';
@@ -57,6 +58,13 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   const branch = headBranchIds(reportHeads, filters.headId);
   const pageCount = Math.max(1, Math.ceil(report.rows.length / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
+  const lastEntry = useRef<HTMLTableRowElement>(null);
+  const [scrollLast, setScrollLast] = useState(0);
+  useEffect(() => {
+    if (scrollLast) {
+      lastEntry.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
+    }
+  }, [scrollLast]);
   const userName = (id: string) => id.startsWith('credit:')
     ? data?.creditUsers.find((user) => user.credit_user_id === id.slice(7))?.user_name ?? 'Unavailable external user'
     : data?.users.find((user) => user.user_id === id)?.user_name ?? 'Unavailable account';
@@ -114,8 +122,10 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
         {[10, 20, 50, 100].map((size) => <option key={size}>{size}</option>)}
       </select></label>
       {attachmentReview ? data && !invalidDates && attachmentReview.export(report.rows.map(({ entry, balance }) => ({ entry, cells: entryCells(entry, balance) })), exportReport()) : <ReportActions disabled={!data || invalidDates} getReport={exportReport} />}
+      {!attachmentReview && data && !invalidDates && <AttachmentExport items={report.rows.flatMap(({ entry }) => entry.attachments)} />}
       <button className={`btn${pendingFilters ? ' btn--primary filter-apply--pending' : ''}`} disabled={!pendingFilters || invalidDraftDates} onClick={applyFilters}>Apply filters</button>
       <button className="btn" onClick={() => stageFilters({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' })}>Clear filters</button>
+      {!attachmentReview && <button className="btn" disabled={!data || invalidDates || !report.rows.length} onClick={() => { setPage(pageCount - 1); setScrollLast((value) => value + 1); }}>Scroll to last ↓</button>}
       {pendingFilters && <button className="btn" onClick={() => stageFilters(filters)}>Discard changes</button>}
     </div>
     {pendingFilters && <p className={invalidDraftDates ? 'text-error' : 'text-muted'} role="status">{invalidDraftDates ? 'Choose an end date/time on or after the start.' : 'Filter changes ready to apply.'}</p>}
@@ -136,7 +146,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
       <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{columns.map((label) => <th key={label}
         title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{(company ? ['Date/time', 'Description'] : ['Date/time', 'User', 'Head', 'Description']).includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} users={data.users} includeTime creditUsers={company || attachmentReview ? data.creditUsers : []} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
         {pageRows(currentPage).map(({ cells, entry: rowEntry }, index) => {
-          return <tr key={rowEntry ? `transaction:${rowEntry.id}` : `total:${index}`} className={rowEntry ? 'ledger-entry' : 'ledger-total'} onClick={() => { if (rowEntry) openEntry(rowEntry); }}>
+          return <tr ref={rowEntry && rowEntry.id === report.rows.at(-1)?.entry.id ? lastEntry : undefined} key={rowEntry ? `transaction:${rowEntry.id}` : `total:${index}`} className={rowEntry ? 'ledger-entry' : 'ledger-total'} onClick={() => { if (rowEntry) openEntry(rowEntry); }}>
             {cells.map((value, column) => <td key={column}>{column === 0 && rowEntry ? <button className="ledger-row-link" onClick={() => openEntry(rowEntry)}>{value}</button> : typeof value === 'number' ? money(value) : value}</td>)}
           </tr>;
         })}

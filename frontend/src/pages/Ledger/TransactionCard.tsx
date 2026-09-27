@@ -1,3 +1,4 @@
+import { AttachmentExport } from './AttachmentExport';
 import { useState } from 'react';
 import type { AdminUser, CreditUser, Head, Transaction, TransactionInput } from '../Admin/types';
 import { Dialog } from '../Admin/components/Dialog';
@@ -78,6 +79,7 @@ export function TransactionCard({ entry, admin = false, company = false, heads =
         <button className="btn btn--primary" disabled={locked}>{busy ? 'Saving…' : current ? 'Save new version' : 'Apply credit'}</button>
       </div>
     </form> : current && <>
+      {admin && <AttachmentExport items={current.attachments} />}
       <dl className="review-details">
         <dt>Date/time</dt><dd>{new Date(current.createdAt).toLocaleString()}</dd>
         {admin && <><dt>User</dt><dd>{entryUserName(current)}</dd><dt>Entered by</dt><dd>{userName(current.createdBy)}</dd></>}
@@ -88,7 +90,7 @@ export function TransactionCard({ entry, admin = false, company = false, heads =
       </dl>
       {(['image', 'voice'] as const).map((kind) => <section key={kind} className="flex-col gap-sm">
         <h3>{kind === 'image' ? 'Images' : 'Voice notes'}</h3>
-        <AttachmentInput kind={kind} items={current.attachments.filter((item) => item.kind === kind)} />
+        <AttachmentInput exportable={admin} kind={kind} items={current.attachments.filter((item) => item.kind === kind)} />
       </section>)}
       {admin && <div className="flex-row flex-wrap gap-sm">
         <button className="btn" disabled={locked} onClick={() => { setInput({ amount: current.amount, headId: current.headId, description: current.description ?? '', attachments: current.attachments, transactionTypeId: current.transactionTypeId ?? 1 }); setEditing(true); }}>Edit</button>
