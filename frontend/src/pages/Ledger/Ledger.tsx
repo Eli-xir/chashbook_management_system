@@ -1,4 +1,3 @@
-import { AttachmentExport } from './AttachmentExport';
 import type { ReactNode } from 'react';
 import type { EvidenceRecord } from './attachmentReport';
 import { useEffect, useRef, useState } from 'react';
@@ -122,7 +121,6 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
         {[10, 20, 50, 100].map((size) => <option key={size}>{size}</option>)}
       </select></label>
       {attachmentReview ? data && !invalidDates && attachmentReview.export(report.rows.map(({ entry, balance }) => ({ entry, cells: entryCells(entry, balance) })), exportReport()) : <ReportActions disabled={!data || invalidDates} getReport={exportReport} />}
-      {!attachmentReview && data && !invalidDates && <AttachmentExport items={report.rows.flatMap(({ entry }) => entry.attachments)} />}
       <button className={`btn${pendingFilters ? ' btn--primary filter-apply--pending' : ''}`} disabled={!pendingFilters || invalidDraftDates} onClick={applyFilters}>Apply filters</button>
       <button className="btn" onClick={() => stageFilters({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' })}>Clear filters</button>
       {!attachmentReview && <button className="btn" disabled={!data || invalidDates || !report.rows.length} onClick={() => { setPage(pageCount - 1); setScrollLast((value) => value + 1); }}>Scroll to last ↓</button>}
