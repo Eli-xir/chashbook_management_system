@@ -45,6 +45,7 @@ type Page = 'home' | 'credit' | 'debit' | typeof cards[number]['id'];
 export function AdminPage(props: AdminPageProps) {
   const { users, heads, permissions, currentAdminUserId } = props;
   const [page, setPage] = useState<Page>('home');
+  const [statementFrom, setStatementFrom] = useState<Page | null>(null);
   const [filters, setFilters] = useState<FiltersState>({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' });
   const [selectedUserId, setSelectedUserId] = useState('');
   const [headMode, setHeadMode] = useState<HeadMode>('manage');
@@ -80,8 +81,9 @@ export function AdminPage(props: AdminPageProps) {
   const diff = permissionDiff(permissions[selectedUserId] ?? [], editor.ids(selectedUserId));
   function navigate(action: () => void) {
     if (transactionBusy) { setNotice('Finish the recording or current operation first.'); return; }
-    if (transactionDirty || ledgerDirty) setPendingNavigation(() => action);
-    else action();
+    const proceed = () => { setStatementFrom(null); action(); };
+    if (transactionDirty || ledgerDirty) setPendingNavigation(() => proceed);
+    else proceed();
   }
   function openAttachments(scope: string) {
     navigate(() => { setAttachmentScope(scope); setPage('attachments'); });
@@ -90,7 +92,7 @@ export function AdminPage(props: AdminPageProps) {
     navigate(() => { setHeadMode('manage'); if (headsFromUsers) setPage('users'); });
   }
   function statement(userScope: string, headId = filters.headId, company = false) {
-    navigate(() => { setFilters((f) => ({ ...f, userScope, headId })); setPage(company ? 'company' : 'statement'); setHeadMode('manage'); });
+    navigate(() => { setStatementFrom(page); setFilters((f) => ({ ...f, userScope, headId })); setPage(company ? 'company' : 'statement'); setHeadMode('manage'); });
   }
   async function refresh() {
     setRefreshing(true); setNotice('');
@@ -169,18 +171,20 @@ export function AdminPage(props: AdminPageProps) {
       </section>
       {preview && selectedUser ? <section className="admin-preview"><UserPreview key={`${selectedUserId}:${revision}`} user={selectedUser} onRefresh={props.onRefresh} heads={heads} assigned={editor.ids(selectedUserId)} pending={diff.granted.length + diff.revoked.length > 0}
         onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} onClose={closeHeadView} /></section>
-        : (page === 'company' || page === 'statement') && <Ledger key={`${revision}:${page}`} company={page === 'company'} filters={filters} onFilterChange={setFilters} revision={revision} heads={heads} users={users} onDirtyChange={setLedgerDirty}
-          onChanged={props.onRefresh} />}
+        : (page === 'company' || page === 'statement') && <>
+          {statementFrom && <button className="btn" onClick={() => navigate(() => setPage(statementFrom))}>← Back</button>}
+          <Ledger key={`${revision}:${page}`} company={page === 'company'} filters={filters} onFilterChange={setFilters} revision={revision} heads={heads} users={users} onDirtyChange={setLedgerDirty}
+            onChanged={props.onRefresh} /></>}
       {page === 'attachments' && <AttachmentsPage key={attachmentScope} initialScope={attachmentScope} users={users} creditUsers={props.creditUsers} heads={heads} />}
       {page === 'debit' && <AdminDebitFlow key={`${revision}:${debitShortcut}`} initialUserId={debitShortcut} users={users} heads={heads}
         onClose={() => setPage('home')} onSubmitted={props.onRefresh}
         onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} />}
-      {page === 'credit' && users.find((user) => user.user_id === currentAdminUserId) &&
+      {(page === 'credit' || statementFrom === 'credit') && users.find((user) => user.user_id === currentAdminUserId) && <div hidden={page !== 'credit'}>
         <AdminCreditFlow key={creditShortcut ? `${creditShortcut.mode}:${creditShortcut.id}` : 'menu'} admin={users.find((user) => user.user_id === currentAdminUserId)!}
           initialCreditUserId={creditShortcut?.mode === 'transaction' ? creditShortcut.id : ''}
           initialEditCreditUserId={creditShortcut?.mode === 'edit' ? creditShortcut.id : ''} creditUsers={props.creditUsers} heads={heads}
           onStatement={(user) => statement(`credit:${user.credit_user_id}`, null, true)}
-          onClose={() => setPage('home')} onRefresh={props.onRefresh} onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} />}
+          onClose={() => setPage('home')} onRefresh={props.onRefresh} onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} /></div>}
     </div>
 
     {headPermission && <Dialog title={`${headPermission.allow ? 'Give permission' : 'Revoke permission'} · ${headPermission.head.head_name}`} onClose={() => setHeadPermission(null)}>
