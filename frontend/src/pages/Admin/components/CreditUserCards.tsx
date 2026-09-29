@@ -5,8 +5,9 @@ import { cashbookApi } from '../../../data/cashbookApi';
 import { matchesUser } from '../utils/userProfile';
 import { HomeCard } from './HomeCard';
 
-export function CreditUserCards({ users, selectedId = '', onOpen, onEdit, onChanged, onBusyChange, search: sharedSearch, onAttachments }: {
+export function CreditUserCards({ users, selectedId = '', onOpen, onEdit, onChanged, onBusyChange, search: sharedSearch, onAttachments, onStatement }: {
   onAttachments?: (user: CreditUser) => void;
+  onStatement?: (user: CreditUser) => void;
   users: CreditUser[]; selectedId?: string; onOpen: (user: CreditUser) => void;
   onEdit: (user: CreditUser) => void; onChanged: () => Promise<void>; onBusyChange?: (busy: boolean) => void; search?: string;
 }) {
@@ -45,7 +46,7 @@ export function CreditUserCards({ users, selectedId = '', onOpen, onEdit, onChan
       value={search} onChange={(event) => setSearch(event.target.value)} />}
     {error && <p className="text-error" role="alert">{error}</p>}
     {message && <p className="credit-success" role="status">{message}</p>}
-    <div className="home-cards">{choices.map((user, index) => <HomeCard onAttachments={onAttachments ? () => onAttachments(user) : undefined} key={user.credit_user_id} accountType="external"
+    <div className="home-cards">{choices.map((user, index) => <HomeCard onAttachments={onAttachments ? () => onAttachments(user) : undefined} onStatement={onStatement ? () => onStatement(user) : undefined} key={user.credit_user_id} accountType="external"
       title={user.is_active ? user.user_name : `${user.user_name} · Inactive`} description={user.description} detail={user.contacts[0]}
       icon={<Icon size={42}><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></Icon>}
       tone={(['blue', 'gold', 'green', 'purple'] as const)[index % 4]}

@@ -1,10 +1,10 @@
 import { Icon } from '../../../Icon';
 import type { ReactNode } from 'react';
 
-export function HomeCard({ title, icon, tone, onClick, description, detail, actions, accountType, onAttachments, selected = false, disabled = false }: {
+export function HomeCard({ title, icon, tone, onClick, description, detail, actions, accountType, onAttachments, onStatement, selected = false, disabled = false }: {
   title: string; icon: ReactNode; tone: 'blue' | 'gold' | 'green' | 'purple'; onClick: () => void;
   description?: string; detail?: string; actions?: ReactNode; selected?: boolean; disabled?: boolean;
-  onAttachments?: () => void;
+  onAttachments?: () => void; onStatement?: () => void;
   accountType?: 'user' | 'external' | 'admin';
 }) {
   const content = <>
@@ -23,6 +23,9 @@ export function HomeCard({ title, icon, tone, onClick, description, detail, acti
           : <><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></>}
       </Icon>
     </span>}
+    {onStatement && <button className="btn home-card-attachments home-card-statement" title="View statement" aria-label={`View statement for ${title}`} disabled={disabled} onClick={onStatement}>
+      <Icon size={18} strokeWidth="1.7"><path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h2" /></Icon>
+    </button>}
     {onAttachments && <button className="btn home-card-attachments" title="View attachments" aria-label={`View attachments for ${title}`} disabled={disabled} onClick={onAttachments}>
       <Icon size={18} strokeWidth="1.7"><path d="M21 11.5 12.5 20a6 6 0 0 1-8.5-8.5L13 2.5a4 4 0 0 1 5.5 5.5l-9 9a2 2 0 0 1-3-3L15 5" /></Icon>
     </button>}

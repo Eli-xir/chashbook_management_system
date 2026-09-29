@@ -128,7 +128,7 @@ export function AdminPage(props: AdminPageProps) {
         <UserCards onAttachments={(user) => openAttachments(user.user_id)} users={pinnedUsers} search={pinnedSearch} onChanged={props.onRefresh}
           onOpen={(user) => navigate(() => { setDebitShortcut(user.user_id); setPage('debit'); })} />
         {![...pinnedUsers, ...pinnedExternal].some((user) => matchesUser(user, pinnedSearch)) && <p className="text-muted">No matching pinned users.</p>}
-        <CreditUserCards onAttachments={(user) => openAttachments(`credit:${user.credit_user_id}`)} users={pinnedExternal} search={pinnedSearch} onChanged={props.onRefresh}
+        <CreditUserCards onAttachments={(user) => openAttachments(`credit:${user.credit_user_id}`)} onStatement={(user) => statement(`credit:${user.credit_user_id}`)} users={pinnedExternal} search={pinnedSearch} onChanged={props.onRefresh}
           onOpen={(user) => navigate(() => { setCreditShortcut({ id: user.credit_user_id, mode: 'transaction' }); setPage('credit'); })}
           onEdit={(user) => navigate(() => { setCreditShortcut({ id: user.credit_user_id, mode: 'edit' }); setPage('credit'); })} />
       </section>}
