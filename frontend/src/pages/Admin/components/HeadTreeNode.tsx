@@ -48,7 +48,7 @@ export function HeadTreeNode({ node, mergeMode, selected, destination, onSelect,
             pointerType.current = event.pointerType;
             if (!event.isPrimary || event.button !== 0 || !onStartMove || (event.target as HTMLElement).closest('.head-actions')) return;
             start.current = { x: event.clientX, y: event.clientY };
-            hold.current = setTimeout(() => { held.current = true; lastTap.current = 0; onStartMove(node.head_id); }, 250);
+            hold.current = setTimeout(() => { held.current = true; lastTap.current = 0; onStartMove(node.head_id); }, 500);
           }}
           onPointerMove={(event) => { if (Math.hypot(event.clientX - start.current.x, event.clientY - start.current.y) > 10) clearHold(); }}
           onPointerUp={clearHold} onPointerCancel={clearHold} onPointerLeave={clearHold}
