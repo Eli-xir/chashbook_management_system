@@ -52,7 +52,9 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   async function refresh() { setData(await cashbookApi.ledger()); await onChanged(); }
   const reportHeads = data?.heads ?? heads;
   const entryDirection = (entry: Transaction) => direction(entry, company);
-  const transactions = (data?.transactions ?? []).filter((entry) => company || attachmentReview || !(data?.users ?? users).some((user) => user.user_id === entry.userId && user.role === 'admin'));
+  const transactions = (data?.transactions ?? []).filter((entry) => company
+    ? entry.creditUserId !== null || entry.userId !== entry.createdBy
+    : attachmentReview || !(data?.users ?? users).some((user) => user.user_id === entry.userId && user.role === 'admin'));
   const report = ledgerReport(transactions, filters, order, reportHeads, company);
   const branch = headBranchIds(reportHeads, filters.headId);
   const pageCount = Math.max(1, Math.ceil(report.rows.length / pageSize));
@@ -106,7 +108,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   function exportReport(): ReportDocument {
     return { title, subtitle, printedAt: new Date().toLocaleString(), columns, pages: Array.from({ length: pageCount }, (_, index) => pageRows(index).map((row) => row.cells)) };
   }
-  const summary = company ? { Credits: report.totalBillPayment, Debits: report.totalReceived, Balance: report.remainingPayable }
+  const summary = company ? { Credits: report.credit, Debits: report.debit, Balance: report.closing }
     : { [receivedLabel]: report.totalReceived, 'Total paid': report.totalBillPayment, 'Remaining balance': -report.remainingPayable };
   const invalidDates = invalidDateRange(filters);
   return <div className="ledger-view flex-col gap-md">

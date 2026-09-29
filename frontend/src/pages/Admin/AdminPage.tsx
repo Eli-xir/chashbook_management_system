@@ -16,7 +16,7 @@ import { usePermissionChanges } from './hooks/usePermissionChanges';
 import { permissionDiff, permittedHeads } from './utils/permissions';
 import { AttachmentsPage } from '../Ledger/AttachmentsPage';
 import { Ledger } from '../Ledger/Ledger';
-import { accountTotals, money } from '../Ledger/ledgerModel';
+import { money, roundMoney } from '../Ledger/ledgerModel';
 import logo from '../../assets/logo.jpeg';
 import './AdminPage.css';
 
@@ -76,7 +76,14 @@ export function AdminPage(props: AdminPageProps) {
   const dirty = headDirty || userDirty || editor.dirty || transactionDirty || ledgerDirty;
   const pinnedUsers = selectableUsers.filter((user) => user.is_active && user.is_pinned);
   const pinnedExternal = props.creditUsers.filter((user) => user.is_active && user.is_pinned);
-  const totals = accountTotals(props.transactions);
+  // Mirrors the Company Statement: credits are external users' payments,
+  // debits are direct admin entries on users; self-recorded user entries
+  // belong to their own statements and are left out to avoid double counting.
+  const companyEntries = props.transactions.filter((entry) => entry.active
+    && (entry.creditUserId !== null || entry.userId !== entry.createdBy));
+  const companyCredits = roundMoney(companyEntries.filter((entry) => entry.creditUserId !== null).reduce((sum, entry) => sum + entry.amount, 0));
+  const companyDebits = roundMoney(companyEntries.filter((entry) => entry.creditUserId === null).reduce((sum, entry) => sum + entry.amount, 0));
+  const totals = { credits: companyCredits, debits: companyDebits, balance: roundMoney(companyCredits - companyDebits) };
   const diff = permissionDiff(permissions[selectedUserId] ?? [], editor.ids(selectedUserId));
   function navigate(action: () => void) {
     if (transactionBusy) { setNotice('Finish the recording or current operation first.'); return; }
@@ -112,7 +119,7 @@ export function AdminPage(props: AdminPageProps) {
     {notice && <p role="status">{notice}</p>}
     <section className="admin-home" hidden={page !== 'home'}>
       <h1>Overview</h1>
-      <dl className="home-totals">{Object.entries({ Credits: totals.totalBillPayment, Debits: totals.totalReceived, Balance: totals.remainingPayable }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{money(value)}</dd></div>)}</dl>
+      <dl className="home-totals">{Object.entries({ Credits: totals.credits, Debits: totals.debits, Balance: totals.balance }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{money(value)}</dd></div>)}</dl>
       <HomeNavigation key={`${revision}:${props.homeOrder?.join(',')}`} cards={cards} order={props.homeOrder} onOpen={(id) => navigate(() => {
         setHeadMode('manage'); setHeadsFromUsers(false);
         if (id === 'attachments') setAttachmentScope('');
