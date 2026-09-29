@@ -10,9 +10,10 @@ import { UserPreview } from './UserPreview';
 
 type Screen = 'menu' | 'create' | 'choose' | 'edit' | 'transaction';
 
-export function AdminCreditFlow({ admin, creditUsers, heads, initialCreditUserId = '', initialEditCreditUserId = '', onClose, onRefresh, onDirtyChange, onBusyChange }: {
+export function AdminCreditFlow({ admin, creditUsers, heads, initialCreditUserId = '', initialEditCreditUserId = '', onClose, onRefresh, onDirtyChange, onBusyChange, onStatement }: {
   admin: AdminUser; creditUsers: CreditUser[]; heads: Head[]; initialCreditUserId?: string; initialEditCreditUserId?: string;
   onClose: () => void; onRefresh: () => Promise<void>;
+  onStatement: (user: CreditUser) => void;
   onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
 }) {
   const initialEdit = creditUsers.find((item) => item.credit_user_id === initialEditCreditUserId);
@@ -103,7 +104,7 @@ export function AdminCreditFlow({ admin, creditUsers, heads, initialCreditUserId
       <button className="btn btn--primary" disabled={busy}>{busy ? 'Saving…' : screen === 'edit' ? 'Save changes' : 'Save external user'}</button>
     </form>}
     {screen === 'choose' && <div className="flex-col gap-md">
-      <CreditUserCards users={creditUsers} selectedId={selected} onChanged={onRefresh} onBusyChange={setCardsBusy}
+      <CreditUserCards users={creditUsers} selectedId={selected} onChanged={onRefresh} onBusyChange={setCardsBusy} onStatement={onStatement}
         onOpen={(item) => { setSelected(item.credit_user_id); setTransactionDirty(false); setScreen('transaction'); }} onEdit={edit} />
     </div>}
     {screen === 'transaction' && payer && <UserPreview key={payer.credit_user_id} user={admin} creditUser={payer} heads={heads} assigned={[]} pending={false}

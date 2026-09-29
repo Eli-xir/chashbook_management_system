@@ -23,7 +23,7 @@ export function HomeCard({ title, icon, tone, onClick, description, detail, acti
           : <><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></>}
       </Icon>
     </span>}
-    {onStatement && <button className="btn home-card-attachments home-card-statement" title="View statement" aria-label={`View statement for ${title}`} disabled={disabled} onClick={onStatement}>
+    {onStatement && <button className={`btn home-card-attachments${onAttachments ? ' home-card-statement' : ''}`} title="View statement" aria-label={`View statement for ${title}`} disabled={disabled} onClick={onStatement}>
       <Icon size={18} strokeWidth="1.7"><path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h2" /></Icon>
     </button>}
     {onAttachments && <button className="btn home-card-attachments" title="View attachments" aria-label={`View attachments for ${title}`} disabled={disabled} onClick={onAttachments}>

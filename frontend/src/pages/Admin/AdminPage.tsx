@@ -179,6 +179,7 @@ export function AdminPage(props: AdminPageProps) {
         <AdminCreditFlow key={creditShortcut ? `${creditShortcut.mode}:${creditShortcut.id}` : 'menu'} admin={users.find((user) => user.user_id === currentAdminUserId)!}
           initialCreditUserId={creditShortcut?.mode === 'transaction' ? creditShortcut.id : ''}
           initialEditCreditUserId={creditShortcut?.mode === 'edit' ? creditShortcut.id : ''} creditUsers={props.creditUsers} heads={heads}
+          onStatement={(user) => statement(`credit:${user.credit_user_id}`, null, true)}
           onClose={() => setPage('home')} onRefresh={props.onRefresh} onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} />}
     </div>
 
