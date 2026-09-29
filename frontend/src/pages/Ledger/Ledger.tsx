@@ -3,7 +3,7 @@ import type { EvidenceRecord } from './attachmentReport';
 import { useEffect, useRef, useState } from 'react';
 import type { AdminUser, FiltersState, Head, Transaction } from '../Admin/types';
 import { cashbookApi } from '../../data/cashbookApi';
-import { dateRangeLabel, invalidDateRange, direction, headBranchIds, headPath, ledgerReport, matchesUserScope, money } from './ledgerModel';
+import { dateRangeLabel, invalidDateRange, direction, headBranchIds, headPath, isCompanyTransaction, ledgerReport, matchesUserScope, money } from './ledgerModel';
 import type { LedgerOrder } from './ledgerModel';
 import { ReportActions } from './ReportActions';
 import type { ReportDocument } from './ledgerExport';
@@ -20,7 +20,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   onChanged: () => Promise<void>; company?: boolean; onFilterChange: (filters: FiltersState) => void;
   filters: FiltersState; revision: number; heads: Head[]; users: AdminUser[]; onDirtyChange: (dirty: boolean) => void;
 }) {
-  const filters = company ? { ...suppliedFilters, userScope: 'all', headId: null } : suppliedFilters;
+  const filters = company ? { ...suppliedFilters, headId: null } : suppliedFilters;
   const [data, setData] = useState<LedgerData | null>(null);
   const [order, setOrder] = useState<LedgerOrder>('by-time');
   const [pagination, setPagination] = useState({ scope: '', page: 0 });
@@ -53,7 +53,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   const reportHeads = data?.heads ?? heads;
   const entryDirection = (entry: Transaction) => direction(entry, company);
   const transactions = (data?.transactions ?? []).filter((entry) => company
-    ? entry.creditUserId !== null || entry.userId !== entry.createdBy
+    ? isCompanyTransaction(entry)
     : attachmentReview || !(data?.users ?? users).some((user) => user.user_id === entry.userId && user.role === 'admin'));
   const report = ledgerReport(transactions, filters, order, reportHeads, company);
   const branch = headBranchIds(reportHeads, filters.headId);

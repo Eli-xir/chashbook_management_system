@@ -14,7 +14,7 @@ export function HomeCard({ title, icon, tone, onClick, description, detail, acti
     {detail && <small className="home-card-detail">{detail}</small>}
   </>;
   const className = `home-card home-card--${tone}`;
-  return actions || onAttachments ? <article className={`${className} credit-user-card${selected ? ' credit-user-card--selected' : ''}`}>
+  return actions || onAttachments || onStatement ? <article className={`${className} credit-user-card${selected ? ' credit-user-card--selected' : ''}`}>
     {accountType && <span className="account-type-badge" title={accountType === 'external' ? 'External user' : accountType === 'admin' ? 'Administrator' : 'User'}
       role="img" aria-label={accountType === 'external' ? 'External user' : accountType === 'admin' ? 'Administrator' : 'User'}>
       <Icon size={18} strokeWidth="1.7">
