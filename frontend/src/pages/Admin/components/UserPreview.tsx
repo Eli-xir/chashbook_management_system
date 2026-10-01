@@ -8,7 +8,7 @@ import { Dialog } from './Dialog';
 import { TransactionCard } from '../../Ledger/TransactionCard';
 import { creditDocument } from '../../Ledger/ledgerExport';
 import { ReportActions } from '../../Ledger/ReportActions';
-import { money } from '../../Ledger/ledgerModel';
+import { creditUserScope, ledgerReport, money } from '../../Ledger/ledgerModel';
 
 type Screen = 'home' | 'heads' | 'images' | 'voice' | 'description' | 'review';
 const ignoreChange = (_value: boolean) => {};
@@ -68,12 +68,18 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
   useEffect(() => {
     let ignore = false;
     setRefreshing(true);
-    cashbookApi.userOverview(user.user_id).then((data) => {
+    const request = creditUser ? cashbookApi.ledger().then(({ transactions }) => {
+      const report = ledgerReport(transactions, { dateFrom: '', dateTo: '', direction: 'both',
+        userScope: creditUserScope(creditUser.credit_user_id) }, 'by-time', [], true);
+      return { balance: report.closing, totalReceived: report.credit, totalBillPayment: report.debit,
+        remainingPayable: -report.closing, credits: [] };
+    }) : cashbookApi.userOverview(user.user_id);
+    request.then((data) => {
       if (!ignore) { setOverview(data); setError(''); }
     }).catch((error) => { if (!ignore) setError(error instanceof Error ? error.message : 'Could not load your balance.'); })
       .finally(() => { if (!ignore) setRefreshing(false); });
     return () => { ignore = true; };
-  }, [user.user_id, reload]);
+  }, [user.user_id, creditUser?.credit_user_id, reload]);
 
   function go(next: Screen) { setSearch(''); setError(''); setScreen(next); }
   function back() {
@@ -162,7 +168,7 @@ export function UserPreview({ user, heads, assigned, pending, onClose, preview =
       {screen === 'home' && <>
         {success && <p role="status">{creditUser ? 'Credit recorded successfully.' : 'Transaction sent successfully.'}</p>}
         <article className="user-card-panel home-card--gold balance-card flex-col gap-sm">
-          <h2>{adminCredit ? user.role === 'admin' ? 'Company balance' : 'User’s total credits' : 'Remaining balance'}</h2>
+          <h2>{creditUser ? `${creditUser.user_name} · Balance` : adminCredit ? user.role === 'admin' ? 'Company balance' : 'User’s total credits' : 'Remaining balance'}</h2>
           <p className="balance-value"><span>{money(adminCredit && user.role !== 'admin' ? overview.totalReceived : overview.balance)}</span></p>
         </article>
         <form className="flex-col gap-md" onSubmit={(event) => {

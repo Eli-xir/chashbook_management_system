@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { PdfPreview } from './PdfPreview';
+import { useState } from 'react';
 import type { Attachment } from '../Admin/types';
 import { Dialog } from '../Admin/components/Dialog';
 import { cashbookApi } from '../../data/cashbookApi';
@@ -8,14 +9,8 @@ import { download, printLedger } from './ledgerExport';
 // The same clean export for a statement, one transaction, or one image.
 export function AttachmentExport({ items, perPage = 2 }: { items: Attachment[]; perPage?: number }) {
   const [file, setFile] = useState<File | null>(null);
-  const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  useEffect(() => {
-    if (!file) return;
-    const next = URL.createObjectURL(file); setUrl(next);
-    return () => URL.revokeObjectURL(next);
-  }, [file]);
   async function prepare() {
     setBusy(true); setError('');
     try {
@@ -41,7 +36,7 @@ export function AttachmentExport({ items, perPage = 2 }: { items: Attachment[]; 
         <button className="btn" onClick={() => setFile(null)}>Close</button>
       </div>
       {error && <p role="alert" className="text-error">{error}</p>}
-      {url && <iframe title="Attachments only preview" src={url} />}
+      <PdfPreview file={file} />
     </Dialog>}
   </>;
 }

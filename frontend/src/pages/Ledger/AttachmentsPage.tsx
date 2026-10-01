@@ -1,7 +1,8 @@
+import { PdfPreview } from './PdfPreview';
 import { AttachmentExport } from './AttachmentExport';
 import { Icon } from '../../Icon';
 import { cashbookApi } from '../../data/cashbookApi';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { AdminUser, CreditUser, FiltersState, Head, Attachment } from '../Admin/types';
 import { HomeCard } from '../Admin/components/HomeCard';
 import { Dialog } from '../Admin/components/Dialog';
@@ -29,12 +30,6 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [pdf, setPdf] = useState<File | null>(null);
-  const [pdfUrl, setPdfUrl] = useState('');
-  useEffect(() => {
-    if (!pdf) { setPdfUrl(''); return; }
-    const url = URL.createObjectURL(pdf); setPdfUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [pdf]);
   const people = [
     ...users.filter((user) => user.role !== 'admin').map((user) => ({ ...user, id: user.user_id, type: 'user' as const })),
     ...creditUsers.map((user) => ({ ...user, id: `credit:${user.credit_user_id}`, type: 'external' as const })),
@@ -111,7 +106,7 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
         <button className="btn" onClick={() => setPdf(null)}>Close</button>
       </div>
       {error && <p className="text-error" role="alert">{error}</p>}
-      {pdfUrl && <iframe title="Attachment PDF preview" src={pdfUrl} />}
+      <PdfPreview file={pdf} />
     </Dialog>}
   </section>;
 }

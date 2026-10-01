@@ -37,6 +37,17 @@ test('User and external-user filters retain their direct entries with correct si
   assert.equal(external.closing, 1000);
 });
 
+test('External credit workflow balance excludes other payers, inactive receipts and company payments', () => {
+  const transactions = [...entries,
+    { ...entries[0], id: 'other-payer', creditUserId: 'someone-else', amount: 5000 },
+    { ...entries[0], id: 'inactive-receipt', active: false, amount: 7000 },
+    { ...entries[0], id: 'second-receipt', amount: 250 },
+  ];
+  const external = ledgerReport(transactions, { ...filters, userScope: 'credit:external' }, 'by-time', [], true);
+  assert.equal(external.closing, 1250);
+  assert.equal(ledgerReport(transactions, filters, 'by-time', [], true).closing, 6050);
+});
+
 test('A selected branch only includes its entries, and clearing it restores direct payments', () => {
   const report = ledgerReport(entries, { ...filters, headId: 1 }, 'by-time', heads);
   assert.deepEqual(report.rows.map(({ entry }) => entry.id), ['3']);

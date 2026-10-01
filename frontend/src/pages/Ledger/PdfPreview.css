@@ -1,0 +1,4 @@
+.pdf-preview { flex: 1; min-height: 0; overflow: hidden; }
+.pdf-preview-sheet { flex: 1; min-height: 0; overflow: auto; }
+.pdf-preview-sheet canvas { display: block; width: 100%; max-width: 1000px; height: auto; margin: auto; background: white; }
+.pdf-preview-sheet canvas[hidden] { display: none; }
