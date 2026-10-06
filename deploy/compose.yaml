@@ -46,10 +46,12 @@ services:
     restart: unless-stopped
     environment:
       CASHBOOK_DOMAIN: ${CASHBOOK_DOMAIN:?Set domain or static IP}
+    networks: [default, mistri_edge]
     ports: ['80:80', '443:443']
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+      - ./sites:/etc/caddy/sites:ro
     depends_on:
       backend: {condition: service_healthy}
     logging: *logging
@@ -65,3 +67,8 @@ volumes:
   caddy_config:
     external: true
     name: cashbook_caddy_config
+
+networks:
+  mistri_edge:
+    external: true
+    name: mistri-edge

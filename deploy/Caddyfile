@@ -30,3 +30,6 @@
         file_server
     }
 }
+
+# Additional apps are configured on the host and survive image replacement.
+import /etc/caddy/sites/*.caddy
