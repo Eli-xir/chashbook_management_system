@@ -1,4 +1,8 @@
-# Lightsail instance
+# Previous Lightsail instance (retained for recovery)
+
+As of 6 October 2026, GitHub production deployments target the client's instance documented in CLIENT_INSTANCE.md. After the user confirmed the migration, this previous installation was stopped and the operating system was shut down over SSH. Its backup timer was disabled and its deployment-only SSH key was removed. The AWS resource has not been deleted: available credentials do not permit Lightsail management. Administrative SSH access can be used again after a console restart.
+
+The final recovery dump was copied and verified in the client's bucket at s3://cash-book-management-backup/pg_dump/cashbook-old-before-retirement-20261006T034738Z.dump. The old database volume and S3 contents were preserved. frontend/vercel.json still points here at the user's request, so that Vercel site's API is unavailable until its routing is changed separately.
 
 - SSH: ubuntu@13.202.242.159 (Mumbai).
 - Application: https://13.202.242.159
