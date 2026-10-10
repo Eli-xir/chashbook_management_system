@@ -100,7 +100,7 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
     </Dialog>}
     {pdf && <Dialog className="report-preview" title="Attachment pages" onClose={() => setPdf(null)}>
       <div className="flex-row flex-wrap gap-sm">
-        <button className="btn" onClick={() => download(pdf, pdf.name)}>Download PDF</button>
+        <button className="btn" onClick={() => { setError(''); void download(pdf, pdf.name).catch((cause) => setError(cause instanceof Error ? cause.message : 'Could not download the file.')); }}>Download PDF</button>
         <button className="btn" onClick={() => void share()}>Share…</button>
         <button className="btn" onClick={() => { try { printLedger(pdf); } catch (cause) { setError((cause as Error).message); } }}>Print</button>
         <button className="btn" onClick={() => setPdf(null)}>Close</button>

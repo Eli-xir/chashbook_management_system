@@ -69,7 +69,7 @@ export function ReportActions({ getReport, disabled = false }: { getReport: () =
         <select aria-label="Preview zoom" value={zoom} onChange={(event) => setZoom(event.target.value)}>
           <option value="fit">Fit width</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.5">150%</option>
         </select>
-        <button className="btn" disabled={!file || sharing} onClick={() => { if (file) download(file, file.name); }}>Download</button>
+        <button className="btn" disabled={!file || sharing} onClick={() => { if (file) { setError(''); void download(file, file.name).catch((cause) => setError(cause instanceof Error ? cause.message : 'Could not download the file.')); } }}>Download</button>
         <button className="btn btn--primary" title="Share through WhatsApp, email or another app" disabled={!file || sharing} onClick={() => void share()}>{sharing ? 'Sharing…' : 'Share…'}</button>
         <button className="btn" disabled={!file || sharing} onClick={() => {
           try { if (ready) printLedger(ready.pdf); }

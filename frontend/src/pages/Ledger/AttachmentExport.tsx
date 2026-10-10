@@ -30,7 +30,7 @@ export function AttachmentExport({ items, perPage = 2 }: { items: Attachment[]; 
     {error && !file && <p role="alert" className="text-error">{error}</p>}
     {file && <Dialog className="report-preview" title="Attachments only" onClose={() => setFile(null)}>
       <div className="flex-row flex-wrap gap-sm">
-        <button className="btn" onClick={() => download(file, file.name)}>Download PDF</button>
+        <button className="btn" onClick={() => { setError(''); void download(file, file.name).catch((cause) => setError(cause instanceof Error ? cause.message : 'Could not download the file.')); }}>Download PDF</button>
         <button className="btn" onClick={() => void share()}>Share…</button>
         <button className="btn" onClick={() => { try { printLedger(file); } catch (cause) { setError((cause as Error).message); } }}>Print</button>
         <button className="btn" onClick={() => setFile(null)}>Close</button>
