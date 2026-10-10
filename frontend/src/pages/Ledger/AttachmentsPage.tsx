@@ -11,8 +11,7 @@ import { matchesUser } from '../Admin/utils/userProfile';
 import { Ledger } from './Ledger';
 import { money } from './ledgerModel';
 import { attachmentPdf, type EvidenceRecord } from './attachmentReport';
-import { printLedger, type ReportDocument } from './ledgerExport';
-import { DownloadButton } from './DownloadButton';
+import { download, printLedger, type ReportDocument } from './ledgerExport';
 import './AttachmentsPage.css';
 
 const ignoreDirty = () => {};
@@ -101,7 +100,7 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
     </Dialog>}
     {pdf && <Dialog className="report-preview" title="Attachment pages" onClose={() => setPdf(null)}>
       <div className="flex-row flex-wrap gap-sm">
-        <DownloadButton file={pdf} label="Download PDF" />
+        <button className="btn" onClick={() => download(pdf, pdf.name)}>Download PDF</button>
         <button className="btn" onClick={() => void share()}>Share…</button>
         <button className="btn" onClick={() => { try { printLedger(pdf); } catch (cause) { setError((cause as Error).message); } }}>Print</button>
         <button className="btn" onClick={() => setPdf(null)}>Close</button>

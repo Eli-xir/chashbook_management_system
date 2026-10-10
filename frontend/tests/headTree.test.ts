@@ -59,6 +59,17 @@ test('replaying history prefixes restores undo/redo previews and branch sorting'
   assert.equal(isDescendant([head(1, 'A', 2), head(2, 'B', 1)], 3, 1), false);
 });
 
+test('head name and image edits are staged together without mutating the saved tree', () => {
+  const edits: StagedChange[] = [{ op: 'edit', head_id: 2, head_name: 'Supplies', image_url: 'data:image/png;base64,fixture', is_transactionable: true }];
+  const edited = applyHeadChanges(original, edits);
+  assert.equal(edited[1].head_name, 'Supplies');
+  assert.equal(edited[1].image_url, 'data:image/png;base64,fixture');
+  assert.equal(original[1].head_name, 'Materials');
+  assert.equal(edited[1].parent_head_id, original[1].parent_head_id);
+  assert.match(describeChanges(original, edits)[0], /Materials → Supplies/);
+  assert.throws(() => applyHeadChanges(original, [{ ...edits[0], head_name: 'Other' } as StagedChange]), /already exists/);
+});
+
 test('transactionable setting survives create/edit history and review', () => {
   const changes: StagedChange[] = [
     { op: 'create', temp_id: -1, head_name: 'Grouping', parent_head_id: null, is_transactionable: false },
@@ -68,4 +79,29 @@ test('transactionable setting survives create/edit history and review', () => {
   assert.equal(applyHeadChanges([], changes)[0].is_transactionable, true);
   assert.match(describeChanges([], changes)[0], /non-transactionable/);
   assert.match(describeChanges([], changes)[1], /; transactionable/);
+});
+
+test('deleting one head preserves children, and replay restores undo/redo exactly', () => {
+  const changes: StagedChange[] = [{ op: 'delete', head_id: 2, transaction_handling: 'backup' }];
+  const removed = applyHeadChanges(original, changes);
+  assert.equal(removed.some((head) => head.head_id === 2), false);
+  assert.equal(removed.find((head) => head.head_id === 4)?.parent_head_id, 1);
+  assert.equal(original[3].parent_head_id, 2);
+  assert.deepEqual(applyHeadChanges(original, []), original);
+  assert.deepEqual(applyHeadChanges(original, changes), removed);
+  assert.match(describeChanges(original, changes)[0], /backup.*Subheads move to Expenses/);
+  const rootRemoved = applyHeadChanges(original, [{ op: 'delete', head_id: 1, transaction_handling: 'hard_delete' }]);
+  assert.equal(rootRemoved.find((head) => head.head_id === 2)?.parent_head_id, null);
+  assert.equal(rootRemoved.find((head) => head.head_id === 4)?.parent_head_id, 2);
+});
+
+test('deletion validates a policy and cannot leave later changes pointing to a missing head', () => {
+  assert.throws(() => applyHeadChanges(original, [{ op: 'delete', head_id: 999, transaction_handling: 'backup' }]), /no longer exists/);
+  assert.throws(() => applyHeadChanges(original, [
+    { op: 'delete', head_id: 2, transaction_handling: '' } as unknown as StagedChange,
+  ]), /Choose how/);
+  assert.throws(() => applyHeadChanges(original, [
+    { op: 'delete', head_id: 2, transaction_handling: 'hard_delete' },
+    { op: 'move', head_id: 3, new_parent_id: 2 },
+  ]), /no longer exists/);
 });

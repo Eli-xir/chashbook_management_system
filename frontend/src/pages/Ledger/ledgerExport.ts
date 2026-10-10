@@ -27,6 +27,12 @@ export function creditDocument(overview: UserOverview, userName: string): Report
   );
   return { title: userName, subtitle: 'Credits received', columns: ['Date/time', 'Head', 'Description', 'Credit', 'Received to date'], pages };
 }
+export function download(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob), link = document.createElement('a');
+  link.href = url; link.download = name;
+  document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
 export type ReportFormat = 'pdf' | 'excel' | 'csv';
 const columnWidths = (report: ReportDocument) => report.columns.length === 8 ? [24, 17, 17, 29, 30, 23, 23, 23] : [30, 65, 27, 30, 34];
 const numeric = (value: string | number) => typeof value === 'number' ? `PKR ${value.toLocaleString('en-PK', { maximumFractionDigits: 2 })}` : value;

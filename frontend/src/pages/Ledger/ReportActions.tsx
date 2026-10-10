@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog } from '../Admin/components/Dialog';
-import { printLedger, ledgerFile, reportHtml, type ReportDocument, type ReportFormat } from './ledgerExport';
-import { DownloadButton } from './DownloadButton';
+import { download, printLedger, ledgerFile, reportHtml, type ReportDocument, type ReportFormat } from './ledgerExport';
 import './Ledger.css';
 
 export function ReportActions({ getReport, disabled = false }: { getReport: () => ReportDocument; disabled?: boolean }) {
@@ -70,7 +69,7 @@ export function ReportActions({ getReport, disabled = false }: { getReport: () =
         <select aria-label="Preview zoom" value={zoom} onChange={(event) => setZoom(event.target.value)}>
           <option value="fit">Fit width</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.5">150%</option>
         </select>
-        <DownloadButton file={file} disabled={sharing} />
+        <button className="btn" disabled={!file || sharing} onClick={() => { if (file) download(file, file.name); }}>Download</button>
         <button className="btn btn--primary" title="Share through WhatsApp, email or another app" disabled={!file || sharing} onClick={() => void share()}>{sharing ? 'Sharing…' : 'Share…'}</button>
         <button className="btn" disabled={!file || sharing} onClick={() => {
           try { if (ready) printLedger(ready.pdf); }
