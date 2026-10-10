@@ -4,7 +4,8 @@ import type { Attachment } from '../Admin/types';
 import { Dialog } from '../Admin/components/Dialog';
 import { cashbookApi } from '../../data/cashbookApi';
 import { attachmentPdf } from './attachmentReport';
-import { download, printLedger } from './ledgerExport';
+import { printLedger } from './ledgerExport';
+import { DownloadButton } from './DownloadButton';
 
 // The same clean export for a statement, one transaction, or one image.
 export function AttachmentExport({ items, perPage = 2 }: { items: Attachment[]; perPage?: number }) {
@@ -30,7 +31,7 @@ export function AttachmentExport({ items, perPage = 2 }: { items: Attachment[]; 
     {error && !file && <p role="alert" className="text-error">{error}</p>}
     {file && <Dialog className="report-preview" title="Attachments only" onClose={() => setFile(null)}>
       <div className="flex-row flex-wrap gap-sm">
-        <button className="btn" onClick={() => download(file, file.name)}>Download PDF</button>
+        <DownloadButton file={file} label="Download PDF" />
         <button className="btn" onClick={() => void share()}>Share…</button>
         <button className="btn" onClick={() => { try { printLedger(file); } catch (cause) { setError((cause as Error).message); } }}>Print</button>
         <button className="btn" onClick={() => setFile(null)}>Close</button>
