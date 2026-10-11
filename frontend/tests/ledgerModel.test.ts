@@ -98,3 +98,27 @@ test('Company user filters isolate external receipts and internal payments', () 
   assert.equal(internal.debit, 200);
   assert.equal(internal.closing, -200);
 });
+
+test('Head-wise arrangement follows the displayed tree depth first and preserves date order within each head', () => {
+  const head = (id: number, name: string, parent: number | null): Head => ({
+    head_id: id, head_name: name, parent_head_id: parent, is_active: true, is_transactionable: true,
+  });
+  const tree = [head(5, 'Zulu', null), head(3, 'Zulu child', 1), head(4, 'Grandchild', 2), head(1, 'Alpha', null), head(2, 'Alpha child', 1)];
+  const transaction = (id: string, headId: number | null, date: string, debit = false): Transaction => ({
+    ...entries[1], id, headId, createdAt: `${date}T12:00:00Z`, createdBy: debit ? 'user' : 'admin',
+  });
+  const transactions = [
+    transaction('root-z', 5, '2026-09-01'), transaction('child-z', 3, '2026-09-01'),
+    transaction('child-a-late', 2, '2026-09-03'), transaction('grandchild', 4, '2026-09-01'),
+    transaction('no-head', null, '2026-09-01'), transaction('root-a', 1, '2026-09-04'),
+    transaction('child-a-early', 2, '2026-09-02', true), transaction('missing-head', 99, '2026-09-02'),
+  ];
+  const report = ledgerReport(transactions, filters, 'by-head', tree);
+  assert.deepEqual(report.rows.map(({ entry }) => entry.id), [
+    'root-a', 'child-a-early', 'child-a-late', 'grandchild', 'child-z', 'root-z', 'no-head', 'missing-head',
+  ]);
+  assert.deepEqual(report.rows.map(({ balance }) => balance), [200, 0, 200, 400, 600, 800, 1000, 1200]);
+  assert.equal(report.closing, ledgerReport(transactions, filters, 'by-time', tree).closing);
+  const credits = ledgerReport(transactions, { ...filters, direction: 'credit', headId: 1 }, 'by-head', tree);
+  assert.deepEqual(credits.rows.map(({ entry }) => entry.id), ['root-a', 'child-a-late', 'grandchild', 'child-z']);
+});

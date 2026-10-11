@@ -23,6 +23,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   const filters = company ? { ...suppliedFilters, headId: null } : suppliedFilters;
   const [data, setData] = useState<LedgerData | null>(null);
   const [order, setOrder] = useState<LedgerOrder>('by-time');
+  const groupDirections = order === 'credit-first' || order === 'debit-first';
   const [pagination, setPagination] = useState({ scope: '', page: 0 });
   const scope = filterKey(filters);
   const [draft, setDraft] = useState({ scope, filters });
@@ -92,11 +93,11 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
     total(index === 0 ? 'Balance brought forward' : 'Page brought forward', start ? report.rows[start - 1].balance : report.opening);
     report.rows.slice(start, start + pageSize).forEach(({ entry, balance }, offset) => {
       const position = start + offset, type = entryDirection(entry);
-      if (order !== 'by-time' && (offset === 0 || entryDirection(report.rows[position - 1].entry) !== type)) {
+      if (groupDirections && (offset === 0 || entryDirection(report.rows[position - 1].entry) !== type)) {
         total(`${type === 'credit' ? 'Credits' : 'Debits'}${offset === 0 && start && entryDirection(report.rows[position - 1].entry) === type ? ' (continued)' : ''}`, balance - (type === 'credit' ? entry.amount : -entry.amount));
       }
       rows.push({ cells: entryCells(entry, balance), entry });
-      if (order !== 'by-time' && (!report.rows[position + 1] || entryDirection(report.rows[position + 1].entry) !== type)) {
+      if (groupDirections && (!report.rows[position + 1] || entryDirection(report.rows[position + 1].entry) !== type)) {
         total(`${type === 'credit' ? 'Credits' : 'Debits'} subtotal`, balance, type === 'credit' ? report.credit : '', type === 'debit' ? report.debit : '');
       }
     });
@@ -118,10 +119,11 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
       <label className="field"><span>Entries</span><select value={draftFilters.direction} onChange={(event) => stageFilters({ ...draftFilters, direction: event.target.value as FiltersState['direction'] })}><option value="both">Credits & debits</option><option value="credit">Credits</option><option value="debit">Debits</option></select></label>
       <label className="field"><span>Arrangement</span><select value={order} onChange={(event) => { setOrder(event.target.value as LedgerOrder); setPage(0); }}>
         <option value="by-time">Default</option><option value="credit-first">Credits, then debits</option><option value="debit-first">Debits, then credits</option>
+        {attachmentReview && <option value="by-head">Head-wise (tree order)</option>}
       </select></label>
-      <label className="field"><span>Rows per page</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }}>
+      {!attachmentReview && <label className="field"><span>Rows per page</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }}>
         {[10, 20, 50, 100].map((size) => <option key={size}>{size}</option>)}
-      </select></label>
+      </select></label>}
       {attachmentReview ? data && !invalidDates && attachmentReview.export(report.rows.map(({ entry, balance }) => ({ entry, cells: entryCells(entry, balance) })), exportReport()) : <ReportActions disabled={!data || invalidDates} getReport={exportReport} />}
       <button className={`btn${pendingFilters ? ' btn--primary filter-apply--pending' : ''}`} disabled={!pendingFilters || invalidDraftDates} onClick={applyFilters}>Apply filters</button>
       <button className="btn" onClick={() => stageFilters({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' })}>Clear filters</button>

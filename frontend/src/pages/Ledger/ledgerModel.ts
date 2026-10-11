@@ -1,4 +1,5 @@
 import type { FiltersState, Head, Transaction, TransactionRevision } from '../Admin/types';
+import { buildHeadTree } from '../Admin/utils/headTree.ts';
 
 export const money = (amount: number) => `PKR ${(amount === 0 ? 0 : amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 export const roundMoney = (amount: number) => Math.round((amount + Number.EPSILON) * 100) / 100;
@@ -36,7 +37,7 @@ export function historyOf(entry: Transaction): TransactionRevision[] {
     headPath: entry.headPath,
   }];
 }
-export type LedgerOrder = 'by-time' | 'credit-first' | 'debit-first';
+export type LedgerOrder = 'by-time' | 'credit-first' | 'debit-first' | 'by-head';
 export function headBranchIds(heads: Head[], headId: number | null | undefined): Set<number> | null {
   if (headId == null) return null;
   const children = new Map<number, number[]>();
@@ -82,8 +83,23 @@ export function ledgerReport(entries: Transaction[], filters: FiltersState, orde
   const period = selected.filter((entry) => !beforeStart(entry) && (!filters.dateTo || day(entry.createdAt) <= filters.dateTo)
     && (!filters.timeFrom || !!filters.dateFrom || time(entry.createdAt) >= filters.timeFrom)
     && (!filters.timeTo || (!!filters.dateTo && day(entry.createdAt) < filters.dateTo) || time(entry.createdAt) <= filters.timeTo));
+  const headOrder = new Map<number, number>();
+  if (order === 'by-head') {
+    const visit = (nodes: ReturnType<typeof buildHeadTree>) => {
+      for (const node of nodes) {
+        headOrder.set(node.head_id, headOrder.size);
+        visit(node.children);
+      }
+    };
+    visit(buildHeadTree(heads));
+  }
   period.sort((a, b) => {
-    if (order !== 'by-time' && entryDirection(a) !== entryDirection(b)) return entryDirection(a) === (order === 'credit-first' ? 'credit' : 'debit') ? -1 : 1;
+    if (order === 'by-head') {
+      const rank = (id: number | null) => id === null ? heads.length : headOrder.get(id) ?? heads.length;
+      const difference = rank(a.headId) - rank(b.headId);
+      if (difference) return difference;
+    }
+    if ((order === 'credit-first' || order === 'debit-first') && entryDirection(a) !== entryDirection(b)) return entryDirection(a) === (order === 'credit-first' ? 'credit' : 'debit') ? -1 : 1;
     return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
   });
   let balance = opening;
