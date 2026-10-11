@@ -22,7 +22,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
 }) {
   const filters = company ? { ...suppliedFilters, headId: null } : suppliedFilters;
   const [data, setData] = useState<LedgerData | null>(null);
-  const [order, setOrder] = useState<LedgerOrder>('by-time');
+  const [order, setOrder] = useState<LedgerOrder>(attachmentReview ? 'by-head' : 'by-time');
   const groupDirections = order === 'credit-first' || order === 'debit-first';
   const [pagination, setPagination] = useState({ scope: '', page: 0 });
   const scope = filterKey(filters);
@@ -118,8 +118,11 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
     <div className="ledger-toolbar flex-row flex-wrap gap-sm">
       <label className="field"><span>Entries</span><select value={draftFilters.direction} onChange={(event) => stageFilters({ ...draftFilters, direction: event.target.value as FiltersState['direction'] })}><option value="both">Credits & debits</option><option value="credit">Credits</option><option value="debit">Debits</option></select></label>
       <label className="field"><span>Arrangement</span><select value={order} onChange={(event) => { setOrder(event.target.value as LedgerOrder); setPage(0); }}>
-        <option value="by-time">Default</option><option value="credit-first">Credits, then debits</option><option value="debit-first">Debits, then credits</option>
-        {attachmentReview && <option value="by-head">Head-wise (tree order)</option>}
+        {attachmentReview ? <>
+          <option value="by-head">Head-wise</option><option value="by-time">Time-wise</option>
+        </> : <>
+          <option value="by-time">Default</option><option value="credit-first">Credits, then debits</option><option value="debit-first">Debits, then credits</option>
+        </>}
       </select></label>
       {!attachmentReview && <label className="field"><span>Rows per page</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }}>
         {[10, 20, 50, 100].map((size) => <option key={size}>{size}</option>)}
