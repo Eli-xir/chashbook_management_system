@@ -61,10 +61,11 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   const pageCount = Math.max(1, Math.ceil(report.rows.length / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
   const lastEntry = useRef<HTMLTableRowElement>(null);
+  const attachmentEnd = useRef<HTMLDivElement>(null);
   const [scrollLast, setScrollLast] = useState(0);
   useEffect(() => {
     if (scrollLast) {
-      lastEntry.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
+      (lastEntry.current ?? attachmentEnd.current)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
     }
   }, [scrollLast]);
   const userName = (id: string) => id.startsWith('credit:')
@@ -130,7 +131,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
       {attachmentReview ? data && !invalidDates && attachmentReview.export(report.rows.map(({ entry, balance }) => ({ entry, cells: entryCells(entry, balance) })), exportReport()) : <ReportActions disabled={!data || invalidDates} getReport={exportReport} />}
       <button className={`btn${pendingFilters ? ' btn--primary filter-apply--pending' : ''}`} disabled={!pendingFilters || invalidDraftDates} onClick={applyFilters}>Apply filters</button>
       <button className="btn" onClick={() => stageFilters({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' })}>Clear filters</button>
-      {!attachmentReview && <button className="btn" disabled={!data || invalidDates || !report.rows.length} onClick={() => { setPage(pageCount - 1); setScrollLast((value) => value + 1); }}>Scroll to last ↓</button>}
+      <button className="btn" disabled={!data || invalidDates || !report.rows.length} onClick={() => { setPage(pageCount - 1); setScrollLast((value) => value + 1); }}>Scroll to last ↓</button>
       {pendingFilters && <button className="btn" onClick={() => stageFilters(filters)}>Discard changes</button>}
     </div>
     {pendingFilters && <p className={invalidDraftDates ? 'text-error' : 'text-muted'} role="status">{invalidDraftDates ? 'Choose an end date/time on or after the start.' : 'Filter changes ready to apply.'}</p>}
@@ -146,6 +147,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
           <LedgerFilters key={column} column={column} filters={draftFilters} heads={reportHeads} users={data.users} includeTime creditUsers={data.creditUsers} onChange={stageFilters} />)}</div>
         <div className="ledger-total">{currentPage ? 'Page brought forward' : 'Balance brought forward'} · {money(currentPage ? report.rows[currentPage * pageSize - 1].balance : report.opening)}</div>
         {attachmentReview.render(report.rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map(({ entry, balance }) => ({ entry, cells: entryCells(entry, balance) })), columns)}
+        <div ref={attachmentEnd} />
         <div className="ledger-total">{currentPage + 1 === pageCount ? 'Closing balance' : 'Page carried forward'} · {money(report.rows[Math.min((currentPage + 1) * pageSize, report.rows.length) - 1]?.balance ?? report.opening)}</div>
       </> : <>
       <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{columns.map((label) => <th key={label}
