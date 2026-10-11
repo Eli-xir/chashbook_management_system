@@ -31,16 +31,16 @@ export function LedgerFilters({ column, filters, heads, users, creditUsers = [],
   ];
   return <>
     <button className={`column-filter${active ? ' column-filter--active' : ''}`} onClick={() => { setOpen(true); setSearch(''); }}>{column === 'Head' && selected ? `Head · ${selected.head_name}` : column} ▾</button>
-    {open && <Dialog title={`Filter · ${column}`} onClose={() => setOpen(false)}>
+    {open && <Dialog title={`Filter · ${column}`} closeOnOutside={column === 'Head'} onClose={() => setOpen(false)}>
       {column === 'Head' ? <div className="flex-col gap-sm">
         <p>{selected?.head_name ?? 'All heads'}</p>
         <div className="flex-row gap-sm">
-          <button className="btn" onClick={() => { update({ headId: null }); setOpen(false); }}>All heads</button>
+          <button className="btn" onClick={() => update({ headId: null })}>All heads</button>
           {selected && <button className="btn" onClick={() => update({ headId: selected.parent_head_id })}>↑ Parent</button>}
         </div>
         <input type="search" aria-label="Search heads" placeholder="Search heads or descriptions" value={search} onChange={(e) => setSearch(e.target.value)} />
         <div className="filter-choices">{heads.filter((h) => h.parent_head_id === (filters.headId ?? null) && `${h.head_name} ${h.head_description ?? ''}`.toLowerCase().includes(search.toLowerCase())).map((h) =>
-          <button className="btn" key={h.head_id} onClick={() => { update({ headId: h.head_id }); setOpen(false); }}>{h.head_name}{h.head_description && <small>{h.head_description}</small>}</button>)}
+          <button className="btn" key={h.head_id} onClick={() => update({ headId: h.head_id })}>{h.head_name}{h.head_description && <small>{h.head_description}</small>}</button>)}
         {!heads.some((h) => h.parent_head_id === filters.headId) && selected && <p>No subheads.</p>}</div>
       </div> : column === 'User' ? <UserPicker users={[...users, ...creditUsers.map((item) => ({
         user_id: creditUserScope(item.credit_user_id), user_name: item.user_name,
@@ -65,7 +65,7 @@ export function LedgerFilters({ column, filters, heads, users, creditUsers = [],
           {invalidDateRange(filters) && <p className="text-error" role="alert">From date/time must be on or before To.</p>}
         </div>}
       <div className="flex-row justify-end gap-sm">
-        <button className="btn" onClick={() => { update(column === 'Head' ? { headId: null } : column === 'User' ? { userScope: 'all' } : column === 'Description' ? { description: '' } : { dateFrom: '', dateTo: '', timeFrom: '', timeTo: '' }); setOpen(false); }}>Clear</button>
+        <button className="btn" onClick={() => { update(column === 'Head' ? { headId: null } : column === 'User' ? { userScope: 'all' } : column === 'Description' ? { description: '' } : { dateFrom: '', dateTo: '', timeFrom: '', timeTo: '' }); if (column !== 'Head') setOpen(false); }}>Clear</button>
         <button className="btn btn--primary" onClick={() => setOpen(false)}>Done</button>
       </div>
     </Dialog>}
