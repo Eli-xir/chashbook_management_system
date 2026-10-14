@@ -122,7 +122,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
         {attachmentReview ? <>
           <option value="by-head">Head-wise</option><option value="by-time">Time-wise</option>
         </> : <>
-          <option value="by-time">Default</option><option value="credit-first">Credits, then debits</option><option value="debit-first">Debits, then credits</option>
+          <option value="by-time">Time-Wise</option><option value="credit-first">Credits, then debits</option><option value="debit-first">Debits, then credits</option>
         </>}
       </select></label>
       {!attachmentReview && <label className="field"><span>Rows per page</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }}>
