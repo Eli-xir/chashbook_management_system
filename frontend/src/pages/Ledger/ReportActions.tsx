@@ -3,7 +3,7 @@ import { Dialog } from '../Admin/components/Dialog';
 import { download, printLedger, ledgerFile, reportHtml, type ReportDocument, type ReportFormat } from './ledgerExport';
 import './Ledger.css';
 
-export function ReportActions({ getReport, disabled = false }: { getReport: () => ReportDocument; disabled?: boolean }) {
+export function ReportActions({ getReport, disabled = false, selected = false }: { getReport: () => ReportDocument; disabled?: boolean; selected?: boolean }) {
   const [report, setReport] = useState<ReportDocument | null>(null);
   const [format, setFormat] = useState<ReportFormat>('pdf');
   const [ready, setReady] = useState<{ format: ReportFormat; file: File; pdf: File } | null>(null);
@@ -57,9 +57,10 @@ export function ReportActions({ getReport, disabled = false }: { getReport: () =
   }
 
   return <>
-    <button className="btn" disabled={disabled} onClick={() => {
+    {(selected ? ['Print selected', 'Download PDF'] : ['Preview / export']).map((label) => <button key={label} className="btn" disabled={disabled} onClick={() => {
+      if (selected) setFormat('pdf');
       setReady(null); setError(''); setZoom('fit'); setReport({ ...getReport(), printedAt: new Date().toLocaleString() });
-    }}>Preview / export</button>
+    }}>{label}</button>)}
     {report && <Dialog className="report-preview" title="Ledger preview" busy={sharing} onClose={() => setReport(null)}>
       <div className="flex-row flex-wrap items-center gap-sm">
         <select aria-label="File format" value={format} disabled={sharing}

@@ -49,11 +49,11 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
     try { await navigator.share({ files: [pdf], title: 'Transaction attachments' }); }
     catch (cause) { if (!(cause instanceof DOMException && cause.name === 'AbortError')) setError('Could not share the file. Download it instead.'); }
   }
-  const exportControls = (records: EvidenceRecord[], document: ReportDocument) => <div className="flex-row flex-wrap items-center gap-sm">
-    <label className="field"><span>Images per A4 page (maximum)</span><select value={perPage} disabled={busy} onChange={(event) => setPerPage(Number(event.target.value))}>
-      {[1, 2, 4, 6].map((count) => <option key={count}>{count}</option>)}</select></label>
-    <button className="btn" disabled={busy || !records.length} onClick={() => void prepare(records, document)}>{busy ? 'Preparing…' : 'Preview / export'}</button>
-    <AttachmentExport items={records.flatMap(({ entry }) => entry.attachments)} perPage={perPage} />
+  const exportControls = (records: EvidenceRecord[], document: ReportDocument, selected = false) => <div className="flex-row flex-wrap items-center gap-sm">
+    {!selected && <label className="field"><span>Images per A4 page (maximum)</span><select value={perPage} disabled={busy} onChange={(event) => setPerPage(Number(event.target.value))}>
+      {[1, 2, 4, 6].map((count) => <option key={count}>{count}</option>)}</select></label>}
+    {(selected ? ['Print selected', 'Download PDF'] : ['Preview / export']).map((label) => <button key={label} className="btn" disabled={busy || !records.length} onClick={() => void prepare(records, document)}>{busy ? 'Preparing…' : label}</button>)}
+    {!selected && <AttachmentExport items={records.flatMap(({ entry }) => entry.attachments)} perPage={perPage} />}
   </div>;
   return <section className="evidence-page flex-col gap-md">
     <header className="flex-row items-center gap-sm">
@@ -71,9 +71,11 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
     </> : <>
       <Ledger filters={filters} onFilterChange={(next) => { setFilters(next); setImageIndex(null); }}
         revision={0} heads={heads} users={users} onDirtyChange={ignoreDirty} onChanged={unchanged}
-        attachmentReview={{ export: exportControls, render: (records, columns) => <div className="evidence-records">{records.map(({ entry, cells }) =>
-          <article key={entry.id} className="evidence-record">
-            <AttachmentExport items={entry.attachments} perPage={perPage} />
+        attachmentReview={{ export: exportControls, render: (records, columns, selection) => <div className="evidence-records">{records.map(({ entry, cells }) =>
+          <article key={entry.id} className={`evidence-record${selection.ids.has(entry.id) ? ' entry-selected' : ''}`} onClick={(event) => { if (selection.active) selection.toggle(entry.id, event.shiftKey); }}>
+            {selection.active && <label className="entry-selection-check" onClick={(event) => event.stopPropagation()}><input type="checkbox" aria-label={`Select entry ${entry.id}`} checked={selection.ids.has(entry.id)} onClick={(event) => { event.stopPropagation(); selection.toggle(entry.id, event.shiftKey); }} onChange={() => {}} /> Select entry</label>}
+            <div className="flex-col gap-md" inert={selection.active}>
+            {!selection.active && <AttachmentExport items={entry.attachments} perPage={perPage} />}
             <dl className="evidence-entry">{cells.map((value, index) => index < 5 && <div key={columns[index]}><dt>{columns[index]}</dt><dd>{typeof value === 'number' ? money(value) : value || '—'}</dd></div>)}</dl>
             <div className="flex-col gap-md">
               <div className="evidence-images">{entry.attachments.filter((a) => a.kind === 'image').map((attachment, index, items) =>
@@ -83,6 +85,7 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
               {entry.attachments.some((a) => a.kind === 'voice') && <AttachmentInput kind="voice" items={entry.attachments.filter((a) => a.kind === 'voice')} />}
               {!entry.attachments.length && <p className="text-muted">No attachments</p>}
               <dl className="evidence-entry">{cells.map((value, index) => index >= 5 && <div key={columns[index]}><dt>{columns[index]}</dt><dd>{typeof value === 'number' ? money(value) : '—'}</dd></div>)}</dl>
+            </div>
             </div>
           </article>)}</div> }} />
     </>}

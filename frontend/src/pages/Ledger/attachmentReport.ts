@@ -27,7 +27,7 @@ export async function attachmentPdf(records: { entry: Pick<Transaction, 'attachm
   const { jsPDF } = await import('jspdf');
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
   const format = (value: string | number) => typeof value === 'number' ? `PKR ${value.toLocaleString('en-PK')}` : value;
-  const linesFor = (cells: (string | number)[], amounts = false) => pdf.splitTextToSize(cells.flatMap((value, index) => value === '' || ['Credit', 'Debit', 'Balance'].includes(reportDocument.columns[index]) !== amounts ? [] : [`${reportDocument.columns[index]}: ${format(value)}`]).join('    |    '), 186) as string[];
+  const linesFor = (cells: (string | number)[], amounts = false) => pdf.splitTextToSize(cells.flatMap((value, index) => value === '' || ['Credit', 'Debit', 'Balance', 'Selected net'].includes(reportDocument.columns[index]) !== amounts ? [] : [`${reportDocument.columns[index]}: ${format(value)}`]).join('    |    '), 186) as string[];
   pdf.setFontSize(8);
   const subtitleLines = reportDocument.subtitle ? pdf.splitTextToSize(reportDocument.subtitle, 186) as string[] : [];
   const pageTop = imagesOnly ? 12 : 28 + subtitleLines.length * 3.5;

@@ -10,13 +10,18 @@ import type { ReportDocument } from './ledgerExport';
 import { TransactionCard } from './TransactionCard';
 import './Ledger.css';
 import { LedgerFilters } from './LedgerFilters';
+import { selectedEntriesReport, toggleEntry } from './entrySelection';
+
+export interface EntrySelection {
+  active: boolean; ids: Set<string>; toggle: (id: string, shift?: boolean) => void;
+}
 
 type LedgerData = Awaited<ReturnType<typeof cashbookApi.ledger>>;
 const filterKey = (filters: FiltersState) => JSON.stringify([
   filters.dateFrom, filters.dateTo, filters.userScope, filters.direction, filters.headId ?? null, filters.description ?? '', filters.timeFrom ?? '', filters.timeTo ?? '',
 ]);
 export function Ledger({ filters: suppliedFilters, revision, heads, users, onDirtyChange, onFilterChange, company = false, onChanged, attachmentReview }: {
-  attachmentReview?: { render: (records: EvidenceRecord[], columns: string[]) => ReactNode; export: (records: EvidenceRecord[], document: ReportDocument) => ReactNode };
+  attachmentReview?: { render: (records: EvidenceRecord[], columns: string[], selection: EntrySelection) => ReactNode; export: (records: EvidenceRecord[], document: ReportDocument, selected?: boolean) => ReactNode };
   onChanged: () => Promise<void>; company?: boolean; onFilterChange: (filters: FiltersState) => void;
   filters: FiltersState; revision: number; heads: Head[]; users: AdminUser[]; onDirtyChange: (dirty: boolean) => void;
 }) {
@@ -26,6 +31,8 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   const groupDirections = order === 'credit-first' || order === 'debit-first';
   const [pagination, setPagination] = useState({ scope: '', page: 0 });
   const scope = filterKey(filters);
+  const [selection, setSelection] = useState({ scope, active: false, ids: new Set<string>(), anchor: null as string | null, range: false });
+  const selectionActive = selection.scope === scope && selection.active;
   const [draft, setDraft] = useState({ scope, filters });
   const draftFilters = draft.scope === scope ? draft.filters : filters;
   const pendingFilters = filterKey(draftFilters) !== scope;
@@ -34,6 +41,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   function applyFilters() {
     if (!pendingFilters || invalidDraftDates) return;
     onFilterChange(draftFilters);
+    setSelection({ scope: filterKey(draftFilters), active: false, ids: new Set(), anchor: null, range: false });
     setPagination({ scope: filterKey(draftFilters), page: 0 });
   }
   const page = pagination.scope === scope ? pagination.page : 0;
@@ -57,6 +65,13 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
     ? isCompanyTransaction(entry)
     : attachmentReview || !(data?.users ?? users).some((user) => user.user_id === entry.userId && user.role === 'admin'));
   const report = ledgerReport(transactions, filters, order, reportHeads, company);
+  const selectedIds = new Set(selectionActive ? report.rows.filter(({ entry }) => selection.ids.has(entry.id)).map(({ entry }) => entry.id) : []);
+  function toggleSelection(id: string, shift = false) {
+    setSelection((current) => ({ ...current,
+      ids: toggleEntry(current.ids, id, report.rows.map(({ entry }) => entry.id), current.anchor, shift || current.range),
+      anchor: id, range: current.range && current.anchor === null,
+    }));
+  }
   const branch = headBranchIds(reportHeads, filters.headId);
   const pageCount = Math.max(1, Math.ceil(report.rows.length / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
@@ -110,6 +125,10 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   function exportReport(): ReportDocument {
     return { title, subtitle, printedAt: new Date().toLocaleString(), columns, pages: Array.from({ length: pageCount }, (_, index) => pageRows(index).map((row) => row.cells)) };
   }
+  const selectedReport = () => selectedEntriesReport(
+    report.rows.filter(({ entry }) => selectedIds.has(entry.id)).map(({ entry, balance }) => ({ entry, cells: entryCells(entry, balance) })),
+    { title, subtitle, columns, pages: [] }, pageSize,
+  );
   const summary = company ? { Credits: report.credit, Debits: report.debit, Balance: report.closing }
     : { [receivedLabel]: report.totalReceived, 'Total paid': report.totalBillPayment, 'Remaining balance': -report.remainingPayable };
   const invalidDates = invalidDateRange(filters);
@@ -128,10 +147,11 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
       {!attachmentReview && <label className="field"><span>Rows per page</span><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }}>
         {[10, 20, 50, 100].map((size) => <option key={size}>{size}</option>)}
       </select></label>}
-      {attachmentReview ? data && !invalidDates && attachmentReview.export(report.rows.map(({ entry, balance }) => ({ entry, cells: entryCells(entry, balance) })), exportReport()) : <ReportActions disabled={!data || invalidDates} getReport={exportReport} />}
+      {!selectionActive && (attachmentReview ? data && !invalidDates && attachmentReview.export(report.rows.map(({ entry, balance }) => ({ entry, cells: entryCells(entry, balance) })), exportReport()) : <ReportActions disabled={!data || invalidDates} getReport={exportReport} />)}
       <button className={`btn${pendingFilters ? ' btn--primary filter-apply--pending' : ''}`} disabled={!pendingFilters || invalidDraftDates} onClick={applyFilters}>Apply filters</button>
       <button className="btn" onClick={() => stageFilters({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' })}>Clear filters</button>
       <button className="btn" disabled={!data || invalidDates || !report.rows.length} onClick={() => { setPage(pageCount - 1); setScrollLast((value) => value + 1); }}>Scroll to last ↓</button>
+      {!selectionActive && <button className="btn" disabled={!data || invalidDates || !report.rows.length} onClick={() => setSelection({ scope, active: true, ids: new Set(), anchor: null, range: false })}>Select entries</button>}
       {pendingFilters && <button className="btn" onClick={() => stageFilters(filters)}>Discard changes</button>}
     </div>
     {pendingFilters && <p className={invalidDraftDates ? 'text-error' : 'text-muted'} role="status">{invalidDraftDates ? 'Choose an end date/time on or after the start.' : 'Filter changes ready to apply.'}</p>}
@@ -146,15 +166,16 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
         <div className="flex-row flex-wrap gap-md" aria-label="Attachment statement filters">{['Date/time', 'User', 'Head', 'Description'].map((column) =>
           <LedgerFilters key={column} column={column} filters={draftFilters} heads={reportHeads} users={data.users} includeTime creditUsers={data.creditUsers} onChange={stageFilters} />)}</div>
         <div className="ledger-total">{currentPage ? 'Page brought forward' : 'Balance brought forward'} · {money(currentPage ? report.rows[currentPage * pageSize - 1].balance : report.opening)}</div>
-        {attachmentReview.render(report.rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map(({ entry, balance }) => ({ entry, cells: entryCells(entry, balance) })), columns)}
+        {attachmentReview.render(report.rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map(({ entry, balance }) => ({ entry, cells: entryCells(entry, balance) })), columns, { active: selectionActive, ids: selectedIds, toggle: toggleSelection })}
         <div ref={attachmentEnd} />
         <div className="ledger-total">{currentPage + 1 === pageCount ? 'Closing balance' : 'Page carried forward'} · {money(report.rows[Math.min((currentPage + 1) * pageSize, report.rows.length) - 1]?.balance ?? report.opening)}</div>
       </> : <>
-      <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{columns.map((label) => <th key={label}
+      <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{selectionActive && <th scope="col">Select</th>}{columns.map((label) => <th key={label}
         title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{(company ? ['Date/time', 'User', 'Description'] : ['Date/time', 'User', 'Head', 'Description']).includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} users={data.users} includeTime creditUsers={company || attachmentReview ? data.creditUsers : []} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
         {pageRows(currentPage).map(({ cells, entry: rowEntry }, index) => {
-          return <tr ref={rowEntry && rowEntry.id === report.rows.at(-1)?.entry.id ? lastEntry : undefined} key={rowEntry ? `transaction:${rowEntry.id}` : `total:${index}`} className={rowEntry ? 'ledger-entry' : 'ledger-total'} onClick={() => { if (rowEntry) openEntry(rowEntry); }}>
-            {cells.map((value, column) => <td key={column}>{column === 0 && rowEntry ? <button className="ledger-row-link" onClick={() => openEntry(rowEntry)}>{value}</button> : typeof value === 'number' ? money(value) : value}</td>)}
+          return <tr ref={rowEntry && rowEntry.id === report.rows.at(-1)?.entry.id ? lastEntry : undefined} key={rowEntry ? `transaction:${rowEntry.id}` : `total:${index}`} className={rowEntry ? `ledger-entry${selectedIds.has(rowEntry.id) ? ' entry-selected' : ''}` : 'ledger-total'} onClick={(event) => { if (rowEntry) { if (selectionActive) toggleSelection(rowEntry.id, event.shiftKey); else openEntry(rowEntry); } }}>
+            {selectionActive && <td>{rowEntry && <input type="checkbox" aria-label={`Select entry ${rowEntry.id}`} checked={selectedIds.has(rowEntry.id)} onClick={(event) => { event.stopPropagation(); toggleSelection(rowEntry.id, event.shiftKey); }} onChange={() => {}} />}</td>}
+            {cells.map((value, column) => <td key={column} className={column >= 5 ? 'ledger-amount' : undefined}>{column === 0 && rowEntry && !selectionActive ? <button className="ledger-row-link" onClick={(event) => { event.stopPropagation(); openEntry(rowEntry); }}>{value}</button> : typeof value === 'number' ? money(value) : value}</td>)}
           </tr>;
         })}
       </tbody></table></div>
@@ -170,6 +191,14 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
           <button className="btn" key={entry.id} onClick={() => setSelected(entry)}>{new Date(entry.createdAt).toLocaleString()} · {entryUserName(entry)} · {money(entry.amount)}</button>)}
       </details>}
     </>}
+    {selectionActive && <div className="entry-selection-bar flex-row flex-wrap items-center gap-sm" role="region" aria-label="Selected entry actions">
+      <strong role="status">{selectedIds.size} {selectedIds.size === 1 ? 'entry' : 'entries'} selected</strong>
+      <button className="btn" aria-pressed={selection.range} onClick={() => setSelection((current) => ({ ...current, range: !current.range, anchor: null }))}>{selection.range ? 'Cancel range' : 'Select range'}</button>
+      {selection.range && <span>{selection.anchor === null ? 'Tap the first entry' : 'Tap the last entry'}</span>}
+      {attachmentReview ? attachmentReview.export(selectedReport().records, selectedReport().document, true) : <ReportActions selected disabled={!selectedIds.size} getReport={() => selectedReport().document} />}
+      <button className="btn" disabled={!selectedIds.size} onClick={() => setSelection((current) => ({ ...current, ids: new Set(), anchor: null, range: false }))}>Clear selection</button>
+      <button className="btn" onClick={() => setSelection({ scope, active: false, ids: new Set(), anchor: null, range: false })}>Cancel</button>
+    </div>}
     {selected && data && <TransactionCard key={selected.id} entry={selected}
       admin company={company} heads={data.heads} users={data.users} creditUsers={data.creditUsers}
       onClose={() => { setSelected(null); setReload((value) => value + 1); }} onChanged={refresh} />}
