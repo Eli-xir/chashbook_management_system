@@ -23,6 +23,16 @@ test('Ranges work forward and backward across pages and include both endpoints',
   assert.deepEqual([...toggleEntry(new Set(), '4', ids, 'removed', true)], ['4']);
 });
 
+test('Starting a range on an already selected entry keeps it selected, including after cancelling the range', () => {
+  const ids = ['first', 'middle', 'last'];
+  const started = toggleEntry(new Set(['first']), 'first', ids, null, true);
+  assert.deepEqual([...started], ['first']);
+  assert.deepEqual([...toggleEntry(started, 'last', ids, 'first', true)], ids);
+  // Cancelling range mode leaves the chosen start selected; a normal tap can deselect it.
+  assert.deepEqual([...toggleEntry(started, 'first', ids, null, false)], []);
+  assert.deepEqual([...toggleEntry(started, 'first', ids, 'removed', true)], ['first']);
+});
+
 test('Selected export includes only supplied entries with independent totals and no account balance', () => {
   const record = (id: string, credit: number | string, debit: number | string): EvidenceRecord => ({
     entry: { id, userId: 'user', createdBy: 'user', headId: null, amount: 1, active: true, createdAt: '2026-10-15T12:00:00Z', attachments: [] },

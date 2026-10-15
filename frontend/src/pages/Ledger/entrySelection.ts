@@ -5,8 +5,10 @@ import { roundMoney } from './ledgerModel.ts';
 export function toggleEntry(ids: Set<string>, id: string, orderedIds: string[], anchor: string | null, range: boolean) {
   const next = new Set(ids);
   const start = anchor === null ? -1 : orderedIds.indexOf(anchor), end = orderedIds.indexOf(id);
-  if (range && start >= 0 && end >= 0) {
-    orderedIds.slice(Math.min(start, end), Math.max(start, end) + 1).forEach((value) => next.add(value));
+  if (range) {
+    if (start >= 0 && end >= 0) {
+      orderedIds.slice(Math.min(start, end), Math.max(start, end) + 1).forEach((value) => next.add(value));
+    } else next.add(id);
   } else if (next.has(id)) next.delete(id);
   else next.add(id);
   return next;
