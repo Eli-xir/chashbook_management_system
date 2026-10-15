@@ -57,7 +57,7 @@ export function ReportActions({ getReport, disabled = false, selected = false }:
   }
 
   return <>
-    {(selected ? ['Preview selected', 'Print selected', 'Download PDF'] : ['Preview / export']).map((label) => <button key={label} className={`btn${label === 'Preview selected' ? ' btn--primary' : ''}`} disabled={disabled} onClick={() => {
+    {(selected ? ['Preview selected', 'Print selected', 'Download PDF'] : ['Preview / export']).map((label) => <button key={label} className="btn" disabled={disabled} onClick={() => {
       if (selected) setFormat('pdf');
       setReady(null); setError(''); setZoom('fit'); setReport({ ...getReport(), printedAt: new Date().toLocaleString() });
     }}>{label}</button>)}

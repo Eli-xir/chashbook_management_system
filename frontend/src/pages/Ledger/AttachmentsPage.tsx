@@ -52,7 +52,7 @@ export function AttachmentsPage({ users, creditUsers, heads, initialScope = '' }
   const exportControls = (records: EvidenceRecord[], document: ReportDocument, selected = false) => <div className="flex-row flex-wrap items-center gap-sm">
     {!selected && <label className="field"><span>Images per A4 page (maximum)</span><select value={perPage} disabled={busy} onChange={(event) => setPerPage(Number(event.target.value))}>
       {[1, 2, 4, 6].map((count) => <option key={count}>{count}</option>)}</select></label>}
-    {(selected ? ['Preview selected', 'Print selected', 'Download PDF'] : ['Preview / export']).map((label) => <button key={label} className={`btn${label === 'Preview selected' ? ' btn--primary' : ''}`} disabled={busy || !records.length} onClick={() => void prepare(records, document)}>{busy ? 'Preparing…' : label}</button>)}
+    {(selected ? ['Preview selected', 'Print selected', 'Download PDF'] : ['Preview / export']).map((label) => <button key={label} className="btn" disabled={busy || !records.length} onClick={() => void prepare(records, document)}>{busy ? 'Preparing…' : label}</button>)}
     {!selected && <AttachmentExport items={records.flatMap(({ entry }) => entry.attachments)} perPage={perPage} />}
   </div>;
   return <section className="evidence-page flex-col gap-md">

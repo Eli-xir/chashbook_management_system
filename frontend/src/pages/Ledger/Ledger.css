@@ -15,8 +15,8 @@
 .ledger-entry:hover { background: var(--color-surface); }
 .ledger-entry { cursor: pointer; }
 .entry-selected, .ledger-entry.entry-selected:hover { background: color-mix(in srgb, var(--color-gold) 18%, var(--color-surface)); outline: 1px solid var(--color-gold); outline-offset: -1px; }
-.entry-selection-bar { position: sticky; bottom: 0; z-index: 5; padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); background: var(--color-surface); border: 1px solid var(--color-gold); border-radius: var(--panel-radius); box-shadow: 0 -4px 20px #0004; }
-.entry-selection-bar > strong { margin-right: auto; }
+.entry-selection-bar { position: sticky; bottom: 0; z-index: 5; padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius); }
+.entry-selection-bar > strong { margin-right: auto; font-size: .85rem; font-weight: 500; }
 .ledger-entry input[type="checkbox"], .entry-selection-check input { width: 22px; height: 22px; accent-color: var(--color-gold); cursor: pointer; }
 .entry-selection-check { display: flex; align-items: center; gap: 10px; cursor: pointer; min-height: 44px; }
 .ledger-row-link { border: 0; background: none; color: var(--color-gold-soft); font: inherit; text-align: left; cursor: pointer; min-height: 32px; }

@@ -136,7 +136,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
     {!attachmentReview && <h1>{title}</h1>}
     {(subtitle || !attachmentReview && filters.userScope !== 'all') && <div className="active-filters flex-row flex-wrap gap-sm"><span>{[subtitle, !company && filters.userScope !== 'all' ? userName(filters.userScope) : ''].filter(Boolean).join(' · ')}</span></div>}
     <div className="ledger-toolbar flex-row flex-wrap gap-sm">
-      {!selectionActive && <button className="btn btn--primary" disabled={!data || invalidDates || !report.rows.length} onClick={() => setSelection({ scope, active: true, ids: new Set(), anchor: null, range: false })}>Select entries</button>}
+      {!selectionActive && <button className="btn" disabled={!data || invalidDates || !report.rows.length} onClick={() => setSelection({ scope, active: true, ids: new Set(), anchor: null, range: false })}>Select entries</button>}
       <label className="field"><span>Entries</span><select value={draftFilters.direction} onChange={(event) => stageFilters({ ...draftFilters, direction: event.target.value as FiltersState['direction'] })}><option value="both">Credits & debits</option><option value="credit">Credits</option><option value="debit">Debits</option></select></label>
       <label className="field"><span>Arrangement</span><select value={order} onChange={(event) => { setOrder(event.target.value as LedgerOrder); setPage(0); }}>
         {attachmentReview ? <>
