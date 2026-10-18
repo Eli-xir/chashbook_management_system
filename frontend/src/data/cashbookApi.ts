@@ -1,4 +1,4 @@
-import type { AppSession, Attachment, ReferenceType, CreateUserInput, CashbookData, StagedChange, Transaction, TransactionInput, UserAction, UserOverview, UserProfile } from '../pages/Admin/types';
+import type { AppSession, Attachment, ReferenceType, CreateUserInput, CashbookData, StagedChange, Transaction, TransactionInput, UserAction, UserOverview, UserProfile, ContractInput } from '../pages/Admin/types';
 
 type State = CashbookData & { transactionTypes: ReferenceType[]; headRevision: number };
 let headRevision = 0;
@@ -28,6 +28,8 @@ function remember(data: State) { headRevision = data.headRevision; return data; 
 
 // The sole frontend/backend boundary. Components keep their existing interfaces.
 export const cashbookApi = {
+  saveContract: (input: ContractInput, contractId?: string, expectedRevision?: number) => change<State>({ op: 'contract', action: contractId ? 'edit' : 'create', input, contractId, expectedRevision }),
+  contractAction: (contractId: string, expectedRevision: number, action: 'archive' | 'reactivate' | 'delete') => change<State>({ op: 'contract', action, contractId, expectedRevision }),
   saveHomeOrder: (ids: string[]) => change<{ homeOrder: string[] }>({ op: 'homeOrder', ids }),
   attachmentImages: (ids: string[]) => request<Record<string, string>>('/attachments/export', { method: 'POST', body: JSON.stringify({ ids: ids.map(Number) }) }),
   currentSession: () => request<AppSession | null>('/session'),
@@ -49,7 +51,7 @@ export const cashbookApi = {
   userAction: (userId: string, action: UserAction) => change<State>({ op: 'user', action, userId }),
   userOverview: (userId: string) => request<UserOverview>(`/state?userId=${encodeURIComponent(userId)}`),
   submitTransaction: (userId: string, input: TransactionInput) => change<{ id: string; applied: boolean }>({ op: 'transaction', action: 'submit', userId, input }),
-  creditUser: (userId: string, input: TransactionInput, creditUserId?: string) => change<Transaction>({ op: 'transaction', action: 'credit', userId, creditUserId, input }),
+  creditUser: (userId: string, input: TransactionInput, creditUserId?: string, contractId?: string) => change<Transaction>({ op: 'transaction', action: 'credit', userId, creditUserId, contractId, input }),
   editTransaction: (id: string, input: TransactionInput, expectedVersion: string) => change<Transaction>({ op: 'transaction', action: 'edit', id: Number(id), input, expectedVersion: Number(expectedVersion) }),
   transactionAction: (id: string, action: 'deactivate' | 'reactivate' | 'delete', expectedVersion: string) => change<Transaction | null>({ op: 'transaction', action, id: Number(id), expectedVersion: Number(expectedVersion) }),
   async uploadAttachment(file: File, kind: Attachment['kind'], maxBytes = 5 * 1024 * 1024) {

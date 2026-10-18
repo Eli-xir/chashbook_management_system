@@ -120,10 +120,26 @@ class TransactionChange(Model):
     action: Literal['submit', 'credit', 'edit', 'deactivate', 'reactivate', 'delete']
     userId: UUID | None = None
     creditUserId: UUID | None = None
+    contractId: UUID | None = None
     id: int | None = None
     expectedVersion: int | None = None
     input: TransactionInput | None = None
 
+
+
+class ContractInput(Model):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)]
+    description: str = Field(default='', max_length=4000)
+    totalAmount: Decimal = Field(gt=0, le=999999999999.99, max_digits=18, decimal_places=2, allow_inf_nan=False)
+    creditUserIds: list[UUID] = Field(min_length=1, max_length=1000)
+
+
+class ContractChange(Model):
+    op: Literal['contract']
+    action: Literal['create', 'edit', 'archive', 'reactivate', 'delete']
+    contractId: UUID | None = None
+    expectedRevision: int | None = None
+    input: ContractInput | None = None
 
 
 class HomeOrderChange(Model):
@@ -131,7 +147,7 @@ class HomeOrderChange(Model):
     ids: list[Literal['attachments', 'users', 'company', 'statement', 'heads', 'credit', 'debit', 'receivable', 'payable']] = Field(min_length=7, max_length=9)
 
 
-Change = Annotated[HeadsChange | PermissionsChange | UserChange | CreditUserChange | TransactionChange | HomeOrderChange, Field(discriminator='op')]
+Change = Annotated[HeadsChange | PermissionsChange | UserChange | CreditUserChange | TransactionChange | HomeOrderChange | ContractChange, Field(discriminator='op')]
 
 
 class AttachmentExport(Model):

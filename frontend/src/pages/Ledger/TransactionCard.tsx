@@ -1,13 +1,14 @@
 import { AttachmentExport } from './AttachmentExport';
 import { useState } from 'react';
-import type { AdminUser, CreditUser, Head, Transaction, TransactionInput } from '../Admin/types';
+import type { AdminUser, Contract, CreditUser, Head, Transaction, TransactionInput } from '../Admin/types';
 import { Dialog } from '../Admin/components/Dialog';
 import { AttachmentInput } from '../Admin/components/AttachmentInput';
 import { cashbookApi } from '../../data/cashbookApi';
 import { direction, headPath, historyOf, money } from './ledgerModel';
 import './Ledger.css';
 
-export function TransactionCard({ entry, admin = false, company = false, heads = [], users = [], creditUsers = [], initialUserId = '', onClose, onChanged }: {
+export function TransactionCard({ entry, admin = false, company = false, heads = [], users = [], creditUsers = [], contracts = [], initialUserId = '', onClose, onChanged }: {
+  contracts?: Contract[];
   entry?: Transaction; admin?: boolean; company?: boolean; heads?: Head[]; users?: AdminUser[]; creditUsers?: CreditUser[];
   initialUserId?: string; onClose: () => void; onChanged?: () => Promise<void>;
 }) {
@@ -52,6 +53,7 @@ export function TransactionCard({ entry, admin = false, company = false, heads =
     finally { setBusy(false); }
   }
   return <Dialog title={current ? `${direction(current, company) === 'credit' ? 'Credit' : 'Debit'} · ${money(current.amount)}` : 'Credit a user'} onClose={onClose} busy={locked}>
+    {current?.contractId && <p>Contract: <strong>{contracts.find((contract) => contract.id === current.contractId)?.name ?? current.contractId}</strong></p>}
     {editing && admin ? <form className="flex-col gap-md" onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <fieldset className="field flex-col gap-md" disabled={locked}>
         {!current && <label className="field"><span>User</span><select required value={userId} onChange={(event) => setUserId(event.target.value)}>

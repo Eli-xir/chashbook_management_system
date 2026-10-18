@@ -36,6 +36,7 @@ export interface CreditUser {
 }
 
 export interface FiltersState {
+  contractId?: string;
   timeFrom?: string;
   timeTo?: string;
   headId?: number | null;
@@ -96,6 +97,7 @@ export interface TransactionRevision extends TransactionInput {
   headPath?: string;
 }
 export interface Transaction extends TransactionInput {
+  contractId?: string | null;
   id: string; userId: string; createdBy: string; creditUserId?: string | null; active: boolean; createdAt: string;
   versions?: TransactionRevision[];
   headPath?: string;
@@ -104,9 +106,13 @@ export interface AppSession { userId: string; role: 'admin' | 'user'; }
 export interface AccountTotals { totalReceived: number; totalBillPayment: number; remainingPayable: number; }
 export interface UserOverview extends AccountTotals { balance: number; credits: Transaction[]; }
 export interface CashbookData extends AdminData {
+  contracts?: Contract[];
   homeOrder?: string[];
   transactions: Transaction[];
   creditUsers: CreditUser[];
 }
 
 export type UserAction = 'deactivate' | 'reactivate' | 'delete' | 'pin' | 'unpin';
+
+export interface ContractInput { name: string; description: string; totalAmount: number; creditUserIds: string[]; }
+export interface Contract extends ContractInput { id: string; isActive: boolean; revision: number; }

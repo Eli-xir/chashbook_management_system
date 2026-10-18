@@ -4,6 +4,7 @@ import re
 from fastapi import HTTPException
 
 from db import password_hash
+from contracts import change_contract, list_contracts, validate_receipt
 
 
 def require(condition, message, status=400):
@@ -97,7 +98,8 @@ def ledger(db, user_id=None, credits_only=False):
         result.append({k: v for k, v in current.items() if k not in ('versionId', 'recordedAt', 'editorId', 'action')})
         result[-1].update(id=str(row['transaction_id']), userId=str(row['user_id']), createdBy=str(row['created_by_user_id']),
                           createdAt=row['created_at'].isoformat(), headId=row['head_id'], headPath=path(db, row['head_id']),
-                          active=row['is_active'], creditUserId=str(row['credit_user_id']) if row['credit_user_id'] else None)
+                          active=row['is_active'], creditUserId=str(row['credit_user_id']) if row['credit_user_id'] else None,
+                          contractId=str(row['contract_id']) if row.get('contract_id') else None)
         if not credits_only:
             result[-1]['versions'] = history
     return result
@@ -147,6 +149,7 @@ def state(db, actor):
         allowed = {h['head_id'] for h in visible}
         visible = [{**h, 'parent_head_id': h['parent_head_id'] if h['parent_head_id'] in allowed else None} for h in visible]
     return {'heads': visible, 'users': profiles, 'permissions': permissions,
+            'contracts': list_contracts(db) if is_admin else [],
             'homeOrder': actor.get('home_order', []),
             'creditUsers': [{'credit_user_id': str(row['credit_user_id']), 'user_name': row['user_name'],
                              'description': row['description'], 'contacts': row['contacts'],
@@ -230,6 +233,8 @@ def credit_user_change(db, actor, change):
         elif change.action == 'delete':
             linked = db.execute('SELECT 1 FROM transactions WHERE credit_user_id=%s LIMIT 1', (change.creditUserId,)).fetchone()
             require(not linked, 'This external user has transactions. Deactivate it instead.')
+            require(not db.execute('SELECT 1 FROM contract_users WHERE credit_user_id=%s LIMIT 1', (change.creditUserId,)).fetchone(),
+                    'This external user is linked to a contract. Unlink them first or deactivate them.')
             db.execute('DELETE FROM credit_users WHERE credit_user_id=%s', (change.creditUserId,))
     return state(db, actor)
 
@@ -280,6 +285,8 @@ def transaction_change(db, actor, change):
                 'Only the user can submit their own transaction. Admin preview cannot submit transactions.', 403)
     else:
         admin(actor)
+    require(change.contractId is None or (change.action == 'credit' and change.creditUserId is not None),
+            'Contracts only apply to receipts from external users.')
     if change.action in ('submit', 'credit'):
         user = account(db, change.userId)
         require(user['user_role_id'] != 1 or (not submitting and user['user_id'] == actor['user_id']),
@@ -292,14 +299,25 @@ def transaction_change(db, actor, change):
             require(change.creditUserId is None, 'External users only apply to Admin credits.')
         require(user['is_active'], 'This account is deactivated.')
         ids = validate_input(db, actor, change.input, user['user_id'], submitting, direct=not submitting)
-        entry = db.execute('''INSERT INTO transactions(head_id,category_group_id,user_id,created_by_user_id,credit_user_id,current_version_id)
-            VALUES (%s,%s,%s,%s,%s,0) RETURNING *''', (change.input.headId, None, user['user_id'],
-            actor['user_id'], change.creditUserId)).fetchone()
+        if change.contractId:
+            validate_receipt(db, change.contractId, change.creditUserId, change.input.amount)
+        entry = db.execute('''INSERT INTO transactions(head_id,category_group_id,user_id,created_by_user_id,credit_user_id,contract_id,current_version_id)
+            VALUES (%s,%s,%s,%s,%s,%s,0) RETURNING *''', (change.input.headId, None, user['user_id'],
+            actor['user_id'], change.creditUserId, change.contractId)).fetchone()
         revise(db, entry, actor['user_id'], 'Created', change.input, ids)
     else:
         entry = db.execute('SELECT * FROM transactions WHERE transaction_id=%s FOR UPDATE', (change.id,)).fetchone()
         require(entry, 'This transaction no longer exists.', 404)
         require(entry['current_version_id'] == change.expectedVersion, 'This entry changed. Close and reopen the card before editing.', 409)
+        if entry.get('contract_id'):
+            db.execute('SELECT contract_id FROM contracts WHERE contract_id=%s FOR UPDATE', (entry['contract_id'],))
+            if change.action == 'edit' and entry['is_active']:
+                require(change.input, 'Enter the transaction details.')
+                validate_receipt(db, entry['contract_id'], entry['credit_user_id'], change.input.amount, entry['transaction_id'])
+            elif change.action == 'reactivate':
+                amount = db.execute('SELECT transaction_amount FROM transaction_versions WHERE version_id=%s',
+                                    (entry['current_version_id'],)).fetchone()['transaction_amount']
+                validate_receipt(db, entry['contract_id'], entry['credit_user_id'], amount, entry['transaction_id'])
         if change.action == 'delete':
             db.execute('DELETE FROM transactions WHERE transaction_id=%s', (change.id,))
             return None
@@ -429,6 +447,9 @@ def head_changes(db, actor, change):
 
 
 def apply_change(db, actor, change, session_id):
+    if change.op == 'contract':
+        change_contract(db, actor, change)
+        return state(db, actor)
     if change.op == 'transaction':
         return transaction_change(db, actor, change)
     admin(actor)

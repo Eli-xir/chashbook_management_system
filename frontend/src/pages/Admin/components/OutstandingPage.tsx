@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { Icon } from '../../../Icon';
 import { HomeCard } from './HomeCard';
 import { matchesUser } from '../utils/userProfile';
 import { balanceTotal, type BalanceCategory, type OutstandingUser } from '../utils/outstandingBalances';
 import { money } from '../../Ledger/ledgerModel';
 
-export function OutstandingPage({ category, entries, onBack, onStatement }: {
+export function OutstandingPage({ category, entries, onBack, onStatement, onPay, children }: {
+  children?: ReactNode; onPay?: (id: string) => void;
   category: BalanceCategory; entries: OutstandingUser[]; onBack: () => void; onStatement: (id: string) => void;
 }) {
   const [search, setSearch] = useState('');
@@ -21,6 +23,8 @@ export function OutstandingPage({ category, entries, onBack, onStatement }: {
     <header className="flex-row flex-wrap items-center gap-sm">
       <button className="btn" onClick={onBack}>← Back to Home</button><h1>{title}</h1>
     </header>
+    {children}
+    {children && <h2>Normal user balances</h2>}
     <p className="text-muted">{category === 'receivable' ? 'Money given to users exceeding their submitted bills.' : 'Submitted bills exceeding the money given to users.'} Current balances across all dates.</p>
     <div className="flex-row flex-wrap items-center gap-sm" role="group" aria-label={`${title} filters`}>
       <label className="field"><span>Search users</span><input type="search" placeholder="Name, contact or description" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
@@ -37,7 +41,8 @@ export function OutstandingPage({ category, entries, onBack, onStatement }: {
       title={user.user_name} description={user.description} detail={user.is_active ? 'Active user' : 'Inactive user'} amount={money(amount)}
       tone={category === 'receivable' ? 'green' : 'gold'} accountType="user"
       icon={<Icon size={42}><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></Icon>}
-      onClick={() => onStatement(user.user_id)} actions={<button className="btn" onClick={() => onStatement(user.user_id)}>View statement</button>} />)}</div>
+      onClick={() => onStatement(user.user_id)} actions={<div className="flex-row flex-wrap gap-sm"><button className="btn" onClick={() => onStatement(user.user_id)}>View statement</button>
+        {category === 'payable' && onPay && <button className="btn" disabled={!user.is_active} title={user.is_active ? 'Record a payment to this user' : 'Reactivate this user before paying'} onClick={() => onPay(user.user_id)}>Pay user</button>}</div>} />)}</div>
     {!visible.length && <p role="status" className="text-muted">{accounts.length ? 'No users match these filters.' : `No ${title.toLowerCase()} balances. Users with PKR 0 balance are excluded.`}</p>}
   </section>;
 }

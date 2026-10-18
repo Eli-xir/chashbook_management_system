@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { EvidenceRecord } from './attachmentReport';
 import { useEffect, useRef, useState } from 'react';
-import type { AdminUser, FiltersState, Head, Transaction } from '../Admin/types';
+import type { AdminUser, Contract, FiltersState, Head, Transaction } from '../Admin/types';
 import { cashbookApi } from '../../data/cashbookApi';
 import { dateRangeLabel, invalidDateRange, direction, headBranchIds, headPath, isCompanyTransaction, ledgerReport, matchesUserScope, money } from './ledgerModel';
 import type { LedgerOrder } from './ledgerModel';
@@ -19,13 +19,16 @@ export interface EntrySelection {
 type LedgerData = Awaited<ReturnType<typeof cashbookApi.ledger>>;
 const filterKey = (filters: FiltersState) => JSON.stringify([
   filters.dateFrom, filters.dateTo, filters.userScope, filters.direction, filters.headId ?? null, filters.description ?? '', filters.timeFrom ?? '', filters.timeTo ?? '',
+  filters.contractId ?? null,
 ]);
-export function Ledger({ filters: suppliedFilters, revision, heads, users, onDirtyChange, onFilterChange, company = false, onChanged, attachmentReview }: {
+export function Ledger({ filters: suppliedFilters, revision, heads, users, onDirtyChange, onFilterChange, company = false, onChanged, attachmentReview, contract, contractUserId }: {
+  contract?: Contract; contractUserId?: string;
   attachmentReview?: { render: (records: EvidenceRecord[], columns: string[], selection: EntrySelection) => ReactNode; export: (records: EvidenceRecord[], document: ReportDocument, selected?: boolean) => ReactNode };
   onChanged: () => Promise<void>; company?: boolean; onFilterChange: (filters: FiltersState) => void;
   filters: FiltersState; revision: number; heads: Head[]; users: AdminUser[]; onDirtyChange: (dirty: boolean) => void;
 }) {
-  const filters = company ? { ...suppliedFilters, headId: null } : suppliedFilters;
+  const fixedScope = contract ? { contractId: contract.id, userScope: contractUserId ? `credit:${contractUserId}` : 'all' } : {};
+  const filters = { ...suppliedFilters, ...(company ? { headId: null } : {}), ...fixedScope };
   const [data, setData] = useState<LedgerData | null>(null);
   const [order, setOrder] = useState<LedgerOrder>(attachmentReview ? 'by-head' : 'by-time');
   const groupDirections = order === 'credit-first' || order === 'debit-first';
@@ -37,7 +40,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   const draftFilters = draft.scope === scope ? draft.filters : filters;
   const pendingFilters = filterKey(draftFilters) !== scope;
   const invalidDraftDates = invalidDateRange(draftFilters);
-  function stageFilters(next: FiltersState) { setDraft({ scope, filters: next }); }
+  function stageFilters(next: FiltersState) { setDraft({ scope, filters: { ...next, ...fixedScope } }); }
   function applyFilters() {
     if (!pendingFilters || invalidDraftDates) return;
     onFilterChange(draftFilters);
@@ -91,7 +94,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
     ? data?.creditUsers.find((user) => user.credit_user_id === entry.creditUserId)?.user_name ?? 'Unavailable external user'
     : company && (data?.users ?? users).some((user) => user.user_id === entry.userId && user.role === 'admin')
       ? 'Source not recorded' : userName(entry.userId);
-  const title = company ? 'Company Statement' : filters.userScope === 'all' ? 'Users Statement' : userName(filters.userScope);
+  const title = contract ? `${contract.name} · ${contractUserId ? userName(`credit:${contractUserId}`) : 'Contract statement'}` : company ? 'Company Statement' : filters.userScope === 'all' ? 'Users Statement' : userName(filters.userScope);
   const receivedLabel = `Total received by ${filters.userScope === 'all' ? 'users' : userName(filters.userScope)}`;
   const branchLabel = filters.headId == null ? '' : `${headPath(reportHeads, filters.headId)} · Includes subheads`;
   const dateLabel = dateRangeLabel(filters);
@@ -99,7 +102,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   const columns = ['Date/time', 'User', 'Entered by', 'Head', 'Description', 'Credit', 'Debit', 'Balance'];
   const entryCells = (entry: Transaction, balance: number): (string | number)[] => [
     new Date(entry.createdAt).toLocaleString(), entryUserName(entry), userName(entry.createdBy),
-    entry.headPath ?? headPath(data?.heads ?? [], entry.headId), entry.description ?? '',
+    entry.headPath ?? headPath(data?.heads ?? [], entry.headId), [!contract && entry.contractId ? `Contract: ${data?.contracts?.find((item) => item.id === entry.contractId)?.name ?? entry.contractId}` : '', entry.description ?? ''].filter(Boolean).join(' · '),
     entryDirection(entry) === 'credit' ? entry.amount : '', entryDirection(entry) === 'debit' ? entry.amount : '', balance,
   ];
   const totalCells = (label: string, balance: number, credit: number | string = '', debit: number | string = ''): (string | number)[] => [label, '', '', '', '', credit, debit, balance];
@@ -171,7 +174,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
         <div className="ledger-total">{currentPage + 1 === pageCount ? 'Closing balance' : 'Page carried forward'} · {money(report.rows[Math.min((currentPage + 1) * pageSize, report.rows.length) - 1]?.balance ?? report.opening)}</div>
       </> : <>
       <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{selectionActive && <th scope="col">Select</th>}{columns.map((label) => <th key={label}
-        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{(company ? ['Date/time', 'User', 'Description'] : ['Date/time', 'User', 'Head', 'Description']).includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} users={data.users} includeTime creditUsers={company || attachmentReview ? data.creditUsers : []} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
+        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{(company ? ['Date/time', ...(contract ? [] : ['User']), 'Description'] : ['Date/time', 'User', 'Head', 'Description']).includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} users={data.users} includeTime creditUsers={company || attachmentReview ? data.creditUsers : []} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
         {pageRows(currentPage).map(({ cells, entry: rowEntry }, index) => {
           return <tr ref={rowEntry && rowEntry.id === report.rows.at(-1)?.entry.id ? lastEntry : undefined} key={rowEntry ? `transaction:${rowEntry.id}` : `total:${index}`} className={rowEntry ? `ledger-entry${selectedIds.has(rowEntry.id) ? ' entry-selected' : ''}` : 'ledger-total'} onClick={(event) => { if (rowEntry) { if (selectionActive) toggleSelection(rowEntry.id, event.shiftKey); else openEntry(rowEntry); } }}>
             {selectionActive && <td>{rowEntry && <input type="checkbox" aria-label={`Select entry ${rowEntry.id}`} checked={selectedIds.has(rowEntry.id)} onClick={(event) => { event.stopPropagation(); toggleSelection(rowEntry.id, event.shiftKey); }} onChange={() => {}} />}</td>}
@@ -187,7 +190,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
         <button className="btn" disabled={currentPage + 1 === pageCount} onClick={() => setPage(currentPage + 1)}>Next</button>
       </div>
       {!attachmentReview && <details className="disclosure" open={showInactive} onToggle={(event) => setShowInactive(event.currentTarget.open)}><summary>Deactivated entries</summary>
-        {transactions.filter((entry) => !entry.active && matchesUserScope(entry, filters.userScope) && (!branch || (entry.headId !== null && branch.has(entry.headId)))).map((entry) =>
+        {transactions.filter((entry) => !entry.active && (!filters.contractId || entry.contractId === filters.contractId) && matchesUserScope(entry, filters.userScope) && (!branch || (entry.headId !== null && branch.has(entry.headId)))).map((entry) =>
           <button className="btn" key={entry.id} onClick={() => setSelected(entry)}>{new Date(entry.createdAt).toLocaleString()} · {entryUserName(entry)} · {money(entry.amount)}</button>)}
       </details>}
     </>}
@@ -200,7 +203,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
       <button className="btn" onClick={() => setSelection({ scope, active: false, ids: new Set(), anchor: null, range: false })}>Cancel</button>
     </div>}
     {selected && data && <TransactionCard key={selected.id} entry={selected}
-      admin company={company} heads={data.heads} users={data.users} creditUsers={data.creditUsers}
+      admin company={company} heads={data.heads} users={data.users} creditUsers={data.creditUsers} contracts={data.contracts}
       onClose={() => { setSelected(null); setReload((value) => value + 1); }} onChanged={refresh} />}
 
   </div>;

@@ -76,7 +76,7 @@ export function ledgerReport(entries: Transaction[], filters: FiltersState, orde
     || day(entry.createdAt) === filters.dateFrom && !!filters.timeFrom && time(entry.createdAt) < filters.timeFrom);
   const signed = (entry: Transaction) => entryDirection(entry) === 'credit' ? entry.amount : -entry.amount;
   const branch = headBranchIds(heads, filters.headId);
-  const account = entries.filter((entry) => entry.active && (!company || isCompanyTransaction(entry)) && matchesUserScope(entry, filters.userScope)
+  const account = entries.filter((entry) => entry.active && (!filters.contractId || entry.contractId === filters.contractId) && (!company || isCompanyTransaction(entry)) && matchesUserScope(entry, filters.userScope)
     && (!branch || (entry.headId !== null && branch.has(entry.headId))) && (!filters.description || (entry.description ?? '').toLowerCase().includes(filters.description.toLowerCase())));
   const selected = account.filter((entry) => filters.direction === 'both' || entryDirection(entry) === filters.direction);
   const opening = selected.filter(beforeStart).reduce((sum, entry) => roundMoney(sum + signed(entry)), 0);
