@@ -12,6 +12,8 @@ import { UserCards } from './components/UserCards';
 import { matchesUser } from './utils/userProfile';
 import { CreditUserCards } from './components/CreditUserCards';
 import { HomeNavigation } from './components/HomeNavigation';
+import { OutstandingPage } from './components/OutstandingPage';
+import { balanceTotal, outstandingBalances } from './utils/outstandingBalances';
 import { usePermissionChanges } from './hooks/usePermissionChanges';
 import { permissionDiff, permittedHeads } from './utils/permissions';
 import { AttachmentsPage } from '../Ledger/AttachmentsPage';
@@ -32,6 +34,8 @@ interface AdminPageProps extends CashbookData {
   onUserAction?: (userId: string, action: UserAction) => Promise<void>;
 }
 const cards = [
+  { id: 'receivable', title: 'Receivable', icon: 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5', tone: 'green' },
+  { id: 'payable', title: 'Payable', icon: 'M12 15V3m-5 5 5-5 5 5M4 16v5h16v-5', tone: 'gold' },
   { id: 'attachments', title: 'Attachments', icon: 'M21 11.5 12.5 20a6 6 0 0 1-8.5-8.5L13 2.5a4 4 0 0 1 5.5 5.5l-9 9a2 2 0 0 1-3-3L15 5', tone: 'blue' },
   { id: 'users', title: 'Users', icon: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0', tone: 'blue' },
   { id: 'company', title: 'Company Statement', icon: 'M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1M9 13h1m4 0h1M10 21v-4h4v4', tone: 'gold' },
@@ -78,6 +82,12 @@ export function AdminPage(props: AdminPageProps) {
   const pinnedUsers = selectableUsers.filter((user) => user.is_active && user.is_pinned);
   const pinnedExternal = props.creditUsers.filter((user) => user.is_active && user.is_pinned);
   const totals = ledgerReport(props.transactions, { dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' }, 'by-time', [], true);
+  const outstanding = outstandingBalances(selectableUsers, props.transactions);
+  const homeCards = cards.map((card) => {
+    if (card.id !== 'receivable' && card.id !== 'payable') return card;
+    const accounts = outstanding.filter((entry) => entry.category === card.id);
+    return { ...card, amount: money(balanceTotal(accounts)), detail: `${accounts.length} ${accounts.length === 1 ? 'user' : 'users'}` };
+  });
   const diff = permissionDiff(permissions[selectedUserId] ?? [], editor.ids(selectedUserId));
   function navigate(action: () => void) {
     if (transactionBusy) { setNotice('Finish the recording or current operation first.'); return; }
@@ -115,7 +125,7 @@ export function AdminPage(props: AdminPageProps) {
     <section className="admin-home" hidden={page !== 'home'}>
       <h1>Overview</h1>
       <dl className="home-totals">{Object.entries({ Credits: totals.credit, Debits: totals.debit, Balance: totals.closing }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{money(value)}</dd></div>)}</dl>
-      <HomeNavigation key={`${revision}:${props.homeOrder?.join(',')}`} cards={cards} order={props.homeOrder} onOpen={(id) => navigate(() => {
+      <HomeNavigation key={`${revision}:${props.homeOrder?.join(',')}`} cards={homeCards} order={props.homeOrder} onOpen={(id) => navigate(() => {
         setHeadMode('manage'); setHeadsFromUsers(false);
         if (id === 'company') setFilters((current) => ({ ...current, userScope: 'all', headId: null }));
         if (id === 'attachments') setAttachmentScope('');
@@ -137,6 +147,14 @@ export function AdminPage(props: AdminPageProps) {
       </section>}
     </section>
     <div className="admin-content">
+      {(['receivable', 'payable'] as const).map((category) => <div key={category} hidden={page !== category}>
+        <OutstandingPage category={category} entries={outstanding} onBack={() => navigate(() => setPage('home'))}
+          onStatement={(userScope) => navigate(() => {
+            setStatementFrom(category);
+            setFilters({ dateFrom: '', dateTo: '', userScope, direction: 'both' });
+            setPage('statement');
+          })} />
+      </div>)}
       <section className={`admin-controls flex-col gap-md${page === 'heads' ? ' admin-controls--heads' : ''}`} hidden={page !== 'users' && page !== 'heads'}>
         <h1>{page === 'heads' ? headsFromUsers ? selectedUser?.user_name : 'Heads Management' : 'Users'}</h1>
         {page === 'heads' && !headsFromUsers && <UserPicker users={selectableUsers} value={selectedUserId} onChange={(id) => navigate(() => { setSelectedUserId(id); if (!id) setHeadMode('manage'); })} />}
@@ -172,7 +190,7 @@ export function AdminPage(props: AdminPageProps) {
       {preview && selectedUser ? <section className="admin-preview"><UserPreview key={`${selectedUserId}:${revision}`} user={selectedUser} onRefresh={props.onRefresh} heads={heads} assigned={editor.ids(selectedUserId)} pending={diff.granted.length + diff.revoked.length > 0}
         onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} onClose={closeHeadView} /></section>
         : (page === 'company' || page === 'statement') && <>
-          {statementFrom && <button className="btn" onClick={() => navigate(() => setPage(statementFrom))}>← Back</button>}
+          {statementFrom && <button className="btn" onClick={() => navigate(() => setPage(statementFrom))}>← Back{statementFrom === 'receivable' ? ' to Receivable' : statementFrom === 'payable' ? ' to Payable' : ''}</button>}
           <Ledger key={`${revision}:${page}`} company={page === 'company'} filters={filters} onFilterChange={setFilters} revision={revision} heads={heads} users={users} onDirtyChange={setLedgerDirty}
             onChanged={props.onRefresh} /></>}
       {page === 'attachments' && <AttachmentsPage key={attachmentScope} initialScope={attachmentScope} users={users} creditUsers={props.creditUsers} heads={heads} />}

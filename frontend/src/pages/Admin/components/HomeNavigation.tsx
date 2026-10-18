@@ -3,7 +3,7 @@ import { cashbookApi } from '../../../data/cashbookApi';
 import { Icon } from '../../../Icon';
 import { HomeCard } from './HomeCard';
 
-interface Card { id: string; title: string; icon: string; tone: 'blue' | 'gold' | 'green' | 'purple'; }
+interface Card { id: string; title: string; icon: string; tone: 'blue' | 'gold' | 'green' | 'purple'; amount?: string; detail?: string; }
 
 export function HomeNavigation({ cards, order = [], onOpen }: { cards: readonly Card[]; order?: string[]; onOpen: (id: string) => void }) {
   const [saved, setSaved] = useState<string[] | null>(null);
@@ -64,7 +64,7 @@ export function HomeNavigation({ cards, order = [], onOpen }: { cards: readonly 
             setSelected(null);
           }}
           onPointerCancel={() => { gesture.current = null; setSelected(null); }}>
-          <HomeCard title={card.title} tone={card.tone} disabled={busy} onClick={() => {
+          <HomeCard title={card.title} amount={card.amount} detail={card.detail} tone={card.tone} disabled={busy} onClick={() => {
             if (skipClick.current) { skipClick.current = false; return; }
             if (!draft) { onOpen(id); return; }
             if (selected) { move(selected, id); setSelected(null); } else setSelected(id);

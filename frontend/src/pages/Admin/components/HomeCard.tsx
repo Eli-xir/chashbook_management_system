@@ -1,15 +1,16 @@
 import { Icon } from '../../../Icon';
 import type { ReactNode } from 'react';
 
-export function HomeCard({ title, icon, tone, onClick, description, detail, actions, accountType, onAttachments, onStatement, selected = false, disabled = false }: {
+export function HomeCard({ title, icon, tone, onClick, description, detail, amount, actions, accountType, onAttachments, onStatement, selected = false, disabled = false }: {
   title: string; icon: ReactNode; tone: 'blue' | 'gold' | 'green' | 'purple'; onClick: () => void;
-  description?: string; detail?: string; actions?: ReactNode; selected?: boolean; disabled?: boolean;
+  description?: string; detail?: string; amount?: string; actions?: ReactNode; selected?: boolean; disabled?: boolean;
   onAttachments?: () => void; onStatement?: () => void;
   accountType?: 'user' | 'external' | 'admin';
 }) {
   const content = <>
     {icon}
     <span className="home-card-title">{title}</span>
+    {amount && <strong className="home-card-amount">{amount}</strong>}
     {description && <small className="home-card-description" title={description}>{description}</small>}
     {detail && <small className="home-card-detail">{detail}</small>}
   </>;

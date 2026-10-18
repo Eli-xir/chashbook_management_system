@@ -1,4 +1,5 @@
 .admin-page { max-width: 1440px; margin: auto; padding: clamp(16px, 3vw, 40px); min-height: 100dvh; }
+.home-card-amount { font-size: 1.25rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; max-width: 100%; }
 .admin-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 32px; padding-bottom: 18px; border-bottom: 1px solid var(--color-line); }
 .brand-home, .column-filter, .home-card-main { border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .brand-home { display: flex; align-items: center; gap: 12px; padding: 0; text-align: left; }
