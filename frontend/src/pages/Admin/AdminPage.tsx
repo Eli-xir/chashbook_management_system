@@ -138,7 +138,7 @@ export function AdminPage(props: AdminPageProps) {
         setHeadMode('manage'); setHeadsFromUsers(false);
         if (id === 'company') setFilters((current) => ({ ...current, userScope: 'all', headId: null }));
         if (id === 'attachments') setAttachmentScope('');
-        if (id === 'statement') setFilters((current) => current.userScope.startsWith('credit:') ? { ...current, userScope: 'all' } : current);
+        if (id === 'statement') setFilters((current) => ({ ...current, userScope: 'all' }));
         if (id === 'credit') setCreditShortcut(null);
         if (id === 'debit') setDebitShortcut('');
         setPage(id as Page);
