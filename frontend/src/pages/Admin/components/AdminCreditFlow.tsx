@@ -7,8 +7,9 @@ import { Dialog } from './Dialog';
 import { CreditUserCards } from './CreditUserCards';
 import { HomeCard } from './HomeCard';
 import { UserPreview } from './UserPreview';
+import { ContractEditor } from './ContractEditor';
 
-type Screen = 'menu' | 'create' | 'choose' | 'edit' | 'transaction';
+type Screen = 'menu' | 'create' | 'choose' | 'edit' | 'transaction' | 'contract';
 
 export function AdminCreditFlow({ admin, creditUsers, heads, initialCreditUserId = '', initialEditCreditUserId = '', onClose, onRefresh, onDirtyChange, onBusyChange, onStatement }: {
   admin: AdminUser; creditUsers: CreditUser[]; heads: Head[]; initialCreditUserId?: string; initialEditCreditUserId?: string;
@@ -34,7 +35,7 @@ export function AdminCreditFlow({ admin, creditUsers, heads, initialCreditUserId
   const formDirty = screen === 'create' ? !!(name || description || contacts.some(Boolean))
     : screen === 'edit' && !!editing && (name !== editing.user_name || description !== editing.description ||
       JSON.stringify(contacts.filter(Boolean)) !== JSON.stringify(editing.contacts));
-  const dirty = formDirty || (screen === 'transaction' && transactionDirty);
+  const dirty = formDirty || ((screen === 'transaction' || screen === 'contract') && transactionDirty);
   const locked = busy || cardsBusy;
 
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
@@ -80,16 +81,17 @@ export function AdminCreditFlow({ admin, creditUsers, heads, initialCreditUserId
   return <section className="admin-credit-page flex-col gap-md">
     {screen !== 'transaction' && <header className="flex-row items-center gap-sm">
       {screen !== 'menu' && <button className="btn" onClick={back} disabled={locked}>← {screen === 'edit' ? 'External users' : 'Back'}</button>}
-      <h1>{screen === 'menu' ? 'Admin credit' : screen === 'create' ? 'New external user' : screen === 'edit' ? 'Edit external user' : 'Credit amount'}</h1>
+      <h1>{screen === 'menu' ? 'Admin credit' : screen === 'contract' ? 'New contract' : screen === 'create' ? 'New external user' : screen === 'edit' ? 'Edit external user' : 'Credit amount'}</h1>
     </header>}
     {notice && screen !== 'transaction' && <p className="credit-success" role="status">{notice}</p>}
     {error && screen !== 'create' && screen !== 'edit' && <p className="text-error" role="alert">{error}</p>}
     {screen === 'menu' && <nav className="home-cards" aria-label="Admin credit options">
-      {([['create', 'New external user', 'M12 5v14M5 12h14'], ['choose', 'Credit amount', 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5']] as const).map(([target, label, icon]) =>
+      {([['create', 'New external user', 'M12 5v14M5 12h14'], ['choose', 'Credit amount', 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5'], ['contract', 'New contract', 'M6 3h12v18H6zM9 7h6M9 11h6M9 15h4']] as const).map(([target, label, icon]) =>
         <HomeCard key={target} title={label} tone={target === 'create' ? 'blue' : 'green'}
           icon={<Icon size={46} strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></Icon>}
           onClick={() => { setNotice(''); setError(''); setScreen(target); }} />)}
     </nav>}
+    {screen === 'contract' && <ContractEditor users={creditUsers} onClose={() => { setTransactionDirty(false); setScreen('menu'); }} onRefresh={onRefresh} onDirtyChange={setTransactionDirty} onBusyChange={setBusy} />}
     {(screen === 'create' || screen === 'edit') && <form className="admin-credit-form user-card-panel flex-col gap-md" onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <label className="field"><span>Name</span><input required maxLength={48} value={name} onChange={(event) => setName(event.target.value)} /></label>
       <h3 className="section-label">Contacts</h3>
