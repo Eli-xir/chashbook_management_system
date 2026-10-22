@@ -456,7 +456,7 @@ def apply_change(db, actor, change, session_id):
     if change.op == 'homeOrder':
         base_cards = {'attachments', 'users', 'company', 'statement', 'heads', 'credit', 'debit'}
         # Accept old clients during deployment; the frontend appends newly available cards.
-        require(len(set(change.ids)) == len(change.ids) and set(change.ids) in (base_cards, base_cards | {'receivable', 'payable'}),
+        require(len(set(change.ids)) == len(change.ids) and set(change.ids) in (base_cards, base_cards | {'receivable', 'payable'}, base_cards | {'receivable', 'payable', 'contracts'}),
                 'Include each Home card once.')
         db.execute('UPDATE users SET home_order=%s WHERE user_id=%s', (change.ids, actor['user_id']))
         return {'homeOrder': change.ids}

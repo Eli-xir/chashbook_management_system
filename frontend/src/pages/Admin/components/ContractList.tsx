@@ -5,8 +5,8 @@ import { money, roundMoney } from '../../Ledger/ledgerModel';
 import { HomeCard } from './HomeCard';
 import { Icon } from '../../../Icon';
 
-export function ContractList({ contracts, transactions, onOpen }: {
-  contracts: Contract[]; transactions: Transaction[]; onOpen: (id: string) => void;
+export function ContractList({ contracts, transactions, onOpen, onBack }: {
+  contracts: Contract[]; transactions: Transaction[]; onOpen: (id: string) => void; onBack: () => void;
 }) {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('outstanding');
@@ -16,7 +16,7 @@ export function ContractList({ contracts, transactions, onOpen }: {
     && (status === 'all' || status === 'outstanding' && remaining > 0 || status === 'settled' && remaining <= 0 || status === 'archived' && !contract.isActive))
     .sort((a, b) => (sort === 'name' ? 0 : sort === 'lowest' ? a.remaining - b.remaining : b.remaining - a.remaining) || a.contract.name.localeCompare(b.contract.name));
   return <section className="flex-col gap-md">
-    <h2>Contracts</h2>
+    <header className="flex-row flex-wrap items-center gap-sm"><button className="btn" onClick={onBack}>← Back to Home</button><h1>Contracts</h1></header>
     <div className="flex-row flex-wrap items-center gap-sm">
       <label className="field"><span>Search contracts</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
       <label className="field"><span>Contract status</span><select aria-label="Contract status" value={status} onChange={(event) => setStatus(event.target.value)}><option value="outstanding">Outstanding</option><option value="settled">Settled</option><option value="archived">Archived</option><option value="all">All contracts</option></select></label>

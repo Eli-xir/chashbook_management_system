@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { contractBalance } from '../src/pages/Admin/utils/contractBalances.ts';
+import { contractBalance, contractContributions } from '../src/pages/Admin/utils/contractBalances.ts';
 import { ledgerReport } from '../src/pages/Ledger/ledgerModel.ts';
 import type { Contract, Transaction } from '../src/pages/Admin/types.ts';
 
@@ -21,6 +21,14 @@ test('No-contract filter isolates legacy receipts including opening balances', (
 });
 const entries = [receipt('1', 'a', 'payer1', 100), receipt('2', 'a', 'payer2', 250),
   receipt('3', 'b', 'payer1', 800), receipt('4', null, 'payer1', 500), receipt('5', 'a', 'payer2', 50, false)];
+
+test('Per-user paid totals belong only to active receipts in the selected shared contract', () => {
+  assert.deepEqual([...contractContributions('a', entries)], [['payer1', 100], ['payer2', 250]]);
+  assert.equal(contractContributions('a', entries).get('new-payer') ?? 0, 0);
+  const edited = entries.map((entry) => entry.id === '1' ? { ...entry, amount: 125 } : entry);
+  assert.equal(contractContributions('a', edited).get('payer1'), 125);
+  assert.equal([...contractContributions('a', entries).values()].reduce((a, b) => a + b, 0), contractBalance(contract, entries).received);
+});
 
 test('A shared contract combines linked payers without counting other contracts, legacy receipts, or inactive entries', () => {
   assert.deepEqual(contractBalance(contract, entries), { received: 350, remaining: 650 });

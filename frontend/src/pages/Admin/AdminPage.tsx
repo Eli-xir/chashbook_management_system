@@ -37,6 +37,7 @@ interface AdminPageProps extends CashbookData {
   onUserAction?: (userId: string, action: UserAction) => Promise<void>;
 }
 const cards = [
+  { id: 'contracts', title: 'Contracts', icon: 'M6 3h12v18H6zM9 7h6M9 11h6M9 15h4', tone: 'blue' },
   { id: 'receivable', title: 'Receivable', icon: 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5', tone: 'green' },
   { id: 'payable', title: 'Payable', icon: 'M12 15V3m-5 5 5-5 5 5M4 16v5h16v-5', tone: 'gold' },
   { id: 'attachments', title: 'Attachments', icon: 'M21 11.5 12.5 20a6 6 0 0 1-8.5-8.5L13 2.5a4 4 0 0 1 5.5 5.5l-9 9a2 2 0 0 1-3-3L15 5', tone: 'blue' },
@@ -53,6 +54,7 @@ export function AdminPage(props: AdminPageProps) {
   const { users, heads, permissions, currentAdminUserId } = props;
   const [page, setPage] = useState<Page>('home');
   const [contractId, setContractId] = useState('');
+  const [contractFrom, setContractFrom] = useState<'contracts' | 'receivable'>('contracts');
   const [payUserId, setPayUserId] = useState('');
   const contracts = props.contracts ?? [];
   const selectedContract = contracts.find((contract) => contract.id === contractId);
@@ -92,6 +94,7 @@ export function AdminPage(props: AdminPageProps) {
   const outstanding = outstandingBalances(selectableUsers, props.transactions);
   const contractOutstanding = contracts.map((contract) => contractBalance(contract, props.transactions).remaining).filter((amount) => amount > 0);
   const homeCards = cards.map((card) => {
+    if (card.id === 'contracts') return { ...card, amount: money(contractOutstanding.reduce((sum, amount) => roundMoney(sum + amount), 0)), detail: `${contractOutstanding.length} outstanding contracts` };
     if (card.id !== 'receivable' && card.id !== 'payable') return card;
     const accounts = outstanding.filter((entry) => entry.category === card.id);
     const extra = card.id === 'receivable' ? contractOutstanding.reduce((sum, amount) => roundMoney(sum + amount), 0) : 0;
@@ -106,6 +109,9 @@ export function AdminPage(props: AdminPageProps) {
   }
   function openAttachments(scope: string) {
     navigate(() => { setAttachmentScope(scope); setPage('attachments'); });
+  }
+  function openContract(id: string, from: 'contracts' | 'receivable') {
+    navigate(() => { setContractId(id); setContractFrom(from); setPage('contract'); });
   }
   function closeHeadView() {
     navigate(() => { setHeadMode('manage'); if (headsFromUsers) setPage('users'); });
@@ -157,15 +163,16 @@ export function AdminPage(props: AdminPageProps) {
     </section>
     <div className="admin-content">
       {(['receivable', 'payable'] as const).map((category) => <div key={category} hidden={page !== category || (category === 'payable' && !!payUserId)}>
-        <OutstandingPage category={category} entries={outstanding} onBack={() => navigate(() => setPage('home'))} onPay={setPayUserId}
+        <OutstandingPage category={category} entries={outstanding} contracts={contracts} transactions={props.transactions} onContract={(id) => openContract(id, 'receivable')} onBack={() => navigate(() => setPage('home'))} onPay={setPayUserId}
           onStatement={(userScope) => navigate(() => {
             setStatementFrom(category);
             setFilters({ dateFrom: '', dateTo: '', userScope, direction: 'both' });
             setPage('statement');
-          })} >{category === 'receivable' && <ContractList contracts={contracts} transactions={props.transactions} onOpen={(id) => navigate(() => { setContractId(id); setPage('contract'); })} />}</OutstandingPage>
+          })} />
       </div>)}
-      {page === 'contract' && (selectedContract ? <ContractDetails key={contractId} contract={selectedContract} transactions={props.transactions} creditUsers={props.creditUsers} users={users} heads={heads} adminId={currentAdminUserId}
-        onBack={() => navigate(() => setPage('receivable'))} onDeleted={() => setPage('receivable')} onRefresh={props.onRefresh} onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} /> : <div><p>This contract is no longer available.</p><button className="btn" onClick={() => navigate(() => setPage('receivable'))}>← Back to Receivable</button></div>)}
+      <div hidden={page !== 'contracts'}><ContractList contracts={contracts} transactions={props.transactions} onOpen={(id) => openContract(id, 'contracts')} onBack={() => navigate(() => setPage('home'))} /></div>
+      {page === 'contract' && (selectedContract ? <ContractDetails key={contractId} contract={selectedContract} transactions={props.transactions} creditUsers={props.creditUsers} users={users} heads={heads} adminId={currentAdminUserId} backLabel={`Back to ${contractFrom === 'contracts' ? 'Contracts' : 'Receivable'}`}
+        onBack={() => navigate(() => setPage(contractFrom))} onDeleted={() => setPage(contractFrom)} onRefresh={props.onRefresh} onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} /> : <div><p>This contract is no longer available.</p><button className="btn" onClick={() => navigate(() => setPage(contractFrom))}>← Back to {contractFrom === 'contracts' ? 'Contracts' : 'Receivable'}</button></div>)}
       {page === 'payable' && payUserId && <AdminDebitFlow key={payUserId} initialUserId={payUserId} returnToSource users={users} heads={heads}
         onClose={() => setPayUserId('')} onSubmitted={props.onRefresh} onDirtyChange={setTransactionDirty} onBusyChange={setTransactionBusy} />}
       <section className={`admin-controls flex-col gap-md${page === 'heads' ? ' admin-controls--heads' : ''}`} hidden={page !== 'users' && page !== 'heads'}>
