@@ -32,7 +32,8 @@ export type ReportFormat = 'pdf' | 'excel' | 'csv';
 const columnWidths = (report: ReportDocument) => report.columns.length === 8 ? [24, 17, 17, 29, 30, 23, 23, 23] : [30, 65, 27, 30, 34];
 const numeric = (value: string | number) => typeof value === 'number' ? `PKR ${value.toLocaleString('en-PK', { maximumFractionDigits: 2 })}` : value;
 function labelSpan(report: ReportDocument, row: (string | number)[]) {
-  if (row[1] !== '' || row[report.columns.indexOf('Head')] !== '') return 1;
+  const detailColumn = report.columns.findIndex((column) => column === 'Head' || column === 'Contract');
+  if (row[1] !== '' || (detailColumn >= 0 && row[detailColumn] !== '')) return 1;
   const firstAmount = row.findIndex((value) => typeof value === 'number');
   return firstAmount > 1 ? firstAmount : 1;
 }

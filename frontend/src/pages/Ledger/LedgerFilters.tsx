@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import type { AdminUser, CreditUser, FiltersState, Head } from '../Admin/types';
+import type { AdminUser, Contract, CreditUser, FiltersState, Head } from '../Admin/types';
 import { UserPicker } from '../Admin/components/UserPicker';
 import { Dialog } from '../Admin/components/Dialog';
 import { creditUserScope, invalidDateRange } from './ledgerModel';
 
-export function LedgerFilters({ column, filters, heads, users, creditUsers = [], onChange, includeTime = false }: {
+export function LedgerFilters({ column, filters, heads, users, contracts = [], creditUsers = [], onChange, includeTime = false }: {
+  contracts?: Contract[];
   includeTime?: boolean; column: string; filters: FiltersState; heads: Head[]; users: AdminUser[]; creditUsers?: CreditUser[]; onChange: (filters: FiltersState) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const selected = heads.find((h) => h.head_id === filters.headId);
-  const active = column === 'Head' ? filters.headId != null : column === 'User' ? filters.userScope !== 'all'
+  const active = column === 'Contract' ? !!filters.contractId : column === 'Head' ? filters.headId != null : column === 'User' ? filters.userScope !== 'all'
     : column === 'Description' ? !!filters.description : !!(filters.dateFrom || filters.dateTo || filters.timeFrom || filters.timeTo);
   function update(patch: Partial<FiltersState>) { onChange({ ...filters, ...patch }); }
   const today = new Date();
@@ -31,8 +32,16 @@ export function LedgerFilters({ column, filters, heads, users, creditUsers = [],
   ];
   return <>
     <button className={`column-filter${active ? ' column-filter--active' : ''}`} onClick={() => { setOpen(true); setSearch(''); }}>{column === 'Head' && selected ? `Head · ${selected.head_name}` : column} ▾</button>
-    {open && <Dialog title={`Filter · ${column}`} closeOnOutside={column === 'Head'} onClose={() => setOpen(false)}>
-      {column === 'Head' ? <div className="flex-col gap-sm">
+    {open && <Dialog title={`Filter · ${column}`} closeOnOutside={column === 'Head' || column === 'Contract'} onClose={() => setOpen(false)}>
+      {column === 'Contract' ? <div className="flex-col gap-sm">
+        <input type="search" aria-label="Search contracts" placeholder="Search contracts" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <div className="filter-choices">
+          <button className="btn" aria-pressed={!filters.contractId} onClick={() => update({ contractId: undefined })}>All contracts</button>
+          <button className="btn" aria-pressed={filters.contractId === '__none__'} onClick={() => update({ contractId: '__none__' })}>No contract</button>
+          {contracts.filter((item) => `${item.name} ${item.description}`.toLowerCase().includes(search.toLowerCase())).map((item) =>
+            <button className="btn" key={item.id} aria-pressed={filters.contractId === item.id} onClick={() => update({ contractId: item.id })}>{item.name}{!item.isActive && ' · Archived'}</button>)}
+        </div>
+      </div> : column === 'Head' ? <div className="flex-col gap-sm">
         <p>{selected?.head_name ?? 'All heads'}</p>
         <div className="flex-row gap-sm">
           <button className="btn" onClick={() => update({ headId: null })}>All heads</button>
@@ -65,7 +74,7 @@ export function LedgerFilters({ column, filters, heads, users, creditUsers = [],
           {invalidDateRange(filters) && <p className="text-error" role="alert">From date/time must be on or before To.</p>}
         </div>}
       <div className="flex-row justify-end gap-sm">
-        <button className="btn" onClick={() => { update(column === 'Head' ? { headId: null } : column === 'User' ? { userScope: 'all' } : column === 'Description' ? { description: '' } : { dateFrom: '', dateTo: '', timeFrom: '', timeTo: '' }); if (column !== 'Head') setOpen(false); }}>Clear</button>
+        <button className="btn" onClick={() => { update(column === 'Contract' ? { contractId: undefined } : column === 'Head' ? { headId: null } : column === 'User' ? { userScope: 'all' } : column === 'Description' ? { description: '' } : { dateFrom: '', dateTo: '', timeFrom: '', timeTo: '' }); if (column !== 'Head' && column !== 'Contract') setOpen(false); }}>Clear</button>
         <button className="btn btn--primary" onClick={() => setOpen(false)}>Done</button>
       </div>
     </Dialog>}

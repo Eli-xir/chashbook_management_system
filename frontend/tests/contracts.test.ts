@@ -9,6 +9,16 @@ const receipt = (id: string, contractId: string | null, creditUserId: string, am
   id, contractId, creditUserId, amount, active, userId: 'admin', createdBy: 'admin', headId: null,
   createdAt: '2026-10-19T12:00:00Z', attachments: [],
 });
+
+test('No-contract filter isolates legacy receipts including opening balances', () => {
+  const filters = { contractId: '__none__', userScope: 'credit:payer1', dateFrom: '', dateTo: '', direction: 'both' as const };
+  const report = ledgerReport(entries, filters, 'by-time', [], true);
+  assert.deepEqual(report.rows.map((row) => row.entry.id), ['4']);
+  assert.equal(report.credit, 500);
+  const later = ledgerReport(entries, { ...filters, dateFrom: '2026-10-20' }, 'by-time', [], true);
+  assert.equal(later.opening, 500);
+  assert.equal(later.closing, 500);
+});
 const entries = [receipt('1', 'a', 'payer1', 100), receipt('2', 'a', 'payer2', 250),
   receipt('3', 'b', 'payer1', 800), receipt('4', null, 'payer1', 500), receipt('5', 'a', 'payer2', 50, false)];
 

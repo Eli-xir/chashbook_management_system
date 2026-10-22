@@ -111,7 +111,7 @@ export function AdminPage(props: AdminPageProps) {
     navigate(() => { setHeadMode('manage'); if (headsFromUsers) setPage('users'); });
   }
   function statement(userScope: string, headId = filters.headId, company = false) {
-    navigate(() => { setStatementFrom(page); setFilters((f) => ({ ...f, userScope, headId })); setPage(company ? 'company' : 'statement'); setHeadMode('manage'); });
+    navigate(() => { setStatementFrom(page); setFilters((f) => ({ ...f, userScope, headId, contractId: undefined })); setPage(company ? 'company' : 'statement'); setHeadMode('manage'); });
   }
   async function refresh() {
     setRefreshing(true); setNotice('');
@@ -136,9 +136,9 @@ export function AdminPage(props: AdminPageProps) {
       <dl className="home-totals">{Object.entries({ Credits: totals.credit, Debits: totals.debit, Balance: totals.closing }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{money(value)}</dd></div>)}</dl>
       <HomeNavigation key={`${revision}:${props.homeOrder?.join(',')}`} cards={homeCards} order={props.homeOrder} onOpen={(id) => navigate(() => {
         setHeadMode('manage'); setHeadsFromUsers(false);
-        if (id === 'company') setFilters((current) => ({ ...current, userScope: 'all', headId: null }));
+        if (id === 'company') setFilters((current) => ({ ...current, userScope: 'all', headId: null, contractId: undefined }));
         if (id === 'attachments') setAttachmentScope('');
-        if (id === 'statement') setFilters((current) => ({ ...current, userScope: 'all' }));
+        if (id === 'statement') setFilters((current) => ({ ...current, userScope: 'all', contractId: undefined }));
         if (id === 'credit') setCreditShortcut(null);
         if (id === 'debit') setDebitShortcut('');
         setPage(id as Page);

@@ -10,6 +10,7 @@ export const direction = (entry: Transaction, company = false) => company
 export const creditUserScope = (id: string) => `credit:${id}`;
 export const matchesUserScope = (entry: Transaction, scope: string) => scope === 'all' ||
   (scope.startsWith('credit:') ? entry.creditUserId === scope.slice(7) : entry.userId === scope && !entry.creditUserId);
+export const matchesContractScope = (entry: Transaction, id?: string) => !id || (id === '__none__' ? !entry.contractId : entry.contractId === id);
 export function accountTotals(entries: Transaction[]) {
   let totalReceived = 0, totalBillPayment = 0;
   for (const entry of entries) {
@@ -76,7 +77,7 @@ export function ledgerReport(entries: Transaction[], filters: FiltersState, orde
     || day(entry.createdAt) === filters.dateFrom && !!filters.timeFrom && time(entry.createdAt) < filters.timeFrom);
   const signed = (entry: Transaction) => entryDirection(entry) === 'credit' ? entry.amount : -entry.amount;
   const branch = headBranchIds(heads, filters.headId);
-  const account = entries.filter((entry) => entry.active && (!filters.contractId || entry.contractId === filters.contractId) && (!company || isCompanyTransaction(entry)) && matchesUserScope(entry, filters.userScope)
+  const account = entries.filter((entry) => entry.active && matchesContractScope(entry, filters.contractId) && (!company || isCompanyTransaction(entry)) && matchesUserScope(entry, filters.userScope)
     && (!branch || (entry.headId !== null && branch.has(entry.headId))) && (!filters.description || (entry.description ?? '').toLowerCase().includes(filters.description.toLowerCase())));
   const selected = account.filter((entry) => filters.direction === 'both' || entryDirection(entry) === filters.direction);
   const opening = selected.filter(beforeStart).reduce((sum, entry) => roundMoney(sum + signed(entry)), 0);

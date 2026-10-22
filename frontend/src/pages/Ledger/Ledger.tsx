@@ -3,7 +3,7 @@ import type { EvidenceRecord } from './attachmentReport';
 import { useEffect, useRef, useState } from 'react';
 import type { AdminUser, Contract, FiltersState, Head, Transaction } from '../Admin/types';
 import { cashbookApi } from '../../data/cashbookApi';
-import { dateRangeLabel, invalidDateRange, direction, headBranchIds, headPath, isCompanyTransaction, ledgerReport, matchesUserScope, money } from './ledgerModel';
+import { dateRangeLabel, invalidDateRange, direction, headBranchIds, headPath, isCompanyTransaction, ledgerReport, matchesUserScope, matchesContractScope, money } from './ledgerModel';
 import type { LedgerOrder } from './ledgerModel';
 import { ReportActions } from './ReportActions';
 import type { ReportDocument } from './ledgerExport';
@@ -28,7 +28,8 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   filters: FiltersState; revision: number; heads: Head[]; users: AdminUser[]; onDirtyChange: (dirty: boolean) => void;
 }) {
   const fixedScope = contract ? { contractId: contract.id, userScope: contractUserId ? `credit:${contractUserId}` : 'all' } : {};
-  const filters = { ...suppliedFilters, ...(company ? { headId: null } : {}), ...fixedScope };
+  const contractColumn = !!contract || suppliedFilters.userScope.startsWith('credit:');
+  const filters = { ...suppliedFilters, ...((company || contractColumn) ? { headId: null } : {}), ...(!contractColumn ? { contractId: undefined } : {}), ...fixedScope };
   const [data, setData] = useState<LedgerData | null>(null);
   const [order, setOrder] = useState<LedgerOrder>(attachmentReview ? 'by-head' : 'by-time');
   const groupDirections = order === 'credit-first' || order === 'debit-first';
@@ -40,7 +41,10 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   const draftFilters = draft.scope === scope ? draft.filters : filters;
   const pendingFilters = filterKey(draftFilters) !== scope;
   const invalidDraftDates = invalidDateRange(draftFilters);
-  function stageFilters(next: FiltersState) { setDraft({ scope, filters: { ...next, ...fixedScope } }); }
+  function stageFilters(next: FiltersState) {
+    const changedUser = next.userScope !== draftFilters.userScope;
+    setDraft({ scope, filters: { ...next, ...(changedUser ? { contractId: undefined } : {}), ...fixedScope } });
+  }
   function applyFilters() {
     if (!pendingFilters || invalidDraftDates) return;
     onFilterChange(draftFilters);
@@ -98,11 +102,13 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
   const receivedLabel = `Total received by ${filters.userScope === 'all' ? 'users' : userName(filters.userScope)}`;
   const branchLabel = filters.headId == null ? '' : `${headPath(reportHeads, filters.headId)} · Includes subheads`;
   const dateLabel = dateRangeLabel(filters);
-  const subtitle = [branchLabel, dateLabel, company && filters.userScope !== 'all' ? userName(filters.userScope) : '', filters.description ? `Description: ${filters.description}` : ''].filter(Boolean).join(' · ');
-  const columns = ['Date/time', 'User', 'Entered by', 'Head', 'Description', 'Credit', 'Debit', 'Balance'];
+  const contractName = (id?: string | null) => !id || id === '__none__' ? 'No contract' : data?.contracts?.find((item) => item.id === id)?.name ?? contract?.name ?? 'Unavailable contract';
+  const contractOptions = (data?.contracts ?? []).filter((item) => !filters.userScope.startsWith('credit:') || item.creditUserIds.includes(filters.userScope.slice(7)) || transactions.some((entry) => entry.contractId === item.id && matchesUserScope(entry, filters.userScope)));
+  const subtitle = [branchLabel, filters.contractId ? `Contract: ${contractName(filters.contractId)}` : '', dateLabel, company && filters.userScope !== 'all' ? userName(filters.userScope) : '', filters.description ? `Description: ${filters.description}` : ''].filter(Boolean).join(' · ');
+  const columns = ['Date/time', 'User', 'Entered by', contractColumn ? 'Contract' : 'Head', 'Description', 'Credit', 'Debit', 'Balance'];
   const entryCells = (entry: Transaction, balance: number): (string | number)[] => [
     new Date(entry.createdAt).toLocaleString(), entryUserName(entry), userName(entry.createdBy),
-    entry.headPath ?? headPath(data?.heads ?? [], entry.headId), [!contract && entry.contractId ? `Contract: ${data?.contracts?.find((item) => item.id === entry.contractId)?.name ?? entry.contractId}` : '', entry.description ?? ''].filter(Boolean).join(' · '),
+    contractColumn ? contractName(entry.contractId) : entry.headPath ?? headPath(data?.heads ?? [], entry.headId), [!contractColumn && entry.contractId ? `Contract: ${data?.contracts?.find((item) => item.id === entry.contractId)?.name ?? entry.contractId}` : '', entry.description ?? ''].filter(Boolean).join(' · '),
     entryDirection(entry) === 'credit' ? entry.amount : '', entryDirection(entry) === 'debit' ? entry.amount : '', balance,
   ];
   const totalCells = (label: string, balance: number, credit: number | string = '', debit: number | string = ''): (string | number)[] => [label, '', '', '', '', credit, debit, balance];
@@ -155,7 +161,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
       <button className={`btn${pendingFilters ? ' btn--primary filter-apply--pending' : ''}`} disabled={!pendingFilters || invalidDraftDates} onClick={applyFilters}>Apply filters</button>
       <button className="btn" onClick={() => stageFilters({ dateFrom: '', dateTo: '', userScope: 'all', direction: 'both' })}>Clear filters</button>
       <button className="btn" disabled={!data || invalidDates || !report.rows.length} onClick={() => { setPage(pageCount - 1); setScrollLast((value) => value + 1); }}>Scroll to last ↓</button>
-      {pendingFilters && <button className="btn" onClick={() => stageFilters(filters)}>Discard changes</button>}
+      {pendingFilters && <button className="btn" onClick={() => setDraft({ scope, filters })}>Discard changes</button>}
     </div>
     {pendingFilters && <p className={invalidDraftDates ? 'text-error' : 'text-muted'} role="status">{invalidDraftDates ? 'Choose an end date/time on or after the start.' : 'Filter changes ready to apply.'}</p>}
     {error && <p role="alert" className="text-error">{error} <button className="btn" onClick={() => setReload((value) => value + 1)}>Reload</button></p>}
@@ -166,15 +172,15 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
           <dt>{label}</dt><dd>{money(value)}</dd></div>)}
       </dl>
       {attachmentReview ? <>
-        <div className="flex-row flex-wrap gap-md" aria-label="Attachment statement filters">{['Date/time', 'User', 'Head', 'Description'].map((column) =>
-          <LedgerFilters key={column} column={column} filters={draftFilters} heads={reportHeads} users={data.users} includeTime creditUsers={data.creditUsers} onChange={stageFilters} />)}</div>
+        <div className="flex-row flex-wrap gap-md" aria-label="Attachment statement filters">{['Date/time', 'User', contractColumn ? 'Contract' : 'Head', 'Description'].map((column) =>
+          <LedgerFilters key={column} column={column} filters={draftFilters} heads={reportHeads} contracts={contractOptions} users={data.users} includeTime creditUsers={data.creditUsers} onChange={stageFilters} />)}</div>
         <div className="ledger-total">{currentPage ? 'Page brought forward' : 'Balance brought forward'} · {money(currentPage ? report.rows[currentPage * pageSize - 1].balance : report.opening)}</div>
         {attachmentReview.render(report.rows.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map(({ entry, balance }) => ({ entry, cells: entryCells(entry, balance) })), columns, { active: selectionActive, ids: selectedIds, toggle: toggleSelection })}
         <div ref={attachmentEnd} />
         <div className="ledger-total">{currentPage + 1 === pageCount ? 'Closing balance' : 'Page carried forward'} · {money(report.rows[Math.min((currentPage + 1) * pageSize, report.rows.length) - 1]?.balance ?? report.opening)}</div>
       </> : <>
       <div className="ledger-table-scroll"><table className="ledger-table"><thead><tr>{selectionActive && <th scope="col">Select</th>}{columns.map((label) => <th key={label}
-        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{(company ? ['Date/time', ...(contract ? [] : ['User']), 'Description'] : ['Date/time', 'User', 'Head', 'Description']).includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} users={data.users} includeTime creditUsers={company || attachmentReview ? data.creditUsers : []} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
+        title={label === 'Balance' ? 'Opening balance plus credits minus debits in the displayed order.' : undefined}>{(company ? ['Date/time', ...(contract ? [] : ['User']), ...(!contract && contractColumn ? ['Contract'] : []), 'Description'] : ['Date/time', 'User', contractColumn ? 'Contract' : 'Head', 'Description']).includes(label) ? <LedgerFilters column={label} filters={draftFilters} heads={reportHeads} contracts={contractOptions} users={data.users} includeTime creditUsers={company || attachmentReview ? data.creditUsers : []} onChange={stageFilters} /> : label}</th>)}</tr></thead><tbody>
         {pageRows(currentPage).map(({ cells, entry: rowEntry }, index) => {
           return <tr ref={rowEntry && rowEntry.id === report.rows.at(-1)?.entry.id ? lastEntry : undefined} key={rowEntry ? `transaction:${rowEntry.id}` : `total:${index}`} className={rowEntry ? `ledger-entry${selectedIds.has(rowEntry.id) ? ' entry-selected' : ''}` : 'ledger-total'} onClick={(event) => { if (rowEntry) { if (selectionActive) toggleSelection(rowEntry.id, event.shiftKey); else openEntry(rowEntry); } }}>
             {selectionActive && <td>{rowEntry && <input type="checkbox" aria-label={`Select entry ${rowEntry.id}`} checked={selectedIds.has(rowEntry.id)} onClick={(event) => { event.stopPropagation(); toggleSelection(rowEntry.id, event.shiftKey); }} onChange={() => {}} />}</td>}
@@ -190,7 +196,7 @@ export function Ledger({ filters: suppliedFilters, revision, heads, users, onDir
         <button className="btn" disabled={currentPage + 1 === pageCount} onClick={() => setPage(currentPage + 1)}>Next</button>
       </div>
       {!attachmentReview && <details className="disclosure" open={showInactive} onToggle={(event) => setShowInactive(event.currentTarget.open)}><summary>Deactivated entries</summary>
-        {transactions.filter((entry) => !entry.active && (!filters.contractId || entry.contractId === filters.contractId) && matchesUserScope(entry, filters.userScope) && (!branch || (entry.headId !== null && branch.has(entry.headId)))).map((entry) =>
+        {transactions.filter((entry) => !entry.active && matchesContractScope(entry, filters.contractId) && matchesUserScope(entry, filters.userScope) && (!branch || (entry.headId !== null && branch.has(entry.headId)))).map((entry) =>
           <button className="btn" key={entry.id} onClick={() => setSelected(entry)}>{new Date(entry.createdAt).toLocaleString()} · {entryUserName(entry)} · {money(entry.amount)}</button>)}
       </details>}
     </>}
